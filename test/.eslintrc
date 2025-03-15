@@ -1,0 +1,8 @@
+{
+  "plugins": [
+    "html"
+  ],
+  "rules": {
+    "no-restricted-properties": "off"
+  }
+}
