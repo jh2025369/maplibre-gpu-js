@@ -10,9 +10,9 @@ import http from 'http';
 import puppeteer, {Page, Browser} from 'puppeteer';
 import {CoverageReport} from 'monocart-coverage-reports';
 import {localizeURLs} from '../lib/localize-urls';
-import type {Map, CanvasSource, PointLike, StyleSpecification} from '../../../dist/maplibre-gl';
+import type {Map, CanvasSource, PointLike, StyleSpecification} from '../../../dist/maplibre-gpu';
 import jnuitReportBuilder, {type TestSuite} from 'junit-report-builder';
-import * as maplibreglModule from '../../../dist/maplibre-gl';
+import * as maplibreglModule from '../../../dist/maplibre-gpu';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 let maplibregpu: typeof maplibreglModule;

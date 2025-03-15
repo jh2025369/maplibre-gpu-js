@@ -14,8 +14,10 @@
     "resolveJsonModule": true,
     "skipLibCheck": false,
     "strict": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": false,
     "experimentalDecorators": true,
-    "target": "ES2016",
+    "target": "ES2017",
     "lib": [
       "ESNext",
       "DOM",

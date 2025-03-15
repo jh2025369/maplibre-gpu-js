@@ -2,8 +2,8 @@ import Benchmark from '../lib/benchmark';
 import createMap from '../lib/create_map';
 import {CustomLayerInterface} from '../../../src/style/style_layer/custom_style_layer';
 import {Map} from '../../../src/ui/map';
-import {WebGPUEngine} from '../../../src/babylon/Engines/webgpuEngine';
-import * as WebGPUConstants from '../../../src/babylon/Engines/WebGPU/webgpuConstants';
+import {WebGPUEngine} from 'core/Engines/webgpuEngine';
+import * as WebGPUConstants from 'core/Engines/WebGPU/webgpuConstants';
 
 class Tent3D implements CustomLayerInterface {
     id: string;
