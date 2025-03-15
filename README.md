@@ -24,7 +24,7 @@ npm run start-server
 ```
 **访问示例页面**
 ```
-http://localhost:9967/test/examples/geojson-polygon.html
+http://localhost:9967/test/examples/add-3d-model-babylon.html
 ```
 
 ## 关于
