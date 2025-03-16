@@ -26,6 +26,7 @@ npm run start-server
 ```
 http://localhost:9967/test/examples/add-3d-model-babylon.html
 ```
+![alt text](test/examples/images/add-3d-model-babylon.png)
 
 ## 关于
-本项目基于 [MapLibre-gl-js](https://github.com/maplibre/maplibre-gl-js) 和 [Babylon.js](https://www.babylonjs.com/)，遵循 [MapLibre 许可](LICENSE.txt) 和 [Apache-2.0 许可](LICENSE.txt)。
+本项目基于 [MapLibre-gl-js](https://github.com/maplibre/maplibre-gl-js) 和 [Babylon.js](https://www.babylonjs.com/)，遵循 [MapLibre 许可](LICENSE.txt) 和 [Apache-2.0 许可](license.md)。
