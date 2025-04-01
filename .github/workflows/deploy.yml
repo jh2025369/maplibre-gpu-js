@@ -8,6 +8,8 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -29,9 +31,15 @@ jobs:
       - name: Build project
         run: npm run build-dev
 
+      - name: Prepare deployment
+        run: |
+          mkdir -p .deploy
+          cp -r test .deploy/
+          cp -r dist .deploy/
+          touch .deploy/.nojekyll
+
       - name: Deploy to GitHub Pages
-        if: success()
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
+          publish_dir: ./.deploy
