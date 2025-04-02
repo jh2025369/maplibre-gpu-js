@@ -29,7 +29,7 @@ jobs:
         run: npm install
 
       - name: Build project
-        run: npm run build-dev
+        run: npm run build-dist
 
       - name: Prepare deployment
         run: |
@@ -37,6 +37,10 @@ jobs:
           cp -r test .deploy/
           cp -r dist .deploy/
           touch .deploy/.nojekyll
+
+      - name: Replace API Key in HTML
+        run: |
+          find .deploy -name "*.html" -exec sed -i "s|key=get_your_own_OpIi9ZULNHzrESv6T2vL|key=${{ secrets.MAPTILER_API_KEY }}|g" {} +
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
