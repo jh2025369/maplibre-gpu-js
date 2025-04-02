@@ -40,10 +40,11 @@ jobs:
 
       - name: Replace API Key in HTML
         run: |
-          find .deploy -name "*.html" -exec sed -i "s|key=get_your_own_OpIi9ZULNHzrESv6T2vL|key=${{ secrets.MAPTILER_API_KEY }}|g" {} +
+          find .deploy/test/examples/ -name "*.html" -exec sed -i "s|get_your_own_OpIi9ZULNHzrESv6T2vL|${{ secrets.MAPTILER_API_KEY }}|g" {} +
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./.deploy
+          force_orphan: true
