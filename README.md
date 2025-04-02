@@ -5,9 +5,16 @@
 
 ## 功能特性
 - **WebGPU 渲染**：使用 WebGPU 替代 WebGL。
-- **兼容 MapLibre API**：保持与 MapLibre-gl-js 相同的 API 接口。
-- **基于 Babylon.js**：利用 Babylon.js 的 WebGPU 支持，简化 WebGPU 渲染管线的实现。
+- **MapLibre API 兼容**：保持与 MapLibre-gl-js 相同的 API 接口。
+- **Babylon.js 集成**：利用 Babylon.js 的 WebGPU 支持，简化 WebGPU 渲染管线的实现。
 
+## 在线示例
+
+### 基础示例
+- [3D 模型加载示例](
+https://jh2025369.github.io/maplibre-gpu-js/test/examples/add-3d-model-babylon.html)
+- [GeoJSON 示例](
+https://jh2025369.github.io/maplibre-gpu-js/test/examples/geojson-line.html)
 
 ## 快速开始
 **安装依赖**
