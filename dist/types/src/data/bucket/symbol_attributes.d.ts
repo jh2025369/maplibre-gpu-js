@@ -1,0 +1,13 @@
+export declare const symbolLayoutAttributes: import("../../util/struct_array").StructArrayLayout;
+export declare const dynamicLayoutAttributes: import("../../util/struct_array").StructArrayLayout;
+export declare const placementOpacityAttributes: import("../../util/struct_array").StructArrayLayout;
+export declare const collisionVertexAttributes: import("../../util/struct_array").StructArrayLayout;
+export declare const collisionBox: import("../../util/struct_array").StructArrayLayout;
+export declare const collisionBoxLayout: import("../../util/struct_array").StructArrayLayout;
+export declare const collisionCircleLayout: import("../../util/struct_array").StructArrayLayout;
+export declare const quadTriangle: import("../../util/struct_array").StructArrayLayout;
+export declare const placement: import("../../util/struct_array").StructArrayLayout;
+export declare const symbolInstance: import("../../util/struct_array").StructArrayLayout;
+export declare const glyphOffset: import("../../util/struct_array").StructArrayLayout;
+export declare const lineVertex: import("../../util/struct_array").StructArrayLayout;
+export declare const textAnchorOffset: import("../../util/struct_array").StructArrayLayout;
