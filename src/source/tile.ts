@@ -34,6 +34,7 @@ import type {VectorTileLayer} from '@mapbox/vector-tile';
 import {ExpiryData} from '../util/ajax';
 import {WebGPUEngine} from 'core/Engines/webgpuEngine';
 import {Constants} from 'core/Engines/constants';
+import {RenderTargetWrapper} from 'core/Engines/renderTargetWrapper';
 
 /**
  * The tile's state, can be:
@@ -83,7 +84,8 @@ export class Tile {
     needsTerrainPrepare: boolean;
     abortController: AbortController;
     texture: any;
-    // fbo: Framebuffer;
+    fbo: RenderTargetWrapper;
+    renderPassDescriptor: GPURenderPassDescriptor;
     demTexture: Texture;
     refreshedUponExpiration: boolean;
     reloadPromise: {resolve: () => void; reject: () => void};

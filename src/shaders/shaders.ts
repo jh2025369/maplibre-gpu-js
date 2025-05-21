@@ -30,9 +30,15 @@ import terrainDepthFrag from './terrain_depth.fragment.wgsl';
 import terrainCoordsFrag from './terrain_coords.fragment.wgsl';
 import rasterVert from './raster.vertex.wgsl';
 import rasterFrag from './raster.fragment.wgsl';
+import hillshadeVert from './hillshade.vertex.wgsl';
+import hillshadeFrag from './hillshade.fragment.wgsl';
+import hillshadePrepareVert from './hillshade_prepare.vertex.wgsl';
+import hillshadePrepareFrag from './hillshade_prepare.fragment.wgsl';
 import {ShaderStore} from 'core/Engines';
 
 export const shaders = {};
+
+ShaderStore.IncludesShadersStoreWGSL['preludeVertex'] = preludeVert;
 
 export const shaderTemplates = {
     line: [lineVert, lineFrag],
@@ -50,7 +56,9 @@ export const shaderTemplates = {
     terrain: [terrainVert, terrainFrag],
     terrainDepth: [terrainVert, terrainDepthFrag],
     terrainCoords: [terrainVert, terrainCoordsFrag],
-    raster: [rasterVert, rasterFrag]
+    raster: [rasterVert, rasterFrag],
+    hillshade: [hillshadeVert, hillshadeFrag],
+    hillshadePrepare: [hillshadePrepareVert, hillshadePrepareFrag],
 };
 
 export function generateShader(key: string, shaderName: string, cvtParams: WgslConvertParams) {
@@ -61,8 +69,6 @@ export function generateShader(key: string, shaderName: string, cvtParams: WgslC
 
     ShaderStore.ShadersStoreWGSL[`${key}VertexShader`] = vertexSource;
     ShaderStore.ShadersStoreWGSL[`${key}FragmentShader`] = fragmentSource;
-
-    ShaderStore.IncludesShadersStoreWGSL['preludeVertex'] = preludeVert;
 
     return {vertexSource, fragmentSource, paramKeys, vertexInputKeys};
 }

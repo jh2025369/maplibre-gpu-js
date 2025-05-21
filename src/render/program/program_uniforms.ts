@@ -9,6 +9,7 @@ import {fillUniforms,
 import {fillExtrusionUniforms, fillExtrusionPatternUniforms} from './fill_extrusion_program';
 import {terrainUniforms} from './terrain_program';
 import {rasterUniforms} from './raster_program';
+import {hillshadeUniforms, hillshadePrepareUniforms} from './hillshade_program';
 
 export const programUniforms = {
     line: lineUniforms,
@@ -27,4 +28,6 @@ export const programUniforms = {
     terrainDepth: terrainUniforms,
     terrainCoords: terrainUniforms,
     raster: rasterUniforms,
+    hillshade: hillshadeUniforms,
+    hillshadePrepare: hillshadePrepareUniforms,
 };

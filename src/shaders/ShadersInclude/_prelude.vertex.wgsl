@@ -64,7 +64,7 @@ fn unpack(color: vec4<f32>) -> f32 {
 
 fn depthOpacity(frag: vec3<f32>) -> f32 {
     #ifdef TERRAIN3D
-        let texel = textureLoad(u_depth, frag.xy * 0.5 + 0.5, 0);
+        let texel = textureLoad(u_depth, vec2<i32>(frag.xy * 0.5 + 0.5), 0);
         let d = unpack(texel) + 0.0001 - frag.z;
         return 1.0 - max(0.0, min(1.0, -d * 500.0));
     #else
@@ -86,10 +86,10 @@ fn calculate_visibility(pos: vec4<f32>) -> f32 {
     #endif
 }
 
-fn ele(pos: vec2<f32>) -> f32 {
+fn ele(pos: vec2<i32>) -> f32 {
     #ifdef TERRAIN3D
-        let texel = textureLoad(u_terrain, vec2<i32>(pos), 0);
-        let rgb = (texel * 255.0) * terrain.u_terrain_unpack;
+        var texel: vec4f = textureLoad(u_terrain, pos, 0);
+        var rgb: vec4f = (texel * 255.0) * terrain.u_terrain_unpack;
         return rgb.r + rgb.g + rgb.b - terrain.u_terrain_unpack.a;
     #else
         return 0.0;
@@ -98,17 +98,33 @@ fn ele(pos: vec2<f32>) -> f32 {
 
 fn get_elevation(pos: vec2<f32>) -> f32 {
     #ifdef TERRAIN3D
-        let coord = (terrain.u_terrain_matrix * vec4<f32>(pos, 0.0, 1.0)).xy * terrain.u_terrain_dim + 1.0;
-        let f = fract(coord);
-        let c = (floor(coord) + 0.5) / (terrain.u_terrain_dim + 2.0);
-        let d = 1.0 / (terrain.u_terrain_dim + 2.0);
-        let tl = ele(c);
-        let tr = ele(c + vec2<f32>(d, 0.0));
-        let bl = ele(c + vec2<f32>(0.0, d));
-        let br = ele(c + vec2<f32>(d, d));
-        let elevation = mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);
+        var coord: vec2f = (terrain.u_terrain_matrix * vec4<f32>(pos, 0.0, 1.0)).xy * terrain.u_terrain_dim;
+        var f: vec2f = fract(coord);
+        var c: vec2i = vec2<i32>(floor(coord));
+        var tl: f32 = ele(c);
+        var tr: f32 = ele(c + vec2<i32>(1, 0));
+        var bl: f32 = ele(c + vec2<i32>(0, 1));
+        var br: f32 = ele(c + vec2<i32>(1, 1));
+        var elevation: f32 = mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);
         return elevation * terrain.u_terrain_exaggeration;
     #else
         return 0.0;
     #endif
 }
+
+// fn get_elevation1(pos: vec2<f32>) -> f32 {
+//     #ifdef TERRAIN3D
+//         var coord: vec2f = (terrain.u_terrain_matrix * vec4<f32>(pos, 0.0, 1.0)).xy * terrain.u_terrain_dim + 1.0;
+//         var f: vec2f = fract(coord);
+//         var c: vec2f = (floor(coord) + 0.5) / (terrain.u_terrain_dim + 2.0);
+//         var d: f32 = 1.0 / (terrain.u_terrain_dim + 2.0);
+//         var tl: f32 = ele(c);
+//         var tr: f32 = ele(c + vec2<f32>(d, 0.0));
+//         var bl: f32 = ele(c + vec2<f32>(0.0, d));
+//         var br: f32 = ele(c + vec2<f32>(d, d));
+//         var elevation: f32 = mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);
+//         return elevation * terrain.u_terrain_exaggeration;
+//     #else
+//         return 0.0;
+//     #endif
+// }

@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Add a 3D model with babylon.js</title>
-    <meta property="og:description" content="Use a custom style layer with babylon.js to add a 3D model to the map." />
+    <title>Add line with babylon.js</title>
+    <meta property="og:description" content="Use a custom style layer with babylon.js to add line to the map." />
     <meta charset='utf-8'>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel='stylesheet' href='../../dist/maplibre-gpu.css' />
@@ -28,7 +28,7 @@
         antialias: true // create the gl context with MSAA antialiasing, so custom layers are antialiased
     }));
 
-    const worldOrigin = [148.9819, -35.39847];
+    const worldOrigin = [148.9819, -35.3981];
     const worldAltitude = 0;
     
     const worldRotate = [Math.PI / 2, 0, 0];
@@ -52,25 +52,6 @@
             worldOriginMercator.z
         )
     );
-
-    function generateRandomPath(numPoints, maxDistance) {
-        const path = [];
-        let currentPoint = new BABYLON.Vector3(0, 0, 0);
-        path.push(currentPoint.clone());
-
-        for (let i = 1; i < numPoints; i++) {
-            const randomDirection = new BABYLON.Vector3(
-                Math.random() * 2 - 1,
-                Math.random() * 2 - 1,
-                Math.random() * 2 - 1
-            ).normalize();
-            const randomDistance = Math.random() * maxDistance;
-            currentPoint = currentPoint.add(randomDirection.scale(randomDistance));
-            path.push(currentPoint.clone());
-        }
-
-        return path;
-    }
 
     const customLayer = {
         id: '3d-model',
@@ -129,14 +110,19 @@
                 const points = [];
                 for (let j = 0; j < pointsPerLine; j++) {
                     points.push(new BABYLON.Vector3(
-                        Math.random() * 100 - 50,
-                        Math.random() * 100 - 50,
-                        Math.random() * 100 - 50
+                        Math.random() * 100,
+                        Math.random() * 100,
+                        Math.random() * 100
                     ));
                 }
-                // const line = BABYLON.MeshBuilder.CreateLines(`line${i}`, {points}, this.scene);
+                const line = BABYLON.MeshBuilder.CreateLines(`line${i}`, {points}, this.scene);
+                const coloredMaterial = new BABYLON.StandardMaterial('coloredMat', this.scene);
+                coloredMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0);
+                coloredMaterial.alpha = 0.5;
+                coloredMaterial.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+                line.material = coloredMaterial;
                 // line.color = new BABYLON.Color3(Math.random(), Math.random(), Math.random());
-                // lines.push(line);
+                lines.push(line);
 
                 const id = i + 1;
                 const pickLine = BABYLON.MeshBuilder.CreateLines(`line${i}`, {points}, this.scene2);
@@ -155,16 +141,7 @@
             );
             this.renderTarget.renderList = pickLines;
             this.renderTarget.activeCamera = this.camera;
-            this.renderTarget.clearColor = new BABYLON.Color4(1, 0, 0, 1);
-            // this.renderTarget.skipInitialClear = true;
-            // this.scene.customRenderTargets.push(this.renderTarget);
-
-            // const plane = BABYLON.MeshBuilder.CreatePlane('plane', {size: 150}, this.scene);
-            // plane.rotation.x = Math.PI / 2;
-            // // plane.position.y = 100;
-            // const planeMaterial = new BABYLON.StandardMaterial('planeMaterial', this.scene);
-            // planeMaterial.diffuseTexture = this.renderTarget;
-            // plane.material = planeMaterial;
+            this.renderTarget.clearColor = new BABYLON.Color4(0, 0, 0, 1);
 
             engine._renderingCanvas.addEventListener('pointermove', async(evt) => {
                 const x = evt.clientX;
@@ -180,86 +157,16 @@
 
             this.map = map;
 
-            const material = new BABYLON.StandardMaterial('tubeMaterial', this.scene);
-            material.diffuseColor = new BABYLON.Color3(1, 0, 0);
-            material.emissiveColor = new BABYLON.Color3(1, 0, 0);
-
-            function generateRandomPath(numPoints, maxDistance) {
-                const path = [];
-                let currentPoint = new BABYLON.Vector3(0, 10, 0);
-                path.push(currentPoint.clone());
-
-                for (let i = 1; i < numPoints; i++) {
-                    const randomDirection = new BABYLON.Vector3(
-                        Math.random() * 2 - 1,
-                        Math.random() * 2 - 1,
-                        Math.random() * 2 - 1
-                    ).normalize();
-                    const randomDistance = Math.random() * maxDistance;
-                    currentPoint = currentPoint.add(randomDirection.scale(randomDistance));
-                    path.push(currentPoint.clone());
-                }
-
-                return path;
-            }
-
-            for (let i = 0; i < numLines; i++) {
-                const path = generateRandomPath(10, 10);
-                // const tube = BABYLON.MeshBuilder.CreateTube(`tube${i}`, {
-                //     path,
-                //     updatable: true,
-                //     radius: 0.2,
-                //     tessellation: 64,
-                //     cap: 3,
-                //     sideOrientation: BABYLON.Mesh.DOUBLESIDE
-                // }, this.scene);
-                // tube.material = material;
-                // lines.push(tube);
-                // const line = BABYLON.CreateGreasedLine(
-                //     `tube${i}`,
-                //     {
-                //         points: path,
-                //     },
-                //     {
-                //         colors: [BABYLON.Color3.Red(), BABYLON.Color3.Yellow()],
-                //         useColors: true,
-                //         width: 0.5,
-                //         colorDistribution: BABYLON.GreasedLineMeshColorDistribution.COLOR_DISTRIBUTION_EVEN
-                //     },
-                //     this.scene
-                // );
-            }
-
-            const points = [
-                new BABYLON.Vector3(-10, 10, 0),
-                new BABYLON.Vector3(10, 10, 0),
-                new BABYLON.Vector3(10, 10, 10),
-            ];
-            const colors = [BABYLON.Color3.Red(), BABYLON.Color3.Yellow()];
-            const line = BABYLON.CreateGreasedLine('line', {points}, {
-                useColors: true,
-                colors,
-                width: 2,
-                colorDistribution: BABYLON.GreasedLineMeshColorDistribution.COLOR_DISTRIBUTION_EVEN
-            }, this.scene);
-
-            // 合并线条网格
-            // const mergedMesh = BABYLON.Mesh.MergeMeshes(lines, true, true, undefined, false, true);
-
-            // const makeCurve = (range, nbSteps) => {
-            //     const path = [];
-            //     const stepSize = range / nbSteps;
-            //     for (let i = 0; i < range; i += stepSize) {
-            //         path.push(new BABYLON.Vector3(5 * Math.sin(i * nbSteps / 400), i, 5 * Math.cos(i * nbSteps / 400)));
-            //     }
-            //     return path;
-            // };
-
-            // const curve = makeCurve(40, 100);
-
-            // const tube = BABYLON.MeshBuilder.CreateTube('tube', {path: curve, radius: 1, sideOrientation: BABYLON.Mesh.DOUBLESIDE}, this.scene);
-
-            // tube.material = material;
+            // const points = [];
+            // points.push(new BABYLON.Vector3(0, -100, 0));
+            // points.push(new BABYLON.Vector3(0, 100, 0));
+            // points.push(new BABYLON.Vector3(100, 100, 0));
+            // const line = BABYLON.MeshBuilder.CreateLines('line', {points}, this.scene);
+            // const coloredMaterial = new BABYLON.StandardMaterial('coloredMat', this.scene);
+            // coloredMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0);
+            // coloredMaterial.alpha = 0.5;
+            // coloredMaterial.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+            // line.material = coloredMaterial;
         },
         render (painter, matrix) {
             this.viewMatrix.fromArray(painter.transform._viewMatrix);
@@ -267,18 +174,11 @@
             this.viewMatrix = worldMatrix.multiply(this.viewMatrix);
             this.camera.freezeProjectionMatrix(projectionMatrix);
 
-            // const cameraMatrix = BABYLON.Matrix.FromArray(matrix);
-            // const wvpMatrix = worldMatrix.multiply(cameraMatrix);
-            // this.camera.freezeProjectionMatrix(wvpMatrix);
-
             this.scene.render(false);
         },
         prerender (engine, matrix) {
             // const cameraMatrix = BABYLON.Matrix.FromArray(matrix);
-
             // const wvpMatrix = worldMatrix.multiply(cameraMatrix);
-
-            // this.camera.freezeProjectionMatrix(wvpMatrix);
             // this.camera2.freezeProjectionMatrix(wvpMatrix);
 
             // this.renderTarget.render(false, false);

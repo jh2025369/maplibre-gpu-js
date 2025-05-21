@@ -63,5 +63,5 @@ fn main(input: FragmentInput) -> @location(0) vec4f {
     fragColor = vec4f(1.0);
 #endif
 
-    return vec4f(255, 0, 0, 1.0);
+    return fragColor;
 }

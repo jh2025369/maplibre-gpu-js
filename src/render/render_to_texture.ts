@@ -8,6 +8,7 @@ import {Terrain} from './terrain';
 import {RenderPool} from './render_pool';
 import {Texture} from 'core/Materials/Textures/texture';
 import type {StyleLayer} from '../style/style_layer';
+import {InternalTexture} from 'core/index';
 
 /**
  * lookup table which layers should rendered to texture
@@ -72,7 +73,7 @@ export class RenderToTexture {
         this.pool.destruct();
     }
 
-    getTexture(tile: Tile): Texture {
+    getTexture(tile: Tile): InternalTexture {
         return this.pool.getObjectForId(tile.rtt[this._stacks.length - 1].id).texture;
     }
 
@@ -174,12 +175,16 @@ export class RenderToTexture {
                 tile.rtt[stack] = {id: obj.id, stamp: obj.stamp};
                 // prepare PoolObject for rendering
                 engine.bindFramebuffer(obj.fbo, undefined, undefined, undefined, false, 0, 0);
-                engine._startRenderTargetRenderPass(engine._currentRenderTarget, true, Color.transparent, false, true);
+                if (!obj.renderPassDescriptor) {
+                    engine._startRenderTargetRenderPass(engine._currentRenderTarget, true, Color.transparent, false, true);
+                    obj.renderPassDescriptor = engine._getCurrentRenderPassWrapper().renderPassDescriptor;
+                } else {
+                    engine._currentRenderPass = engine._renderEncoder.beginRenderPass(obj.renderPassDescriptor);
+                }
                 painter.currentStencilSource = undefined;
                 for (let l = 0; l < layers.length; l++) {
                     const layer = painter.style._layers[layers[l]];
                     const coords = layer.source ? this._coordsDescendingInv[layer.source][tile.tileID.key] : [tile.tileID];
-                    engine._viewport(0, 0, obj.fbo.width, obj.fbo.height);
                     painter._renderTileClippingMasks(layer, coords);
                     painter.renderLayer(painter, painter.style.sourceCaches[layer.source], layer, coords);
                     if (layer.source) tile.rttCoords[layer.source] = this._coordsDescendingInvStr[layer.source][tile.tileID.key];

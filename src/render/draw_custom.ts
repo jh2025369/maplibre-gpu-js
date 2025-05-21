@@ -26,6 +26,7 @@ export function drawCustom(painter: Painter, sourceCache: SourceCache, layer: Cu
 
         if (implementation.renderingMode === '3d') {
             engine._cacheRenderPipeline.setDepthCompare(Constants.LEQUAL);
+            engine._viewportDepthRange(...painter.depthRangeFor3D);
         } else {
             painter.depthModeForSublayer(0, false);
         }

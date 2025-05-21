@@ -332,7 +332,7 @@ export class Texture extends BaseTexture {
     private _cachedReflectionCoordinatesMode = -1;
 
     /** @internal */
-    public _buffer: Nullable<string | ArrayBuffer | ArrayBufferView | HTMLImageElement | Blob | ImageBitmap> = null;
+    public _buffer: Nullable<string | ArrayBuffer | ArrayBufferView | HTMLImageElement | Blob | ImageBitmap | ArrayBufferLike> = null;
     private _deleteBuffer: boolean = false;
     protected _format: Nullable<number> = null;
     private _delayedOnLoad: Nullable<() => void> = null;
@@ -401,7 +401,7 @@ export class Texture extends BaseTexture {
         samplingMode: number = Texture.TRILINEAR_SAMPLINGMODE,
         onLoad: Nullable<() => void> = null,
         onError: Nullable<(message?: string, exception?: any) => void> = null,
-        buffer: Nullable<string | ArrayBuffer | ArrayBufferView | HTMLImageElement | Blob | ImageBitmap> = null,
+        buffer: Nullable<string | ArrayBuffer | ArrayBufferView | HTMLImageElement | Blob | ImageBitmap | ArrayBufferLike> = null,
         deleteBuffer: boolean = false,
         format?: number,
         mimeType?: string,

@@ -240,7 +240,7 @@ export class InternalTexture extends TextureSampler {
     /** @internal */
     public _source = InternalTextureSource.Unknown;
     /** @internal */
-    public _buffer: Nullable<string | ArrayBuffer | ArrayBufferView | HTMLImageElement | Blob | ImageBitmap> = null;
+    public _buffer: Nullable<string | ArrayBuffer | ArrayBufferView | HTMLImageElement | Blob | ImageBitmap | ArrayBufferLike> = null;
     /** @internal */
     public _bufferView: Nullable<ArrayBufferView> = null;
     /** @internal */

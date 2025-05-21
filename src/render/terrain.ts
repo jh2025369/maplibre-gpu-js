@@ -103,7 +103,8 @@ export class Terrain {
     /**
      * holds the framebuffer object in size of the screen to render the coords & depth into a texture.
      */
-    _fbo: RenderTargetWrapper;
+    _fboCoords: RenderTargetWrapper;
+    _fboDepth: RenderTargetWrapper;
     _fboCoordsTexture: Texture;
     _fboDepthTexture: Texture;
     _emptyDepthTexture: Texture;
@@ -294,45 +295,11 @@ export class Terrain {
      * @returns the frame buffer
      */
     getFramebuffer(texture: string): RenderTargetWrapper {
-        const painter = this.painter;
-        const engine = painter.engine;
-        const width = painter.width / devicePixelRatio;
-        const height = painter.height / devicePixelRatio;
-        if (this._fbo && (this._fbo.width !== width || this._fbo.height !== height)) {
-            this._fbo.dispose();
-            this._fboCoordsTexture.releaseInternalTexture();
-            this._fboDepthTexture.releaseInternalTexture();
-            delete this._fbo;
-            delete this._fboDepthTexture;
-            delete this._fboCoordsTexture;
-        }
-        if (!this._fboCoordsTexture) {
-            this._fboCoordsTexture = engine.createTextureNoUrl(
-                {width, height},
-                true,
-                false,
-                false,
-                Texture.NEAREST_SAMPLINGMODE,
-                new RGBAImage({width, height}).data.buffer,
-                Constants.TEXTUREFORMAT_RGBA
-            );
-            this._fboCoordsTexture.wrapU = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-            this._fboCoordsTexture.wrapV = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-        }
-        if (!this._fboDepthTexture) {
-            this._fboDepthTexture = engine.createTextureNoUrl(
-                {width, height},
-                true,
-                false,
-                false,
-                Texture.NEAREST_SAMPLINGMODE,
-                new RGBAImage({width, height}).data.buffer,
-                Constants.TEXTUREFORMAT_RGBA
-            );
-            this._fboDepthTexture.wrapU = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-            this._fboDepthTexture.wrapV = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-        }
-        if (!this._fbo) {
+        const {engine, width, height} = this.painter;
+        if (texture === 'coords') {
+            if (this._fboCoords && (this._fboCoords.width !== width || this._fboCoords.height !== height)) {
+                this._fboCoords.dispose();
+            }
             const renderTargetOptions = {
                 generateMipMaps: false,
                 type: Constants.TEXTURETYPE_UNSIGNED_BYTE,
@@ -345,16 +312,45 @@ export class Terrain {
                 noColorAttachment: false,
                 useSRGBBuffer: false,
                 colorAttachment: undefined,
-                label: 'renderTarget',
+                label: 'renderTarget_coords',
             };
-            this._fbo = engine.createRenderTargetTexture({width, height}, renderTargetOptions);
+            this._fboCoords = engine.createRenderTargetTexture({width, height}, renderTargetOptions);
+
+            // this._fboCoordsTexture = new Texture(null, engine, {
+            //     noMipmap: true,
+            //     invertY: false,
+            //     samplingMode: Texture.NEAREST_SAMPLINGMODE,
+            //     internalTexture: this._fboCoords.texture
+            // });
+            return this._fboCoords;
+        } else if (texture === 'depth') {
+            if (this._fboDepth && (this._fboDepth.width !== width || this._fboDepth.height !== height)) {
+                this._fboDepth.dispose();
+            }
+            const renderTargetOptions = {
+                generateMipMaps: false,
+                type: Constants.TEXTURETYPE_UNSIGNED_BYTE,
+                format: Constants.TEXTUREFORMAT_RGBA,
+                samplingMode: Texture.TRILINEAR_SAMPLINGMODE,
+                generateDepthBuffer: true,
+                generateStencilBuffer: false,
+                samples: undefined,
+                creationFlags: undefined,
+                noColorAttachment: false,
+                useSRGBBuffer: false,
+                colorAttachment: undefined,
+                label: 'renderTarget_depth',
+            };
+            this._fboDepth = engine.createRenderTargetTexture({width, height}, renderTargetOptions);
+
+            // this._fboDepthTexture = new Texture(null, engine, {
+            //     noMipmap: true,
+            //     invertY: false,
+            //     samplingMode: Texture.NEAREST_SAMPLINGMODE,
+            //     internalTexture: this._fboDepth.texture
+            // });
+            return this._fboDepth;
         }
-        if (texture === 'coords') {
-            this._fbo.setTextures(this._fboCoordsTexture._texture);
-        } else {
-            this._fbo.setTextures(this._fboDepthTexture._texture);
-        }
-        return this._fbo;
     }
 
     /**

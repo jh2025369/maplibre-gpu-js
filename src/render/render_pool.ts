@@ -1,13 +1,14 @@
 import {Texture} from 'core/Materials/Textures/texture';
 import {Constants, RenderTargetWrapper, WebGPUEngine} from 'core/Engines';
-import {RGBAImage} from 'util/image';
+import {InternalTexture, InternalTextureSource} from 'core/Materials/Textures/internalTexture';
 
 export type PoolObject = {
     id: number;
     fbo: RenderTargetWrapper;
-    texture: Texture;
+    texture: InternalTexture;
     stamp: number;
     inUse: boolean;
+    renderPassDescriptor?: GPURenderPassDescriptor;
 };
 /**
  * @internal
@@ -33,12 +34,28 @@ export class RenderPool {
 
     public destruct() {
         for (const obj of this._objects) {
-            obj.texture.releaseInternalTexture();
+            obj.texture.dispose();
             obj.fbo.dispose();
         }
     }
 
     private _createObject(id: number): PoolObject {
+        const size = {width: this._tileSize, height: this._tileSize};
+        const texture = this._engine._createInternalTexture(
+            size,
+            {
+                generateMipMaps: false,
+                samplingMode: Texture.TRILINEAR_SAMPLINGMODE,
+                creationFlags: 0,
+                samples: undefined,
+                label: 'renderTarget',
+                format: Constants.TEXTUREFORMAT_RGBA,
+                type: Constants.TEXTURETYPE_UNSIGNED_BYTE
+            },
+            true,
+            InternalTextureSource.RenderTarget
+        );
+        this._engine._textureHelper.createGPUTextureForInternalTexture(texture, undefined, undefined, undefined, 0);
         const renderTargetOptions = {
             generateMipMaps: false,
             type: Constants.TEXTURETYPE_UNSIGNED_BYTE,
@@ -47,26 +64,13 @@ export class RenderPool {
             generateDepthBuffer: true,
             generateStencilBuffer: true,
             samples: undefined,
-            creationFlags: undefined,
+            creationFlags: 0,
             noColorAttachment: false,
             useSRGBBuffer: false,
-            colorAttachment: undefined,
+            colorAttachment: texture,
             label: 'renderTarget',
         };
-        const size = {width: this._tileSize, height: this._tileSize};
         const fbo = this._engine.createRenderTargetTexture(size, renderTargetOptions);
-        const texture = this._engine.createTextureNoUrl(
-            size,
-            true,
-            false,
-            false,
-            Texture.BILINEAR_SAMPLINGMODE,
-            new RGBAImage(size).data.buffer,
-            Constants.TEXTUREFORMAT_RGBA
-        );
-        texture.wrapU = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-        texture.wrapV = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-        fbo.setTextures(texture._texture);
         return {id, fbo, texture, stamp: -1, inUse: false};
     }
 
@@ -87,8 +91,9 @@ export class RenderPool {
     public getOrCreateFreeObject(): PoolObject {
         // check for free existing object
         for (const id of this._recentlyUsed) {
-            if (!this._objects[id].inUse)
+            if (!this._objects[id].inUse) {
                 return this._objects[id];
+            }
         }
         if (this._objects.length >= this._size)
             throw new Error('No free RenderPool available, call freeAllObjects() required!');
@@ -103,8 +108,9 @@ export class RenderPool {
     }
 
     public freeAllObjects() {
-        for (const obj of this._objects)
+        for (const obj of this._objects) {
             this.freeObject(obj);
+        }
     }
 
     public isFull(): boolean {

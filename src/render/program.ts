@@ -38,6 +38,8 @@ const floatUniformProperties = new Set([
     'u_brightness_high',
     'u_saturation_factor',
     'u_contrast_factor',
+    //hillshade
+    'u_zoom',
 ]);
 
 export class Program {
@@ -229,6 +231,7 @@ export class Program {
         engine._cacheRenderPipeline.setWriteMask(0xf);
         engine._cacheRenderPipeline.resetStencilState();
         engine._cacheRenderPipeline.setDepthStencilFormat(WebGPUConstants.TextureFormat.Depth24PlusStencil8);
+        engine._viewportDepthRange(0, 1);
 
         this.stencilMaterial.enabled = false;
         this.stencilMaterial.funcRef = 0;

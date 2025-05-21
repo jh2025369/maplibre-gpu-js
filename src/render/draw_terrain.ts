@@ -22,7 +22,6 @@ function drawDepth(painter: Painter, terrain: Terrain) {
     engine._cacheRenderPipeline.setFrontFace(1);
 
     engine.bindFramebuffer(terrain.getFramebuffer('depth'), undefined, undefined, undefined, false, 0, 0);
-    engine._viewport(0, 0, painter.width  / devicePixelRatio, painter.height / devicePixelRatio);
     engine._startRenderTargetRenderPass(engine._currentRenderTarget, true, Color.transparent, true, false);
     terrain.coordsIndex = [];
     for (const tile of tiles) {
@@ -49,7 +48,6 @@ function drawDepth(painter: Painter, terrain: Terrain) {
     }
     engine.endFrame();
     engine.unBindFramebuffer(engine._currentRenderTarget);
-    engine._viewport(0, 0, painter.width, painter.height);
 }
 
 /**
@@ -71,7 +69,6 @@ function drawCoords(painter: Painter, terrain: Terrain) {
     engine._cacheRenderPipeline.setFrontFace(1);
 
     engine.bindFramebuffer(terrain.getFramebuffer('coords'), undefined, undefined, undefined, false, 0, 0);
-    engine._viewport(0, 0, painter.width / devicePixelRatio, painter.height / devicePixelRatio);
     engine._startRenderTargetRenderPass(engine._currentRenderTarget, true, Color.transparent, true, false);
     terrain.coordsIndex = [];
     for (const tile of tiles) {
@@ -99,7 +96,6 @@ function drawCoords(painter: Painter, terrain: Terrain) {
     }
     engine.endFrame();
     engine.unBindFramebuffer(engine._currentRenderTarget);
-    engine._viewport(0, 0, painter.width, painter.height);
 }
 
 function drawTerrain(painter: Painter, terrain: Terrain, tiles: Array<Tile>) {
@@ -118,7 +114,7 @@ function drawTerrain(painter: Painter, terrain: Terrain, tiles: Array<Tile>) {
     for (const tile of tiles) {
         const texture = painter.renderToTexture.getTexture(tile);
         const terrainData = terrain.getTerrainData(tile.tileID);
-        engine.setTexture2(texture, 'u_texture');
+        engine._setInternalTexture('u_texture', texture);
         const posMatrix = painter.transform.calculatePosMatrix(tile.tileID.toUnwrapped());
         const uniformValues = terrainUniformValues(posMatrix, terrain.getMeshFrameDelta(painter.transform.zoom));
 

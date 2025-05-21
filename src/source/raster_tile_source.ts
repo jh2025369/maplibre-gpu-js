@@ -194,23 +194,21 @@ export class RasterTileSource extends Evented implements Source {
                 const img = response.data;
                 tile.texture = this.map.painter.getTileTexture(img.width);
                 if (tile.texture) {
-                    const mipLevelCount = WebGPUTextureHelper.ComputeNumMipmapLevels(img.width, img.height);
-                    for (let i = 1; i < mipLevelCount; ++i) {
-                        engine._textureHelper.updateTexture(
-                            img,
-                            tile.texture._texture,
-                            img.width,
-                            img.height,
-                            0,
-                            WebGPUConstants.TextureFormat.RGBA8Unorm,
-                            0,
-                            i,
-                            false,
-                            false,
-                            0,
-                            0
-                        );
-                    }
+                    engine._textureHelper.updateTexture(
+                        img,
+                        tile.texture._texture,
+                        img.width,
+                        img.height,
+                        0,
+                        WebGPUConstants.TextureFormat.RGBA8Unorm,
+                        0,
+                        0,
+                        false,
+                        false,
+                        0,
+                        0
+                    );
+                    engine._generateMipmaps(tile.texture._texture, engine._uploadEncoder);
                 } else {
                     tile.texture = engine.createTextureNoUrl(
                         img,

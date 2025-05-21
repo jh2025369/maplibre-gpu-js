@@ -42,11 +42,11 @@ fn main(input: FragmentInput) -> @location(0) vec4f {
     var pattern_tl_b: vec2f = input.v_pattern_to.xy;
     var pattern_br_b: vec2f = input.v_pattern_to.zw;
 
-    var imagecoord: vec2f = mod(input.v_pos_a, 1.0);
+    var imagecoord: vec2f = fract(input.v_pos_a);
     var pos: vec2f = mix(pattern_tl_a / uniforms.u_texsize, pattern_br_a / uniforms.u_texsize, imagecoord);
     var color1: vec4f = textureSample(u_image, u_imageSampler, pos);
 
-    var imagecoord_b: vec2f = mod(v_pos_b, 1.0);
+    var imagecoord_b: vec2f = fract(input.v_pos_b);
     var pos2: vec2f = mix(pattern_tl_b / uniforms.u_texsize, pattern_br_b / uniforms.u_texsize, imagecoord_b);
     var color2: vec4f = textureSample(u_image, u_imageSampler, pos2);
 

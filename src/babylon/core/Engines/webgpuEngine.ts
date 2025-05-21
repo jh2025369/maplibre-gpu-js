@@ -4029,7 +4029,7 @@ export class WebGPUEngine extends ThinWebGPUEngine {
     //                              extensions
     //------------------------------------------------------------------------------
     public createTextureNoUrl(size: TextureSize, noMipmapOrOptions: boolean | ITextureCreationOptions, invertY: boolean,
-        premultiplyAlpha: boolean, samplingMode: number, buffer: ArrayBuffer | ImageBitmap | HTMLImageElement, format: number): Texture {
+        premultiplyAlpha: boolean, samplingMode: number, buffer: ArrayBuffer | ImageBitmap | HTMLImageElement | ArrayBufferLike, format: number): Texture {
 
         const texture = new Texture(
             '',
@@ -4076,7 +4076,7 @@ export class WebGPUEngine extends ThinWebGPUEngine {
         const gpuTextureWrapper = internalTexture._hardwareTexture as WebGPUHardwareTexture;
         const imageBitmap = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;
         this._textureHelper.updateTexture(
-            imageBitmap,
+            imageBitmap as any,
             internalTexture,
             internalTexture.width,
             internalTexture.height,
@@ -4089,6 +4089,9 @@ export class WebGPUEngine extends ThinWebGPUEngine {
             0,
             0
         );
+        if (!noMipmap) {
+            this._generateMipmaps(internalTexture, this._uploadEncoder);
+        }
 
         return texture;
     }

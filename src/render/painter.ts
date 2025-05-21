@@ -28,6 +28,7 @@ import {Texture} from 'core/Materials/Textures/texture';
 import {drawTest} from './draw_test';
 import {drawFill} from './draw_fill';
 import {drawFillExtrusion} from './draw_fill_extrusion';
+import {drawHillshade} from './draw_hillshade';
 import {drawBackground} from './draw_background';
 import type {ImageManager} from './image_manager';
 import type {GlyphManager} from './glyph_manager';
@@ -203,7 +204,7 @@ export class Painter {
         // this function in favor of context.clear({ stencil: 0x0 })
 
         const matrix = mat4.create();
-        mat4.ortho(matrix, 0, this.width, this.height, 0, 0, 1);
+        mat4.orthoZO(matrix, 0, this.width, this.height, 0, 0, 1);
         mat4.scale(matrix, matrix, [engine._renderingCanvas.width, engine._renderingCanvas.height, 0]);
 
         const program = this.useProgram('clippingMask');
@@ -310,9 +311,9 @@ export class Painter {
             }
             const zToStencilMode = {};
             for (let i = 0; i < stencilValues; i++) {
-                this.engine._cacheRenderPipeline.setStencilState(true, Constants.GREATER, Constants.KEEP, Constants.REPLACE, Constants.KEEP, 0xFF, 0xFF);
-                this.engine._stencilStateComposer.stencilMaterial.enabled = true;
-                this.engine._stencilStateComposer.stencilMaterial.funcRef = i + this.nextStencilID;
+                // this.engine._cacheRenderPipeline.setStencilState(true, Constants.GREATER, Constants.KEEP, Constants.REPLACE, Constants.KEEP, 0xFF, 0xFF);
+                // this.engine._stencilStateComposer.stencilMaterial.enabled = true;
+                // this.engine._stencilStateComposer.stencilMaterial.funcRef = i + this.nextStencilID;
                 zToStencilMode[i + minTileZ] = i + this.nextStencilID;
             }
             this.nextStencilID += stencilValues;
@@ -329,14 +330,14 @@ export class Painter {
 
             engine._cacheRenderPipeline.setAlphaBlendEnabled(true);
             engine.setAlphaEquation(Constants.ALPHA_EQUATION_ADD);
-            engine.setAlphaMode(Constants.ALPHA_INTERPOLATE);
+            engine.setAlphaMode(Constants.ALPHA_INTERPOLATE, true);
             engine._alphaState.setAlphaBlendConstants(a, a, a, 0);
         } else if (this.renderPass === 'opaque') {
             engine._cacheRenderPipeline.setAlphaBlendEnabled(false);
         } else {
             engine._cacheRenderPipeline.setAlphaBlendEnabled(true);
             engine.setAlphaEquation(Constants.ALPHA_EQUATION_ADD);
-            engine.setAlphaMode(Constants.ALPHA_PREMULTIPLIED_PORTERDUFF);
+            engine.setAlphaMode(Constants.ALPHA_PREMULTIPLIED_PORTERDUFF, true);
         }
     }
 
@@ -446,7 +447,7 @@ export class Painter {
         }
 
         this.engine.endFrame();
-        this.engine._startMainRenderPass(false, null, true, true);
+        this.engine._startMainRenderPass(false, null, false, true);
 
         this.resetProgram();
 
@@ -492,8 +493,8 @@ export class Painter {
         mat4.copy(prevMatrix, currMatrix);
         this.terrainFacilitator.renderTime = Date.now();
         this.terrainFacilitator.dirty = false;
-        drawDepth(this, this.style.map.terrain);
-        drawCoords(this, this.style.map.terrain);
+        // drawDepth(this, this.style.map.terrain);
+        // drawCoords(this, this.style.map.terrain);
     }
 
     renderLayer(painter: Painter, sourceCache: SourceCache, layer: StyleLayer, coords: Array<OverscaledTileID>) {
@@ -524,9 +525,9 @@ export class Painter {
             case 'fill-extrusion':
                 drawFillExtrusion(painter, sourceCache, layer as any, coords);
                 break;
-            // case 'hillshade':
-            //     drawHillshade(painter, sourceCache, layer as any, coords);
-            //     break;
+            case 'hillshade':
+                drawHillshade(painter, sourceCache, layer as any, coords);
+                break;
             case 'raster':
                 drawRaster(painter, sourceCache, layer as any, coords);
                 break;

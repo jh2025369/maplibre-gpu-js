@@ -6,13 +6,6 @@ struct Uniforms {
     u_terrain_coords_id: f32,
 };
 
-struct TerrainUniforms {
-    u_terrain_dim: f32,
-    u_terrain_matrix: mat4x4f,
-    u_terrain_unpack: vec4<f32>,
-    u_terrain_exaggeration: f32,
-};
-
 struct VertexInput {
     @location(0) a_pos3d : vec3f,
 };
@@ -24,36 +17,6 @@ struct VertexOutput {
 };
 
 var<uniform> uniforms: Uniforms;
-var<uniform> terrain: TerrainUniforms;
-var u_terrain: texture_2d<f32>;
-var u_terrainSampler: sampler;
-
-// fn ele(pos: vec2<f32>) -> f32 {
-//     #ifdef TERRAIN3D
-//         let texel = textureLoad(u_terrain, vec2<i32>(pos), 0);
-//         let rgb = (texel * 255.0) * terrain.u_terrain_unpack;
-//         return rgb.r + rgb.g + rgb.b - terrain.u_terrain_unpack.a;
-//     #else
-//         return 0.0;
-//     #endif
-// }
-
-// fn get_elevation(pos: vec2<f32>) -> f32 {
-//     #ifdef TERRAIN3D
-//         let coord = (terrain.u_terrain_matrix * vec4<f32>(pos, 0.0, 1.0)).xy * terrain.u_terrain_dim + 1.0;
-//         let f = fract(coord);
-//         let c = (floor(coord) + 0.5) / (terrain.u_terrain_dim + 2.0);
-//         let d = 1.0 / (terrain.u_terrain_dim + 2.0);
-//         let tl = ele(c);
-//         let tr = ele(c + vec2<f32>(d, 0.0));
-//         let bl = ele(c + vec2<f32>(0.0, d));
-//         let br = ele(c + vec2<f32>(d, d));
-//         let elevation = mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);
-//         return elevation * terrain.u_terrain_exaggeration;
-//     #else
-//         return 0.0;
-//     #endif
-// }
 
 @vertex
 fn main(input: VertexInput) -> VertexOutput {

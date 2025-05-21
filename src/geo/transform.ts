@@ -885,7 +885,7 @@ export class Transform {
 
         // matrix for conversion from location to clip space(-1 .. 1)
         m = new Float64Array(16) as any;
-        mat4.perspective(m, this._fov, this.width / this.height, nearZ, farZ);
+        mat4.perspectiveZO(m, this._fov, this.width / this.height, nearZ, farZ);
 
         // Apply center of perspective offset
         m[8] = -offset.x * 2 / this.width;
