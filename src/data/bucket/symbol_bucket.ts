@@ -103,9 +103,6 @@ export type SortKeyRange = {
 // const placementOpacityAttributes = [
 //     { name: 'a_fade_opacity', components: 1, type: 'Uint32' }
 // ];
-const shaderOpacityAttributes = [
-    {name: 'a_fade_opacity', components: 1, type: 'Uint8' as ViewType, offset: 0}
-];
 
 function addVertex(
     array: StructArray,
@@ -209,9 +206,6 @@ export class SymbolBuffers {
             this.indexBuffer = engine.createIndexBuffer(this.indexArray.arrayBuffer);
             this.dynamicLayoutVertexBuffer = engine.createVertexBuffer(this.dynamicLayoutVertexArray.arrayBuffer);
             this.opacityVertexBuffer = engine.createVertexBuffer(this.opacityVertexArray.arrayBuffer);
-            // This is a performance hack so that we can write to opacityVertexArray with uint32s
-            // even though the shaders read uint8s
-            this.opacityVertexBuffer.capacity = 1;
         }
         if (upload || update) {
             this.programConfigurations.upload(engine);

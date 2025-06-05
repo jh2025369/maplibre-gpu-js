@@ -10,6 +10,8 @@ import {fillExtrusionUniforms, fillExtrusionPatternUniforms} from './fill_extrus
 import {terrainUniforms} from './terrain_program';
 import {rasterUniforms} from './raster_program';
 import {hillshadeUniforms, hillshadePrepareUniforms} from './hillshade_program';
+import {symbolIconUniforms, symbolSDFUniforms, symbolTextAndIconUniforms} from './symbol_program';
+import {collisionUniforms, collisionCircleUniforms} from './collision_program';
 
 export const programUniforms = {
     line: lineUniforms,
@@ -30,4 +32,9 @@ export const programUniforms = {
     raster: rasterUniforms,
     hillshade: hillshadeUniforms,
     hillshadePrepare: hillshadePrepareUniforms,
+    symbolIcon: symbolIconUniforms,
+    symbolSDF: symbolSDFUniforms,
+    symbolTextAndIcon: symbolTextAndIconUniforms,
+    collisionBox: collisionUniforms,
+    collisionCircle: collisionCircleUniforms,
 };

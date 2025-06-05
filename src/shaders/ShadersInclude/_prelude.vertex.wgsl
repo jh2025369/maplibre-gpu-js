@@ -19,9 +19,8 @@ fn unpack_float(packedValue: f32) -> vec2<f32> {
     return vec2<f32>(f32(v0), f32(packedIntValue) - f32(v0) * 256.0);
 }
 
-fn unpack_opacity(packedOpacity: f32) -> vec2<f32> {
-    let intOpacity = i32(packedOpacity) / 2;
-    return vec2<f32>(f32(intOpacity) / 127.0, packedOpacity % 2.0);
+fn unpack_opacity(packedOpacity: f32) -> vec2f {
+    return vec2f(floor(packedOpacity / 254.0), packedOpacity % 2.0);
 }
 
 fn decode_color(encodedColor: vec2<f32>) -> vec4<f32> {
@@ -55,32 +54,32 @@ fn get_pattern_pos(
     return (tile_units_to_pixels * pos + offset) / pattern_size;
 }
 
-const bitSh = vec4<f32>(256.0 * 256.0 * 256.0, 256.0 * 256.0, 256.0, 1.0);
-const bitShifts = vec4<f32>(1.0) / bitSh;
+const bitSh = vec4f(256.0 * 256.0 * 256.0, 256.0 * 256.0, 256.0, 1.0);
+const bitShifts = vec4f(1.0) / bitSh;
 
-fn unpack(color: vec4<f32>) -> f32 {
+fn unpack(color: vec4f) -> f32 {
     return dot(color, bitShifts);
 }
 
-fn depthOpacity(frag: vec3<f32>) -> f32 {
+fn depthOpacity(frag: vec3f) -> f32 {
     #ifdef TERRAIN3D
-        let texel = textureLoad(u_depth, vec2<i32>(frag.xy * 0.5 + 0.5), 0);
-        let d = unpack(texel) + 0.0001 - frag.z;
+        var texel: vec4f = textureSample(u_depth, u_depthSampler, frag.xy * 0.5 + 0.5);
+        var d: f32 = unpack(texel) + 0.0001 - frag.z;
         return 1.0 - max(0.0, min(1.0, -d * 500.0));
     #else
         return 1.0;
     #endif
 }
 
-fn calculate_visibility(pos: vec4<f32>) -> f32 {
+fn calculate_visibility(pos: vec4f) -> f32 {
     #ifdef TERRAIN3D
-        let frag = pos.xyz / pos.w;
-        let d = depthOpacity(frag);
-        if (d > 0.95) {
-            return 1.0;
-        } else {
-            return (d + depthOpacity(frag + vec3<f32>(0.0, 0.01, 0.0))) / 2.0;
-        }
+        var frag: vec3f = pos.xyz / pos.w;
+        var d: f32 = depthOpacity(frag);
+        return select(
+            (d + depthOpacity(frag + vec3f(0.0, 0.01, 0.0))) / 2.0,
+            1.0,
+            d > 0.95
+        );
     #else
         return 1.0;
     #endif

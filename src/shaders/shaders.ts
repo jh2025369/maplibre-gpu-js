@@ -34,6 +34,16 @@ import hillshadeVert from './hillshade.vertex.wgsl';
 import hillshadeFrag from './hillshade.fragment.wgsl';
 import hillshadePrepareVert from './hillshade_prepare.vertex.wgsl';
 import hillshadePrepareFrag from './hillshade_prepare.fragment.wgsl';
+import symbolIconVert from './symbol_icon.vertex.wgsl';
+import symbolIconFrag from './symbol_icon.fragment.wgsl';
+import symbolSDFVert from './symbol_sdf.vertex.wgsl';
+import symbolSDFFrag from './symbol_sdf.fragment.wgsl';
+import symbolTextAndIconVert from './symbol_text_and_icon.vertex.wgsl';
+import symbolTextAndIconFrag from './symbol_text_and_icon.fragment.wgsl';
+import collisionBoxVert from './collision_box.vertex.wgsl';
+import collisionBoxFrag from './collision_box.fragment.wgsl';
+import collisionCircleVert from './collision_circle.vertex.wgsl';
+import collisionCircleFrag from './collision_circle.fragment.wgsl';
 import {ShaderStore} from 'core/Engines';
 
 export const shaders = {};
@@ -59,6 +69,11 @@ export const shaderTemplates = {
     raster: [rasterVert, rasterFrag],
     hillshade: [hillshadeVert, hillshadeFrag],
     hillshadePrepare: [hillshadePrepareVert, hillshadePrepareFrag],
+    symbolIcon: [symbolIconVert, symbolIconFrag],
+    symbolSDF: [symbolSDFVert, symbolSDFFrag],
+    symbolTextAndIcon: [symbolTextAndIconVert, symbolTextAndIconFrag],
+    collisionBox: [collisionBoxVert, collisionBoxFrag],
+    collisionCircle: [collisionCircleVert, collisionCircleFrag],
 };
 
 export function generateShader(key: string, shaderName: string, cvtParams: WgslConvertParams) {

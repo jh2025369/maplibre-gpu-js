@@ -69,7 +69,7 @@ function delSymbolsInUniform(block: CodeBlockInfo, symbols: string[]): Record<st
 
     let locationNumber = 0;
     for (let i = 0; i < members.length; i++) {
-        const match = /\s*@location\s*\(\s*\d+\s*\)\s*(\w+)\s*:\s*(\w+)\s*/gms.exec(members[i]);
+        const match = /\s*@location\s*\(\s*\d+\s*\)\s*(\w+)\s*:\s*([\w<>\d]+)\s*/gms.exec(members[i]);
         if (!match) {
             if (members[i] !== '\n' && members[i] !== '') {
                 newMembers.push(`\n${members[i]}`);

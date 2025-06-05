@@ -57,7 +57,7 @@ fn main(input: VertexInput) -> VertexOutput {
     // in extrusion data
     var circle_center: vec2f = floor(input.a_pos * 0.5);
     var ele: f32 = get_elevation(circle_center);
-    output.v_visibility = calculate_visibility(uniforms.u_matrix * vec4(circle_center, ele, 1.0));
+    output.v_visibility = calculate_visibility(uniforms.u_matrix * vec4f(circle_center, ele, 1.0));
 
     if (uniforms.u_pitch_with_map == 1) {
         var corner_position: vec2f = circle_center;

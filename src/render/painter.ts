@@ -30,6 +30,8 @@ import {drawFill} from './draw_fill';
 import {drawFillExtrusion} from './draw_fill_extrusion';
 import {drawHillshade} from './draw_hillshade';
 import {drawBackground} from './draw_background';
+import {drawRaster} from './draw_raster';
+import {drawSymbols} from './draw_symbol';
 import type {ImageManager} from './image_manager';
 import type {GlyphManager} from './glyph_manager';
 import {Program} from './program';
@@ -40,7 +42,6 @@ import {VertexBuffer} from 'core/Buffers/buffer';
 import {Nullable} from 'core/types';
 import * as WebGPUConstants from 'core/Engines/WebGPU/webgpuConstants';
 import {RenderToTexture} from './render_to_texture';
-import {drawRaster} from './draw_raster';
 
 export type RenderPass = 'offscreen' | 'opaque' | 'translucent';
 
@@ -130,12 +131,13 @@ export class Painter {
      * for a new width and height value.
      */
     resize(width: number, height: number, pixelRatio: number) {
-        this.width = width;
-        this.height = height;
+        this.width = Math.floor(width * pixelRatio);
+        this.height = Math.floor(height * pixelRatio);
         this.pixelRatio = pixelRatio;
         if (this.engine._viewportCached.z !== this.width || this.engine._viewportCached.w !== this.height) {
             this.engine._viewport(0, 0, this.width, this.height);
-            this.engine.resize();
+            this.engine._hardwareScalingLevel = 1 / pixelRatio;
+            this.engine.resize(true);
         }
 
         if (this.style) {
@@ -506,9 +508,9 @@ export class Painter {
         if (window['disableLayerType'].has(layer.type)) return;
 
         switch (layer.type) {
-            // case 'symbol':
-            //     drawSymbols(painter, sourceCache, layer as any, coords, this.style.placement.variableOffsets);
-            //     break;
+            case 'symbol':
+                drawSymbols(painter, sourceCache, layer as any, coords, this.style.placement.variableOffsets);
+                break;
             case 'circle':
                 drawCircles(painter, sourceCache, layer as any, coords);
                 break;

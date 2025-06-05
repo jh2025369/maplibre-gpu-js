@@ -40,6 +40,12 @@ const floatUniformProperties = new Set([
     'u_contrast_factor',
     //hillshade
     'u_zoom',
+    //symbol
+    'u_fade_change',
+    'u_pitch',
+    'u_size',
+    'u_size_t',
+    'u_gamma_scale'
 ]);
 
 export class Program {
@@ -145,7 +151,7 @@ export class Program {
         currentProperties?: any,
         zoom?: number | null,
         configuration?: ProgramConfiguration | null,
-        dynamicLayoutBuffer?: {[_: string]: VertexBuffer}) {
+        instancesCount: number = 1) {
 
         if (configuration) {
             if (this.binderUniforms.length !== 0) {
@@ -172,7 +178,7 @@ export class Program {
                 this.fixedUniformBuffer.updateUniform(name, uniformValue, uniformValue.length);
             } else if (typeof uniformValue === 'number') {
                 if (Number.isInteger(uniformValue) && !floatUniformProperties.has(name)) {
-                    this.fixedUniformBuffer.updateInt(name, uniformValue);
+                    this.fixedUniformBuffer.updateUInt(name, uniformValue);
                 } else {
                     this.fixedUniformBuffer.updateFloat(name, uniformValue);
                 }
@@ -214,7 +220,7 @@ export class Program {
 
             engine.bindBuffers(vertexBuffers, indexBuffer, this.effect, null);
 
-            engine._draw(0, fillMode, segment.primitiveOffset * primitiveSize, segment.primitiveLength * primitiveSize, 1);
+            engine._draw(0, fillMode, segment.primitiveOffset * primitiveSize, segment.primitiveLength * primitiveSize, instancesCount);
         }
     }
 

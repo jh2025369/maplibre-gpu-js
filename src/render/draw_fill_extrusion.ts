@@ -115,7 +115,6 @@ function drawExtrusionTiles(
             'a_normal_ed': vertexBufferNormalEd
         };
 
-        let dynamicVertexBuffers = {};
         if (painter.style.map.terrain) {
             const vertexBufferCentroid = new VertexBuffer(engine, bucket.centroidVertexBuffer, 'a_centroid', {
                 updatable: true,
@@ -127,16 +126,13 @@ function drawExtrusionTiles(
                 useBytes: true
             });
 
-            dynamicVertexBuffers = {
-                'a_centroid': vertexBufferCentroid
-            };
+            vertexBuffers['a_centroid'] = vertexBufferCentroid;
         }
 
         engine._cacheRenderPipeline.setCullEnabled(true);
         engine._cacheRenderPipeline.setFrontFace(1);
 
         program.draw(engine, 0, uniformValues, terrainData, layer.id, vertexBuffers, bucket.indexBuffer,
-            bucket.segments, layer.paint, painter.transform.zoom,
-            programConfiguration, painter.style.map.terrain && dynamicVertexBuffers);
+            bucket.segments, layer.paint, painter.transform.zoom, programConfiguration);
     }
 }

@@ -986,7 +986,7 @@ export class Placement {
         }
 
         const addOpacities = (iconOrText, numVertices: number, opacity: number) => {
-            for (let i = 0; i < numVertices / 4; i++) {
+            for (let i = 0; i < numVertices; i++) {
                 iconOrText.opacityVertexArray.emplaceBack(opacity);
             }
             iconOrText.hasVisibleVertices = iconOrText.hasVisibleVertices || (opacity !== PACKED_HIDDEN_OPACITY);
@@ -1152,8 +1152,8 @@ export class Placement {
             bucket.engine.updateDynamicVertexBuffer(bucket.textCollisionBox.collisionVertexBuffer, bucket.textCollisionBox.collisionVertexArray.arrayBuffer);
         }
 
-        if (bucket.text.opacityVertexArray.length !== bucket.text.layoutVertexArray.length / 4) throw new Error(`bucket.text.opacityVertexArray.length (= ${bucket.text.opacityVertexArray.length}) !== bucket.text.layoutVertexArray.length (= ${bucket.text.layoutVertexArray.length}) / 4`);
-        if (bucket.icon.opacityVertexArray.length !== bucket.icon.layoutVertexArray.length / 4) throw new Error(`bucket.icon.opacityVertexArray.length (= ${bucket.icon.opacityVertexArray.length}) !== bucket.icon.layoutVertexArray.length (= ${bucket.icon.layoutVertexArray.length}) / 4`);
+        if (bucket.text.opacityVertexArray.length !== bucket.text.layoutVertexArray.length) throw new Error(`bucket.text.opacityVertexArray.length (= ${bucket.text.opacityVertexArray.length}) !== bucket.text.layoutVertexArray.length (= ${bucket.text.layoutVertexArray.length}) / 4`);
+        if (bucket.icon.opacityVertexArray.length !== bucket.icon.layoutVertexArray.length) throw new Error(`bucket.icon.opacityVertexArray.length (= ${bucket.icon.opacityVertexArray.length}) !== bucket.icon.layoutVertexArray.length (= ${bucket.icon.layoutVertexArray.length}) / 4`);
 
         // Push generated collision circles to the bucket for debug rendering
         if (bucket.bucketInstanceId in this.collisionCircleArrays) {
@@ -1214,25 +1214,16 @@ function updateCollisionVertices(collisionVertexArray: CollisionVertexArray, pla
 // So we pack the opacity into a uint8, and then repeat it four times
 // to make a single uint32 that we can upload for each glyph in the
 // label.
-const shift25 = Math.pow(2, 25);
-const shift24 = Math.pow(2, 24);
-const shift17 = Math.pow(2, 17);
-const shift16 = Math.pow(2, 16);
-const shift9 = Math.pow(2, 9);
-const shift8 = Math.pow(2, 8);
 const shift1 = Math.pow(2, 1);
 function packOpacity(opacityState: OpacityState): number {
     if (opacityState.opacity === 0 && !opacityState.placed) {
         return 0;
     } else if (opacityState.opacity === 1 && opacityState.placed) {
-        return 4294967295;
+        return 255;
     }
     const targetBit = opacityState.placed ? 1 : 0;
     const opacityBits = Math.floor(opacityState.opacity * 127);
-    return opacityBits * shift25 + targetBit * shift24 +
-        opacityBits * shift17 + targetBit * shift16 +
-        opacityBits * shift9 + targetBit * shift8 +
-        opacityBits * shift1 + targetBit;
+    return opacityBits * shift1 + targetBit;
 }
 
 const PACKED_HIDDEN_OPACITY = 0;
