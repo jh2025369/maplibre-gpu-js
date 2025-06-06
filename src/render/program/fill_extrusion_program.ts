@@ -51,12 +51,12 @@ const fillExtrusionUniformValues = (
     const lightColor = light.properties.get('color');
 
     return {
-        'u_matrix': matrix,
-        'u_lightpos': lightPos,
-        'u_lightintensity': light.properties.get('intensity'),
-        'u_lightcolor': [lightColor.r, lightColor.g, lightColor.b],
-        'u_vertical_gradient': +shouldUseVerticalGradient,
-        'u_opacity': opacity
+        'u_matrix': {value: matrix, type: 'mat4'},
+        'u_lightpos': {value: lightPos, type: 'vec3'},
+        'u_lightintensity': {value: light.properties.get('intensity'), type: 'float'},
+        'u_lightcolor': {value: [lightColor.r, lightColor.g, lightColor.b], type: 'vec3'},
+        'u_vertical_gradient': {value: +shouldUseVerticalGradient, type: 'float'},
+        'u_opacity': {value: opacity, type: 'float'}
     };
 };
 
@@ -72,7 +72,10 @@ const fillExtrusionPatternUniformValues = (
     return extend(fillExtrusionUniformValues(matrix, painter, shouldUseVerticalGradient, opacity),
         patternUniformValues(crossfade, painter, tile),
         {
-            'u_height_factor': -Math.pow(2, coord.overscaledZ) / tile.tileSize / 8
+            'u_height_factor': {
+                value: -Math.pow(2, coord.overscaledZ) / tile.tileSize / 8,
+                type: 'float'
+            }
         });
 };
 

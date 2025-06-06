@@ -36,16 +36,16 @@ const circleUniformValues = (
     }
 
     return {
-        'u_matrix': painter.translatePosMatrix(
-            coord.posMatrix,
-            tile,
-            layer.paint.get('circle-translate'),
-            layer.paint.get('circle-translate-anchor')),
-        'u_pitch_with_map': +(pitchWithMap),
-        'u_scale_with_map': +(layer.paint.get('circle-pitch-scale') === 'map'),
-        'u_extrude_scale': extrudeScale,
-        'u_device_pixel_ratio': painter.pixelRatio,
-        'u_camera_to_center_distance': transform.cameraToCenterDistance,
+        'u_matrix': {
+            value: painter.translatePosMatrix(coord.posMatrix, tile,
+                layer.paint.get('circle-translate'), layer.paint.get('circle-translate-anchor')),
+            type: 'mat4'
+        },
+        'u_pitch_with_map': {value: +(pitchWithMap), type: 'u32'},
+        'u_scale_with_map': {value: +(layer.paint.get('circle-pitch-scale') === 'map'), type: 'u32'},
+        'u_extrude_scale': {value: extrudeScale, type: 'vec2'},
+        'u_device_pixel_ratio': {value: painter.pixelRatio, type: 'float'},
+        'u_camera_to_center_distance': {value: transform.cameraToCenterDistance, type: 'float'},
 
     };
 };

@@ -23,31 +23,6 @@ import {MaterialStencilState} from 'core/Materials/materialStencilState';
 
 export type DrawMode = WebGLRenderingContextBase['LINES'] | WebGLRenderingContextBase['TRIANGLES'] | WebGL2RenderingContext['LINE_STRIP'];
 
-const floatUniformProperties = new Set([
-    'u_ratio',
-    'u_device_pixel_ratio',
-    'u_opacity',
-    'u_mix',
-    'u_camera_to_center_distance',
-    // raster
-    'u_scale_parent',
-    'u_buffer_scale',
-    'u_fade_t',
-    'u_opacity',
-    'u_brightness_low',
-    'u_brightness_high',
-    'u_saturation_factor',
-    'u_contrast_factor',
-    //hillshade
-    'u_zoom',
-    //symbol
-    'u_fade_change',
-    'u_pitch',
-    'u_size',
-    'u_size_t',
-    'u_gamma_scale'
-]);
-
 export class Program {
     program: WebGLProgram;
     attributes: {[_: string]: number};
@@ -136,8 +111,30 @@ export class Program {
         this.fixedUniformBuffer = new UniformBuffer(engine, undefined, undefined, `${name}_fixedUniform`);
         this.terrainUniforms = new UniformBuffer(engine, undefined, undefined, `${name}_terrainUniform`);
         fixedUniforms(this.fixedUniformBuffer);
-        this.terrainUniformsFuc = terrainPreludeUniforms(this.terrainUniforms);
+        terrainPreludeUniforms(this.terrainUniforms);
         this.binderUniforms = configuration ? configuration.getUniforms(this.uniformBuffer, uniformNames) : null;
+    }
+
+    updateUniform(uniformBuffer: UniformBuffer, name: string, uniform: {[_: string]: any}) {
+        switch (uniform.type) {
+            case 'mat4':
+                uniformBuffer.updateMatrices(name, uniform.value as Float32Array);
+                break;
+            case 'vec2':
+            case 'vec3':
+            case 'vec4':
+                uniformBuffer.updateUniform(name, uniform.value, uniform.value.length);
+                break;
+            case 'float':
+                uniformBuffer.updateFloat(name, uniform.value);
+                break;
+            case 'i32':
+                uniformBuffer.updateInt(name, uniform.value);
+                break;
+            case 'u32':
+                uniformBuffer.updateUInt(name, uniform.value);
+                break;
+        }
     }
 
     draw(engine: WebGPUEngine,
@@ -171,20 +168,8 @@ export class Program {
 
         this.fixedUniformBuffer._createNewBuffer();
         for (const name in uniformValues) {
-            const uniformValue = uniformValues[name];
-            if (uniformValue instanceof Float32Array || uniformValue instanceof Float64Array) {
-                this.fixedUniformBuffer.updateMatrices(name, uniformValue as Float32Array);
-            } else if (uniformValue instanceof Array) {
-                this.fixedUniformBuffer.updateUniform(name, uniformValue, uniformValue.length);
-            } else if (typeof uniformValue === 'number') {
-                if (Number.isInteger(uniformValue) && !floatUniformProperties.has(name)) {
-                    this.fixedUniformBuffer.updateUInt(name, uniformValue);
-                } else {
-                    this.fixedUniformBuffer.updateFloat(name, uniformValue);
-                }
-            } else if (uniformValue instanceof Color) {
-                this.fixedUniformBuffer.updateUniform(name, uniformValue.rgb, 4);
-            }
+            const uniform = uniformValues[name];
+            this.updateUniform(this.fixedUniformBuffer, name, uniform);
         }
         this.fixedUniformBuffer.update();
         engine.bindUniformBufferBase(this.fixedUniformBuffer.getBuffer(), 0, 'uniforms');
@@ -193,8 +178,8 @@ export class Program {
             this.terrainUniforms._createNewBuffer();
             engine.setTexture2(terrain.depthTexture, 'u_depth');
             engine.setTexture2(terrain.texture, 'u_terrain');
-            for (const name in this.terrainUniformsFuc) {
-                this.terrainUniformsFuc[name](terrain[name]);
+            for (const name of this.terrainUniforms._getNames().split(',')) {
+                this.updateUniform(this.terrainUniforms, name, terrain[name]);
             }
             this.terrainUniforms.update();
             engine.bindUniformBufferBase(this.terrainUniforms.getBuffer(), 0, 'terrain');

@@ -83,21 +83,21 @@ const symbolIconUniformValues = (
     const transform = painter.transform;
 
     return {
-        'u_is_size_zoom_constant': +(functionType === 'constant' || functionType === 'source'),
-        'u_is_size_feature_constant': +(functionType === 'constant' || functionType === 'camera'),
-        'u_size_t': size ? size.uSizeT : 0,
-        'u_size': size ? size.uSize : 0,
-        'u_camera_to_center_distance': transform.cameraToCenterDistance,
-        'u_pitch': transform.pitch / 360 * 2 * Math.PI,
-        'u_rotate_symbol': +rotateInShader,
-        'u_aspect_ratio': transform.width / transform.height,
-        'u_fade_change': painter.options.fadeDuration ? painter.symbolFadeChange : 1,
-        'u_matrix': matrix,
-        'u_label_plane_matrix': labelPlaneMatrix,
-        'u_coord_matrix': glCoordMatrix,
-        'u_is_text': +isText,
-        'u_pitch_with_map': +pitchWithMap,
-        'u_texsize': texSize
+        'u_is_size_zoom_constant': {value: +(functionType === 'constant' || functionType === 'source'), type: 'u32'},
+        'u_is_size_feature_constant': {value: +(functionType === 'constant' || functionType === 'camera'), type: 'u32'},
+        'u_size_t': {value: size ? size.uSizeT : 0, type: 'float'},
+        'u_size': {value: size ? size.uSize : 0, type: 'float'},
+        'u_camera_to_center_distance': {value: transform.cameraToCenterDistance, type: 'float'},
+        'u_pitch': {value: transform.pitch / 360 * 2 * Math.PI, type: 'float'},
+        'u_rotate_symbol': {value: +rotateInShader, type: 'u32'},
+        'u_aspect_ratio': {value: transform.width / transform.height, type: 'float'},
+        'u_fade_change': {value: painter.options.fadeDuration ? painter.symbolFadeChange : 1, type: 'float'},
+        'u_matrix': {value: matrix, type: 'mat4'},
+        'u_label_plane_matrix': {value: labelPlaneMatrix, type: 'mat4'},
+        'u_coord_matrix': {value: glCoordMatrix, type: 'mat4'},
+        'u_is_text': {value: +isText, type: 'u32'},
+        'u_pitch_with_map': {value: +pitchWithMap, type: 'u32'},
+        'u_texsize': {value: texSize, type: 'vec2'}
     };
 };
 
@@ -122,9 +122,12 @@ const symbolSDFUniformValues = (
     return extend(symbolIconUniformValues(functionType, size,
         rotateInShader, pitchWithMap, painter, matrix, labelPlaneMatrix,
         glCoordMatrix, isText, texSize), {
-        'u_gamma_scale': (pitchWithMap ? Math.cos(transform._pitch) * transform.cameraToCenterDistance : 1),
-        'u_device_pixel_ratio': painter.pixelRatio,
-        'u_is_halo': +isHalo
+        'u_gamma_scale': {
+            value: (pitchWithMap ? Math.cos(transform._pitch) * transform.cameraToCenterDistance : 1),
+            type: 'float'
+        },
+        'u_device_pixel_ratio': {value: painter.pixelRatio, type: 'float'},
+        'u_is_halo': {value: +isHalo, type: 'u32'}
     });
 };
 
@@ -146,7 +149,7 @@ const symbolTextAndIconUniformValues = (
     return extend(symbolSDFUniformValues(functionType, size,
         rotateInShader, pitchWithMap, painter, matrix, labelPlaneMatrix,
         glCoordMatrix, true, texSizeSDF, true), {
-        'u_texsize_icon': texSizeIcon
+        'u_texsize_icon': {value: texSizeIcon, type: 'vec2'}
     });
 };
 

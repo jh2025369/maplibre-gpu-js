@@ -6,13 +6,6 @@ const terrainPreludeUniforms = (uniformBuffer: UniformBuffer) => {
     uniformBuffer.addUniform('u_terrain_matrix', 16);
     uniformBuffer.addUniform('u_terrain_unpack', 4);
     uniformBuffer.addUniform('u_terrain_exaggeration', 1);
-
-    return {
-        'u_terrain_dim': v => uniformBuffer.updateFloat('u_terrain_dim', v),
-        'u_terrain_matrix': v => uniformBuffer.updateMatrices('u_terrain_matrix', v),
-        'u_terrain_unpack': v => uniformBuffer.updateUniform('u_terrain_unpack', v, 4),
-        'u_terrain_exaggeration': v => uniformBuffer.updateFloat('u_terrain_exaggeration', v),
-    };
 };
 
 const terrainUniforms = (uniformBuffer: UniformBuffer) => {
@@ -25,16 +18,16 @@ const terrainUniformValues = (
     matrix: mat4,
     eleDelta: number
 ) => ({
-    'u_matrix': matrix,
-    'u_ele_delta': eleDelta
+    'u_matrix': {value: matrix, type: 'mat4'},
+    'u_ele_delta': {value: eleDelta, type: 'float'}
 });
 
 const terrainDepthUniformValues = (
     matrix: mat4,
     eleDelta: number
 ) => ({
-    'u_matrix': matrix,
-    'u_ele_delta': eleDelta
+    'u_matrix': {value: matrix, type: 'mat4'},
+    'u_ele_delta': {value: eleDelta, type: 'float'}
 });
 
 const terrainCoordsUniformValues = (
@@ -42,9 +35,9 @@ const terrainCoordsUniformValues = (
     coordsId: number,
     eleDelta: number
 ) => ({
-    'u_matrix': matrix,
-    'u_terrain_coords_id': coordsId / 255,
-    'u_ele_delta': eleDelta
+    'u_matrix': {value: matrix, type: 'mat4'},
+    'u_terrain_coords_id': {value: coordsId / 255, type: 'float'},
+    'u_ele_delta': {value: eleDelta, type: 'float'}
 });
 
 export {terrainUniforms, terrainPreludeUniforms, terrainUniformValues, terrainDepthUniformValues, terrainCoordsUniformValues};

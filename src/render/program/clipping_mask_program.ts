@@ -6,7 +6,7 @@ const clippingMaskUniforms = (uniformBuffer: UniformBuffer) => {
 };
 
 const clippingMaskUniformValues = (matrix: mat4) => ({
-    'u_matrix': matrix
+    'u_matrix': {value: matrix, type: 'mat4'}
 });
 
 export {clippingMaskUniforms, clippingMaskUniformValues};

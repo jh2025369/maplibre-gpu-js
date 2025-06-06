@@ -37,13 +37,16 @@ const lineUniformValues = (
     const transform = painter.transform;
 
     return {
-        'u_matrix': calculateMatrix(painter, tile, layer, coord),
-        'u_ratio': 1 / pixelsToTileUnits(tile, 1, transform.zoom),
-        'u_device_pixel_ratio': painter.pixelRatio,
-        'u_units_to_pixels': [
-            1 / transform.pixelsToGLUnits[0],
-            1 / transform.pixelsToGLUnits[1]
-        ]
+        'u_matrix': {value: calculateMatrix(painter, tile, layer, coord), type: 'mat4'},
+        'u_ratio': {value: 1 / pixelsToTileUnits(tile, 1, transform.zoom), type: 'float'},
+        'u_device_pixel_ratio': {value: painter.pixelRatio, type: 'float'},
+        'u_units_to_pixels': {
+            value: [
+                1 / transform.pixelsToGLUnits[0],
+                1 / transform.pixelsToGLUnits[1]
+            ],
+            type: 'vec2'
+        }
     };
 };
 
@@ -55,8 +58,7 @@ const lineGradientUniformValues = (
     coord: OverscaledTileID
 ) => {
     return extend(lineUniformValues(painter, tile, layer, coord), {
-        'u_image': 0,
-        'u_image_height': imageHeight,
+        'u_image_height': {value: imageHeight, type: 'float'}
     });
 };
 
@@ -71,18 +73,20 @@ const linePatternUniformValues = (
     const tileZoomRatio = calculateTileRatio(tile, transform);
     const size = tile.imageAtlasTexture.getSize();
     return {
-        'u_matrix': calculateMatrix(painter, tile, layer, coord),
-        'u_texsize': [size.width, size.height],
+        'u_matrix': {value: calculateMatrix(painter, tile, layer, coord), type: 'mat4'},
+        'u_texsize': {value: [size.width, size.height], type: 'vec2'},
         // camera zoom ratio
-        'u_ratio': 1 / pixelsToTileUnits(tile, 1, transform.zoom),
-        'u_device_pixel_ratio': painter.pixelRatio,
-        'u_image': 0,
-        'u_scale': [tileZoomRatio, crossfade.fromScale, crossfade.toScale],
-        'u_fade': crossfade.t,
-        'u_units_to_pixels': [
-            1 / transform.pixelsToGLUnits[0],
-            1 / transform.pixelsToGLUnits[1]
-        ]
+        'u_ratio': {value: 1 / pixelsToTileUnits(tile, 1, transform.zoom), type: 'float'},
+        'u_device_pixel_ratio': {value: painter.pixelRatio, type: 'float'},
+        'u_scale': {value: [tileZoomRatio, crossfade.fromScale, crossfade.toScale], type: 'vec3'},
+        'u_fade': {value: crossfade.t, type: 'float'},
+        'u_units_to_pixels': {
+            value: [
+                1 / transform.pixelsToGLUnits[0],
+                1 / transform.pixelsToGLUnits[1]
+            ],
+            type: 'vec2'
+        }
     };
 };
 
@@ -107,13 +111,12 @@ const lineSDFUniformValues = (
     const widthB = posB.width * crossfade.toScale;
 
     return extend(lineUniformValues(painter, tile, layer, coord), {
-        'u_patternscale_a': [tileRatio / widthA, -posA.height / 2],
-        'u_patternscale_b': [tileRatio / widthB, -posB.height / 2],
-        'u_sdfgamma': lineAtlas.width / (Math.min(widthA, widthB) * 256 * painter.pixelRatio) / 2,
-        // 'u_image': 0,
-        'u_tex_y_a': posA.y,
-        'u_tex_y_b': posB.y,
-        'u_mix': crossfade.t
+        'u_patternscale_a': {value: [tileRatio / widthA, -posA.height / 2], type: 'vec2'},
+        'u_patternscale_b': {value: [tileRatio / widthB, -posB.height / 2], type: 'vec2'},
+        'u_sdfgamma': {value: lineAtlas.width / (Math.min(widthA, widthB) * 256 * painter.pixelRatio) / 2, type: 'float'},
+        'u_tex_y_a': {value: posA.y, type: 'float'},
+        'u_tex_y_b': {value: posB.y, type: 'float'},
+        'u_mix': {value: crossfade.t, type: 'float'}
     });
 };
 

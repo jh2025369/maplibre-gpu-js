@@ -617,7 +617,6 @@ export class Map extends Camera {
             });
             this.once('idle', () => {
                 this._idleTriggered = true;
-                // this.painter.engine.endFrame();
             });
 
             if (typeof window !== 'undefined') {
@@ -3073,9 +3072,6 @@ export class Map extends Camera {
 
         this._placementDirty = this.style && this.style._updatePlacement(this.painter.transform, this.showCollisionBoxes, fadeDuration, this._crossSourceCollisions);
 
-        // if (!this.painter.engine._currentRenderPass) {
-        // this.painter.engine._startMainRenderPass(true, {r: 1, g: 1, b: 1, a: 1}, true, true);
-        // }
         // Actually draw
         this.painter.render(this.style, {
             showTileBoundaries: this.showTileBoundaries,
@@ -3086,7 +3082,6 @@ export class Map extends Camera {
             fadeDuration,
             showPadding: this.showPadding,
         });
-        // this.painter.engine.endFrame();
 
         this.fire(new Event('render'));
 

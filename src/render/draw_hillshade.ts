@@ -143,7 +143,7 @@ function prepareHillshade(
             //     size,
             //     {
             //         generateMipMaps: false,
-            //         samplingMode: Texture.NEAREST_SAMPLINGMODE,
+            //         samplingMode: Texture.TRILINEAR_SAMPLINGMODE,
             //         creationFlags: 0,
             //         samples: undefined,
             //         label: `renderTarget_${layerID}`,
@@ -174,7 +174,7 @@ function prepareHillshade(
 
         engine.bindFramebuffer(fbo, undefined, undefined, undefined, false, 0, 0);
         if (!tile.renderPassDescriptor) {
-            engine._startRenderTargetRenderPass(engine._currentRenderTarget, true, Color.transparent, false, true);
+            engine._startRenderTargetRenderPass(engine._currentRenderTarget, true, Color.transparent, true, true);
             tile.renderPassDescriptor = engine._getCurrentRenderPassWrapper().renderPassDescriptor;
         } else {
             engine._currentRenderPass = engine._renderEncoder.beginRenderPass(tile.renderPassDescriptor);

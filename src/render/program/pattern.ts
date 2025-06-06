@@ -20,12 +20,12 @@ function patternUniformValues(crossfade: CrossfadeParameters, painter: Painter, 
     const size = tile.imageAtlasTexture.getSize();
 
     return {
-        'u_texsize': [size.width, size.height],
-        'u_scale': [tileRatio, crossfade.fromScale, crossfade.toScale],
-        'u_fade': crossfade.t,
+        'u_texsize': {value: [size.width, size.height], type: 'vec2'},
+        'u_scale': {value: [tileRatio, crossfade.fromScale, crossfade.toScale], type: 'vec3'},
+        'u_fade': {value: crossfade.t, type: 'float'},
         // split the pixel coord into two pairs of 16 bit numbers. The glsl spec only guarantees 16 bits of precision.
-        'u_pixel_coord_upper': [pixelX >> 16, pixelY >> 16],
-        'u_pixel_coord_lower': [pixelX & 0xFFFF, pixelY & 0xFFFF]
+        'u_pixel_coord_upper': {value: [pixelX >> 16, pixelY >> 16], type: 'vec2'},
+        'u_pixel_coord_lower': {value: [pixelX & 0xFFFF, pixelY & 0xFFFF], type: 'vec2'},
     };
 }
 
@@ -49,21 +49,20 @@ function bgPatternUniformValues(
     const pixelY = tileSizeAtNearestZoom * tile.tileID.canonical.y;
 
     return {
-        'u_image': 0,
-        'u_pattern_tl_a': (imagePosA as any).tl,
-        'u_pattern_br_a': (imagePosA as any).br,
-        'u_pattern_tl_b': (imagePosB as any).tl,
-        'u_pattern_br_b': (imagePosB as any).br,
-        'u_texsize': [width, height],
-        'u_mix': crossfade.t,
-        'u_pattern_size_a': (imagePosA as any).displaySize,
-        'u_pattern_size_b': (imagePosB as any).displaySize,
-        'u_scale_a': crossfade.fromScale,
-        'u_scale_b': crossfade.toScale,
-        'u_tile_units_to_pixels': 1 / pixelsToTileUnits(tile, 1, painter.transform.tileZoom),
+        'u_pattern_tl_a': {value: (imagePosA as any).tl, type: 'vec2'},
+        'u_pattern_br_a': {value: (imagePosA as any).br, type: 'vec2'},
+        'u_pattern_tl_b': {value: (imagePosB as any).tl, type: 'vec2'},
+        'u_pattern_br_b': {value: (imagePosB as any).br, type: 'vec2'},
+        'u_texsize': {value: [width, height], type: 'vec2'},
+        'u_mix': {value: crossfade.t, type: 'float'},
+        'u_pattern_size_a': {value: (imagePosA as any).displaySize, type: 'vec2'},
+        'u_pattern_size_b': {value: (imagePosB as any).displaySize, type: 'vec2'},
+        'u_scale_a': {value: crossfade.fromScale, type: 'float'},
+        'u_scale_b': {value: crossfade.toScale, type: 'float'},
+        'u_tile_units_to_pixels': {value: 1 / pixelsToTileUnits(tile, 1, painter.transform.tileZoom), type: 'float'},
         // split the pixel coord into two pairs of 16 bit numbers. The glsl spec only guarantees 16 bits of precision.
-        'u_pixel_coord_upper': [pixelX >> 16, pixelY >> 16],
-        'u_pixel_coord_lower': [pixelX & 0xFFFF, pixelY & 0xFFFF]
+        'u_pixel_coord_upper': {value: [pixelX >> 16, pixelY >> 16], type: 'vec2'},
+        'u_pixel_coord_lower': {value: [pixelX & 0xFFFF, pixelY & 0xFFFF], type: 'vec2'}
     };
 }
 export {bgPatternUniformValues, patternUniformValues};

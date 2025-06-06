@@ -176,7 +176,7 @@ export class RenderToTexture {
                 // prepare PoolObject for rendering
                 engine.bindFramebuffer(obj.fbo, undefined, undefined, undefined, false, 0, 0);
                 if (!obj.renderPassDescriptor) {
-                    engine._startRenderTargetRenderPass(engine._currentRenderTarget, true, Color.transparent, false, true);
+                    engine._startRenderTargetRenderPass(engine._currentRenderTarget, true, Color.transparent, true, true);
                     obj.renderPassDescriptor = engine._getCurrentRenderPassWrapper().renderPassDescriptor;
                 } else {
                     engine._currentRenderPass = engine._renderEncoder.beginRenderPass(obj.renderPassDescriptor);

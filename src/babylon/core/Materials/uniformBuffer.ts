@@ -561,7 +561,7 @@ export class UniformBuffer {
     // It is meant to more easily know what this buffer is about when debugging
     // Some buffers can have a lot of uniforms (several dozens), so the method only returns the first 10 of them
     // (should be enough to understand what the buffer is for)
-    private _getNames() {
+    public _getNames() {
         const names = [];
         let i = 0;
         for (const name in this._uniformLocations) {

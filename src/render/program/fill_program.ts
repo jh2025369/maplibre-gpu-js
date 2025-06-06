@@ -32,7 +32,9 @@ const fillOutlinePatternUniforms = (uniformBuffer: UniformBuffer) => {
 };
 
 const fillUniformValues = (matrix: mat4) => {
-    return {'u_matrix': matrix};
+    return {
+        'u_matrix': {value: matrix, type: 'mat4'}
+    };
 };
 const fillPatternUniformValues = (
     matrix: mat4,
@@ -45,8 +47,8 @@ const fillPatternUniformValues = (
 );
 const fillOutlineUniformValues = (matrix: mat4, drawingBufferSize: [number, number]) => {
     return {
-        'u_matrix': matrix,
-        'u_world': drawingBufferSize,
+        'u_matrix': {value: matrix, type: 'mat4'},
+        'u_world': {value: drawingBufferSize, type: 'vec2'}
     };
 };
 const fillOutlinePatternUniformValues = (
@@ -58,7 +60,7 @@ const fillOutlinePatternUniformValues = (
 ) => extend(
     fillPatternUniformValues(matrix, painter, crossfade, tile),
     {
-        'u_world': drawingBufferSize
+        'u_world': {value: drawingBufferSize, type: 'vec2'}
     }
 );
 

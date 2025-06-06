@@ -26,17 +26,17 @@ const rasterUniformValues = (
     },
     layer: RasterStyleLayer
 ) => ({
-    'u_matrix': matrix,
-    'u_tl_parent': parentTL,
-    'u_scale_parent': parentScaleBy,
-    'u_buffer_scale': 1,
-    'u_fade_t': fade.mix,
-    'u_opacity': fade.opacity * layer.paint.get('raster-opacity'),
-    'u_brightness_low': layer.paint.get('raster-brightness-min'),
-    'u_brightness_high': layer.paint.get('raster-brightness-max'),
-    'u_saturation_factor': saturationFactor(layer.paint.get('raster-saturation')),
-    'u_contrast_factor': contrastFactor(layer.paint.get('raster-contrast')),
-    'u_spin_weights': spinWeights(layer.paint.get('raster-hue-rotate'))
+    'u_matrix': {value: matrix, type: 'mat4'},
+    'u_tl_parent': {value: parentTL, type: 'vec2'},
+    'u_scale_parent': {value: parentScaleBy, type: 'float'},
+    'u_buffer_scale': {value: 1, type: 'float'},
+    'u_fade_t': {value: fade.mix, type: 'float'},
+    'u_opacity': {value: fade.opacity * layer.paint.get('raster-opacity'), type: 'float'},
+    'u_brightness_low': {value: layer.paint.get('raster-brightness-min'), type: 'float'},
+    'u_brightness_high': {value: layer.paint.get('raster-brightness-max'), type: 'float'},
+    'u_saturation_factor': {value: saturationFactor(layer.paint.get('raster-saturation')), type: 'float'},
+    'u_contrast_factor': {value: contrastFactor(layer.paint.get('raster-contrast')), type: 'float'},
+    'u_spin_weights': {value: spinWeights(layer.paint.get('raster-hue-rotate')), type: 'vec3'}
 });
 
 function spinWeights(angle) {

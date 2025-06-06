@@ -26,10 +26,10 @@ import {RenderTargetWrapper} from 'core/Engines';
  * A terrain GPU related object
  */
 export type TerrainData = {
-    'u_terrain_dim': number;
-    'u_terrain_matrix': mat4;
-    'u_terrain_unpack': number[];
-    'u_terrain_exaggeration': number;
+    'u_terrain_dim': {value: number; type: 'float'};
+    'u_terrain_matrix': {value: mat4; type: 'mat4'};
+    'u_terrain_unpack': {value: number[]; type: 'vec4'};
+    'u_terrain_exaggeration': {value: number; type: 'float'};
     texture: Texture;
     depthTexture: Texture;
     tile: Tile;
@@ -166,7 +166,7 @@ export class Terrain {
         if (!dem)
             return 0;
 
-        const pos = vec2.transformMat4([] as any, [x / extent * EXTENT, y / extent * EXTENT], terrain.u_terrain_matrix);
+        const pos = vec2.transformMat4([] as any, [x / extent * EXTENT, y / extent * EXTENT], terrain.u_terrain_matrix.value);
         const coord = [pos[0] * dem.dim, pos[1] * dem.dim];
 
         // bilinear interpolation
@@ -279,10 +279,22 @@ export class Terrain {
         }
         // return uniform values & textures
         return {
-            'u_terrain_dim': sourceTile && sourceTile.dem && sourceTile.dem.dim || 1,
-            'u_terrain_matrix': matrixKey ? this._demMatrixCache[tileID.key].matrix : this._emptyDemMatrix,
-            'u_terrain_unpack': sourceTile && sourceTile.dem && sourceTile.dem.getUnpackVector() || this._emptyDemUnpack,
-            'u_terrain_exaggeration': this.exaggeration,
+            'u_terrain_dim': {
+                value: sourceTile && sourceTile.dem && sourceTile.dem.dim || 1,
+                type: 'float'
+            },
+            'u_terrain_matrix': {
+                value: matrixKey ? this._demMatrixCache[tileID.key].matrix : this._emptyDemMatrix,
+                type: 'mat4'
+            },
+            'u_terrain_unpack': {
+                value: sourceTile && sourceTile.dem && sourceTile.dem.getUnpackVector() || this._emptyDemUnpack,
+                type: 'vec4'
+            },
+            'u_terrain_exaggeration': {
+                value: this.exaggeration,
+                type: 'float'
+            },
             texture: sourceTile && sourceTile.demTexture || this._emptyDemTexture,
             depthTexture: this._fboDepthTexture || this._emptyDepthTexture,
             tile: sourceTile

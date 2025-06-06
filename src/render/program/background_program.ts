@@ -16,9 +16,9 @@ const backgroundUniforms = (uniformBuffer: UniformBuffer) => {
 };
 
 const backgroundUniformValues = (matrix: mat4, opacity: number, color: Color) => ({
-    'u_matrix': matrix,
-    'u_opacity': opacity,
-    'u_color': color
+    'u_matrix': {value: matrix, type: 'mat4'},
+    'u_opacity': {value: opacity, type: 'float'},
+    'u_color': {value: color.rgb, type: 'vec4'}
 });
 
 const backgroundPatternUniformValues = (
@@ -34,8 +34,8 @@ const backgroundPatternUniformValues = (
 ) => extend(
     bgPatternUniformValues(image, crossfade, painter, tile),
     {
-        'u_matrix': matrix,
-        'u_opacity': opacity
+        'u_matrix': {value: matrix, type: 'mat4'},
+        'u_opacity': {value: opacity, type: 'float'}
     }
 );
 

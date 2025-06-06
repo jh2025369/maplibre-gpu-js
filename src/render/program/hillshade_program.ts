@@ -43,12 +43,15 @@ const hillshadeUniformValues = (
     }
     const align = !painter.options.moving;
     return {
-        'u_matrix': coord ? coord.posMatrix : painter.transform.calculatePosMatrix(tile.tileID.toUnwrapped(), align),
-        'u_latrange': getTileLatRange(painter, tile.tileID),
-        'u_light': [layer.paint.get('hillshade-exaggeration'), azimuthal],
-        'u_shadow': shadow,
-        'u_highlight': highlight,
-        'u_accent': accent
+        'u_matrix': {
+            value: coord ? coord.posMatrix : painter.transform.calculatePosMatrix(tile.tileID.toUnwrapped(), align),
+            type: 'mat4'
+        },
+        'u_latrange': {value: getTileLatRange(painter, tile.tileID), type: 'vec2'},
+        'u_light': {value: [layer.paint.get('hillshade-exaggeration'), azimuthal], type: 'vec2'},
+        'u_shadow': {value: shadow.rgb, type: 'vec4'},
+        'u_highlight': {value: highlight.rgb, type: 'vec4'},
+        'u_accent': {value: accent.rgb, type: 'vec4'}
     };
 };
 
@@ -61,10 +64,10 @@ const hillshadeUniformPrepareValues = (tileID: OverscaledTileID, dem: DEMData) =
     mat4.translate(matrix, matrix, [0, -EXTENT, 0]);
 
     return {
-        'u_matrix': matrix,
-        'u_dimension': [stride, stride],
-        'u_zoom': tileID.overscaledZ,
-        'u_unpack': dem.getUnpackVector()
+        'u_matrix': {value: matrix, type: 'mat4'},
+        'u_dimension': {value: [stride, stride], type: 'vec2'},
+        'u_zoom': {value: tileID.overscaledZ, type: 'float'},
+        'u_unpack': {value: dem.getUnpackVector(), type: 'vec4'}
     };
 };
 
@@ -74,7 +77,8 @@ function getTileLatRange(painter: Painter, tileID: OverscaledTileID) {
     const y = tileID.canonical.y;
     return [
         new MercatorCoordinate(0, y / tilesAtZoom).toLngLat().lat,
-        new MercatorCoordinate(0, (y + 1) / tilesAtZoom).toLngLat().lat];
+        new MercatorCoordinate(0, (y + 1) / tilesAtZoom).toLngLat().lat
+    ];
 }
 
 export {
