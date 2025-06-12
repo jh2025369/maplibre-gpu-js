@@ -44,6 +44,10 @@ import collisionBoxVert from './collision_box.vertex.wgsl';
 import collisionBoxFrag from './collision_box.fragment.wgsl';
 import collisionCircleVert from './collision_circle.vertex.wgsl';
 import collisionCircleFrag from './collision_circle.fragment.wgsl';
+import heatmapVert from './heatmap.vertex.wgsl';
+import heatmapFrag from './heatmap.fragment.wgsl';
+import heatmapTextureVert from './heatmap_texture.vertex.wgsl';
+import heatmapTextureFrag from './heatmap_texture.fragment.wgsl';
 import {ShaderStore} from 'core/Engines';
 
 export const shaders = {};
@@ -74,6 +78,8 @@ export const shaderTemplates = {
     symbolTextAndIcon: [symbolTextAndIconVert, symbolTextAndIconFrag],
     collisionBox: [collisionBoxVert, collisionBoxFrag],
     collisionCircle: [collisionCircleVert, collisionCircleFrag],
+    heatmap: [heatmapVert, heatmapFrag],
+    heatmapTexture: [heatmapTextureVert, heatmapTextureFrag]
 };
 
 export function generateShader(key: string, shaderName: string, cvtParams: WgslConvertParams) {

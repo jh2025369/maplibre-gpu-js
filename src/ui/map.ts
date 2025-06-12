@@ -2922,7 +2922,7 @@ export class Map extends Camera {
             {
                 useHighPrecisionMatrix: true,
                 enableAllFeatures: true,
-                antialias: false
+                antialias: this._antialias || false
             }
         );
         await engine.initAsync();

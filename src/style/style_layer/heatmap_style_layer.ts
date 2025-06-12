@@ -7,7 +7,7 @@ import {renderColorRamp} from '../../util/color_ramp';
 import {Transitionable, Transitioning, PossiblyEvaluated} from '../properties';
 
 import type {Texture} from 'core/Materials/Textures/texture';
-// import type {Framebuffer} from '../../gl/framebuffer';
+import type {RenderTargetWrapper} from 'core/Engines';
 import type {HeatmapPaintProps} from './heatmap_style_layer_properties.g';
 import type {LayerSpecification} from '@maplibre/maplibre-gl-style-spec';
 
@@ -16,7 +16,8 @@ import type {LayerSpecification} from '@maplibre/maplibre-gl-style-spec';
  */
 export class HeatmapStyleLayer extends StyleLayer {
 
-    // heatmapFbo: Framebuffer;
+    heatmapFbo: RenderTargetWrapper;
+    renderPassDescriptor: GPURenderPassDescriptor;
     colorRamp: RGBAImage;
     colorRampTexture: Texture;
 
@@ -52,10 +53,11 @@ export class HeatmapStyleLayer extends StyleLayer {
     }
 
     resize() {
-        // if (this.heatmapFbo) {
-        //     this.heatmapFbo.destroy();
-        //     this.heatmapFbo = null;
-        // }
+        if (this.heatmapFbo) {
+            this.heatmapFbo.dispose();
+            this.heatmapFbo = null;
+            this.renderPassDescriptor = null;
+        }
     }
 
     queryRadius(): number {

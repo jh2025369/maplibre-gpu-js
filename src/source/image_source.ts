@@ -265,7 +265,7 @@ export class ImgSource extends Evented implements Source {
                 this.image,
                 true,
                 false,
-                false,
+                true,
                 Texture.BILINEAR_SAMPLINGMODE,
                 this.image,
                 Constants.TEXTUREFORMAT_RGBA

@@ -103,13 +103,13 @@ export function drawLine(painter: Painter, sourceCache: SourceCache, layer: Line
                 });
                 if (layerGradient.texture) {
                     engine._textureHelper.updateTexture(layerGradient.gradient.data, layerGradient.texture._texture, layerGradient.gradient.width,
-                        layerGradient.gradient.height, 0, WebGPUConstants.TextureFormat.RGBA8Unorm, 0, 0, false, false, 0, 0);
+                        layerGradient.gradient.height, 0, WebGPUConstants.TextureFormat.RGBA8Unorm, 0, 0, false, true, 0, 0);
                 } else {
                     layerGradient.texture = engine.createTextureNoUrl(
                         layerGradient.gradient,
                         true,
                         false,
-                        false,
+                        true,
                         layer.stepInterpolant ? Texture.NEAREST_SAMPLINGMODE : Texture.BILINEAR_SAMPLINGMODE,
                         layerGradient.gradient.data.buffer,
                         Constants.TEXTUREFORMAT_RGBA

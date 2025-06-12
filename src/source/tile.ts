@@ -267,7 +267,7 @@ export class Tile {
                 this.imageAtlas.image,
                 true,
                 false,
-                false,
+                true,
                 Texture.BILINEAR_SAMPLINGMODE,
                 this.imageAtlas.image.data.buffer,
                 Constants.TEXTUREFORMAT_RGBA

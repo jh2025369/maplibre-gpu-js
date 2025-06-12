@@ -166,7 +166,7 @@ export class ImageAtlas {
             0,
             0,
             false,
-            false,
+            true,
             x,
             y
         );

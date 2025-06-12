@@ -277,7 +277,7 @@ export class ImageManager extends Evented {
                 this.atlasImage,
                 true,
                 false,
-                false,
+                true,
                 Texture.BILINEAR_SAMPLINGMODE,
                 this.atlasImage.data.buffer,
                 Constants.TEXTUREFORMAT_RGBA
@@ -286,7 +286,7 @@ export class ImageManager extends Evented {
             this.atlasTexture.wrapV = Constants.TEXTURE_CLAMP_ADDRESSMODE;
         } else if (this.dirty) {
             engine._textureHelper.updateTexture(this.atlasImage.data, this.atlasTexture._texture, this.atlasImage.width,
-                this.atlasImage.height, 0, WebGPUConstants.TextureFormat.RGBA8Unorm, 0, 0, false, false, 0, 0);
+                this.atlasImage.height, 0, WebGPUConstants.TextureFormat.RGBA8Unorm, 0, 0, false, true, 0, 0);
             this.dirty = false;
         }
 

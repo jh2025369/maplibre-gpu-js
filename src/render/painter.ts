@@ -10,6 +10,7 @@ import {CrossTileSymbolIndex} from '../symbol/cross_tile_symbol_index';
 import {Color} from '@maplibre/maplibre-gl-style-spec';
 import {drawLine} from './draw_line';
 import {drawCircles} from './draw_circle';
+import {drawHeatmap} from './draw_heatmap';
 import {drawCustom} from './draw_custom';
 import {drawDepth, drawCoords} from './draw_terrain';
 
@@ -514,9 +515,9 @@ export class Painter {
             case 'circle':
                 drawCircles(painter, sourceCache, layer as any, coords);
                 break;
-            // case 'heatmap':
-            //     drawHeatmap(painter, sourceCache, layer as any, coords);
-            //     break;
+            case 'heatmap':
+                drawHeatmap(painter, sourceCache, layer as any, coords);
+                break;
             case 'line':
                 drawLine(painter, sourceCache, layer as any, coords);
                 // drawTest(painter, sourceCache, layer as any, coords);

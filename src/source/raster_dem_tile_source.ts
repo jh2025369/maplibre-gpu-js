@@ -153,6 +153,7 @@ export class RasterDEMTileSource extends RasterTileSource implements Source {
         if (tile.demTexture) this.map.painter.saveTileTexture(tile.demTexture);
         if (tile.fbo) {
             tile.fbo.dispose();
+            tile.renderPassDescriptor = null;
             delete tile.fbo;
         }
         if (tile.dem) delete tile.dem;

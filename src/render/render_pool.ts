@@ -36,6 +36,7 @@ export class RenderPool {
         for (const obj of this._objects) {
             obj.texture.dispose();
             obj.fbo.dispose();
+            obj.renderPassDescriptor = null;
         }
     }
 

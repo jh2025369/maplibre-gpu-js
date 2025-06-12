@@ -12,6 +12,7 @@ import {rasterUniforms} from './raster_program';
 import {hillshadeUniforms, hillshadePrepareUniforms} from './hillshade_program';
 import {symbolIconUniforms, symbolSDFUniforms, symbolTextAndIconUniforms} from './symbol_program';
 import {collisionUniforms, collisionCircleUniforms} from './collision_program';
+import {heatmapUniforms, heatmapTextureUniforms} from './heatmap_program';
 
 export const programUniforms = {
     line: lineUniforms,
@@ -37,4 +38,6 @@ export const programUniforms = {
     symbolTextAndIcon: symbolTextAndIconUniforms,
     collisionBox: collisionUniforms,
     collisionCircle: collisionCircleUniforms,
+    heatmap: heatmapUniforms,
+    heatmapTexture: heatmapTextureUniforms
 };

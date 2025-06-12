@@ -398,10 +398,10 @@ function drawLayerSymbols(
         if (state.isSDF) {
             const uniformValues = state.uniformValues;
             if (state.hasHalo) {
-                uniformValues['u_is_halo'] = 1;
+                uniformValues['u_is_halo'].value = 1;
                 drawSymbolElements(state.buffers, segmentState.segments, layer, painter, program, uniformValues, segmentState.terrainData);
             }
-            uniformValues['u_is_halo'] = 0;
+            uniformValues['u_is_halo'].value = 0;
         }
         drawSymbolElements(state.buffers, segmentState.segments, layer, painter, program, state.uniformValues, segmentState.terrainData);
     }

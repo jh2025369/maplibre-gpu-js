@@ -204,7 +204,7 @@ export class RasterTileSource extends Evented implements Source {
                         0,
                         0,
                         false,
-                        false,
+                        true,
                         0,
                         0
                     );
@@ -214,7 +214,7 @@ export class RasterTileSource extends Evented implements Source {
                         img,
                         false,
                         false,
-                        false,
+                        true,
                         Texture.LINEAR_LINEAR_MIPNEAREST,
                         img,
                         Constants.TEXTUREFORMAT_RGBA

@@ -205,9 +205,6 @@ export class LineAtlas {
                 this.data.buffer,
                 Constants.TEXTUREFORMAT_RED
             );
-            // this.texture.wrapU = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-            // this.texture.wrapV = Constants.TEXTURE_CLAMP_ADDRESSMODE;
-
         } else {
             if (this.dirty) {
                 this.dirty = false;
