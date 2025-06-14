@@ -44,14 +44,14 @@ export function drawRaster(painter: Painter, sourceCache: SourceCache, layer: Ra
         let parentScaleBy, parentTL;
 
         const textureFilter = layer.paint.get('raster-resampling') === 'nearest' ?  Texture.NEAREST_LINEAR_MIPNEAREST : Texture.LINEAR_LINEAR_MIPNEAREST;
-        engine.updateTextureSamplingMode(textureFilter, tile.texture._texture, true);
+        engine.updateTextureSamplingMode(textureFilter, tile.texture._texture, false);
         tile.texture.wrapU = Constants.TEXTURE_CLAMP_ADDRESSMODE;
         tile.texture.wrapV = Constants.TEXTURE_CLAMP_ADDRESSMODE;
         tile.texture.wrapR = Constants.TEXTURE_CLAMP_ADDRESSMODE;
         engine.setTexture2(tile.texture, 'u_image0');
 
         if (parentTile) {
-            engine.updateTextureSamplingMode(textureFilter, parentTile.texture._texture, true);
+            engine.updateTextureSamplingMode(textureFilter, parentTile.texture._texture, false);
             parentTile.texture.wrapU = Constants.TEXTURE_CLAMP_ADDRESSMODE;
             parentTile.texture.wrapV = Constants.TEXTURE_CLAMP_ADDRESSMODE;
             parentTile.texture.wrapR = Constants.TEXTURE_CLAMP_ADDRESSMODE;

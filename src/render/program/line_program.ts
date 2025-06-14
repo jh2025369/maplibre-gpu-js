@@ -15,6 +15,24 @@ const lineUniforms = (uniformBuffer: UniformBuffer) => {
     uniformBuffer.addUniform('u_device_pixel_ratio', 1);
 };
 
+const lineGradientUniforms = (uniformBuffer: UniformBuffer) => {
+    uniformBuffer.addUniform('u_matrix', 16);
+    uniformBuffer.addUniform('u_ratio', 1);
+    uniformBuffer.addUniform('u_units_to_pixels', 2);
+    uniformBuffer.addUniform('u_device_pixel_ratio', 1);
+    uniformBuffer.addUniform('u_image_height', 1);
+};
+
+const linePatternUniforms = (uniformBuffer: UniformBuffer) => {
+    uniformBuffer.addUniform('u_matrix', 16);
+    uniformBuffer.addUniform('u_texsize', 2);
+    uniformBuffer.addUniform('u_ratio', 1);
+    uniformBuffer.addUniform('u_units_to_pixels', 2);
+    uniformBuffer.addUniform('u_device_pixel_ratio', 1);
+    uniformBuffer.addUniform('u_scale', 3);
+    uniformBuffer.addUniform('u_fade', 1);
+};
+
 const lineSDFUniforms = (uniformBuffer: UniformBuffer) => {
     uniformBuffer.addUniform('u_matrix', 16);
     uniformBuffer.addUniform('u_ratio', 1);
@@ -144,6 +162,8 @@ const extend = (dest: object, ...sources: Array<any>): any => {
 
 export {
     lineUniforms,
+    lineGradientUniforms,
+    linePatternUniforms,
     lineSDFUniforms,
     lineUniformValues,
     linePatternUniformValues,

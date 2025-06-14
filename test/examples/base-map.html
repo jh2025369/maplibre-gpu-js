@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>my city</title>
+    <meta property="og:description" content="Initialize a map." />
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='../../dist/maplibre-gpu.css' />
+    <script src='../../dist/maplibre-gpu-dev.js'></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+    const map = new maplibregpu.Map({
+        container: 'map',
+        style: 'https://api.maptiler.com/maps/streets/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL',
+        // style: {
+        //     version: 8,
+        //     sources: {
+        //         'gaode-raster': {
+        //             type: 'raster',
+        //             tiles: [
+        //                 'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+        //                 'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+        //                 'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+        //                 'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
+        //             ],
+        //             tileSize: 256
+        //         }
+        //     },
+        //     layers: [{
+        //         id: 'gaode-layer',
+        //         type: 'raster',
+        //         source: 'gaode-raster',
+        //         minzoom: 3,
+        //         maxzoom: 18
+        //     }]
+        // },
+        center: [110.358863, 21.272757],
+        zoom: 15,
+        // pitch: 60,
+        antialias: true
+    });
+
+    const BABYLON = maplibregpu.BABYLON;
+    const BABYLONLoader = maplibregpu.BABYLONLoader;
+
+    const worldOrigin = [110.356563, 21.272657];
+    const worldAltitude = 0;
+
+    // Maplibre.js default coordinate system (no rotations)
+    // +x east, -y north, +z up
+    //var worldRotate = [0, 0, 0];
+
+    // Babylon.js default coordinate system
+    // +x east, +y up, +z north
+    const worldRotate = [Math.PI / 2, 0, 0];
+
+    // Calculate mercator coordinates and scale
+    const worldOriginMercator = maplibregpu.MercatorCoordinate.fromLngLat(
+        worldOrigin,
+        worldAltitude
+    );
+    const worldScale = worldOriginMercator.meterInMercatorCoordinateUnits();
+
+    // Calculate world matrix
+    const worldMatrix = BABYLON.Matrix.Compose(
+        new BABYLON.Vector3(worldScale, worldScale, worldScale),
+        BABYLON.Quaternion.FromEulerAngles(
+            worldRotate[0],
+            worldRotate[1],
+            worldRotate[2]
+        ),
+        new BABYLON.Vector3(
+            worldOriginMercator.x,
+            worldOriginMercator.y,
+            worldOriginMercator.z
+        )
+    );
+
+    // configuration of the custom layer for a 3D model per the CustomLayerInterface
+    const customLayer = {
+        id: '3d-model',
+        type: 'custom',
+        renderingMode: '3d',
+        onAdd (map, engine) {
+            this.scene = new BABYLON.Scene(engine);
+            this.scene.autoClear = false;
+            this.scene.detachControl();
+
+            this.scene.beforeRender = () => {
+                engine.wipeCaches(true);
+            };
+
+            const hdrTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
+                'textures/environment.dds',
+                this.scene
+            );
+            this.scene.environmentTexture = hdrTexture;
+            this.scene.createDefaultSkybox(hdrTexture, true, 1000, 0.04);
+
+            this.camera = new BABYLON.Camera(
+                'Camera',
+                new BABYLON.Vector3(0, 0, 0),
+                this.scene
+            );
+
+            this.viewMatrix = BABYLON.Matrix.Identity();
+            this.camera.getViewMatrix = () => {
+                return this.viewMatrix;
+            };
+
+            const light = new BABYLON.HemisphericLight(
+                'light',
+                new BABYLON.Vector3(0, 1, 0),
+                this.scene
+            );
+            light.intensity = 0.7;
+
+            BABYLON.SceneLoader.ImportMeshAsync(
+                '',
+                'https://threejs.org/examples/models/gltf/',
+                'LittlestTokyo.glb',
+                this.scene,
+            ).then((result) => {
+                const model = result.meshes[0];
+                // model.position.x = 25; // +east, meters
+                // model.position.z = 25; // +north, meters
+                model.position.y = 20;
+                // model.rotationQuaternion = BABYLON.Quaternion.RotationYawPitchRoll(Math.PI / 6, 0, 0);
+                model.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1);
+
+                if (result.animationGroups && result.animationGroups.length > 0) {
+                    const animation = result.animationGroups[0];
+                    animation.play(true);
+
+                    animation.speedRatio = 1.0;
+                }
+            }).catch((error) => {
+                console.error('Error loading model:', error);
+            });
+
+            this.map = map;
+        },
+        render (painter, matrix) {
+            this.viewMatrix.fromArray(painter.transform._viewMatrix);
+            const projectionMatrix = BABYLON.Matrix.FromArray(painter.transform._projectionMatrix);
+            this.viewMatrix = worldMatrix.multiply(this.viewMatrix);
+            this.camera.freezeProjectionMatrix(projectionMatrix);
+
+            this.scene.render(false);
+            this.map.triggerRepaint();
+        }
+    };
+
+    map.on('style.load', () => {
+        map.addLayer(customLayer);
+    });
+</script>
+</body>
+</html>

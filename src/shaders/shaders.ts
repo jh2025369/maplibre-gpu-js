@@ -2,6 +2,10 @@ import convertWgsl, {WgslConvertParams} from './convert_wgsl';
 import preludeVert from './ShadersInclude/_prelude.vertex.wgsl';
 import lineVert from './line.vertex.wgsl';
 import lineFrag from './line.fragment.wgsl';
+import lineGradientVert from './line_gradient.vertex.wgsl';
+import lineGradientFrag from './line_gradient.fragment.wgsl';
+import linePatternVert from './line_pattern.vertex.wgsl';
+import linePatternFrag from './line_pattern.fragment.wgsl';
 import lineSDFVert from './line_sdf.vertex.wgsl';
 import lineSDFFrag from './line_sdf.fragment.wgsl';
 import testVert from './test.vertex.wgsl';
@@ -56,6 +60,8 @@ ShaderStore.IncludesShadersStoreWGSL['preludeVertex'] = preludeVert;
 
 export const shaderTemplates = {
     line: [lineVert, lineFrag],
+    lineGradient: [lineGradientVert, lineGradientFrag],
+    linePattern: [linePatternVert, linePatternFrag],
     lineSDF: [lineSDFVert, lineSDFFrag],
     test: [testVert, testFrag],
     background: [backgroundVert, backgroundFrag],

@@ -189,15 +189,13 @@ export class CanvasSource extends ImgSource {
         }
 
         if (!this.texture) {
-            const image = new Image();
-            image.src = this.canvas.toDataURL();
             this.texture = engine.createTextureNoUrl(
                 this.canvas,
                 true,
                 false,
                 true,
                 Texture.NEAREST_SAMPLINGMODE,
-                image,
+                this.canvas as any,
                 Constants.TEXTUREFORMAT_RGBA
             );
         } else if (resize || this._playing) {
