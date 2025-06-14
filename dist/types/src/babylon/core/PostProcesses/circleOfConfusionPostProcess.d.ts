@@ -1,0 +1,58 @@
+import type { Nullable } from "../types";
+import type { PostProcessOptions } from "./postProcess";
+import { PostProcess } from "./postProcess";
+import type { RenderTargetTexture } from "../Materials/Textures/renderTargetTexture";
+import type { Camera } from "../Cameras/camera";
+import type { AbstractEngine } from "core/Engines/abstractEngine";
+import type { ThinCircleOfConfusionPostProcessOptions } from "./thinCircleOfConfusionPostProcess";
+import { ThinCircleOfConfusionPostProcess } from "./thinCircleOfConfusionPostProcess";
+export type CircleOfConfusionPostProcessOptions = ThinCircleOfConfusionPostProcessOptions & PostProcessOptions;
+/**
+ * The CircleOfConfusionPostProcess computes the circle of confusion value for each pixel given required lens parameters. See https://en.wikipedia.org/wiki/Circle_of_confusion
+ */
+export declare class CircleOfConfusionPostProcess extends PostProcess {
+    /**
+     * Max lens size in scene units/1000 (eg. millimeter). Standard cameras are 50mm. (default: 50) The diameter of the resulting aperture can be computed by lensSize/fStop.
+     */
+    get lensSize(): number;
+    set lensSize(value: number);
+    /**
+     * F-Stop of the effect's camera. The diameter of the resulting aperture can be computed by lensSize/fStop. (default: 1.4)
+     */
+    get fStop(): number;
+    set fStop(value: number);
+    /**
+     * Distance away from the camera to focus on in scene units/1000 (eg. millimeter). (default: 2000)
+     */
+    get focusDistance(): number;
+    set focusDistance(value: number);
+    /**
+     * Focal length of the effect's camera in scene units/1000 (eg. millimeter). (default: 50)
+     */
+    get focalLength(): number;
+    set focalLength(value: number);
+    /**
+     * Gets a string identifying the name of the class
+     * @returns "CircleOfConfusionPostProcess" string
+     */
+    getClassName(): string;
+    protected _effectWrapper: ThinCircleOfConfusionPostProcess;
+    private _depthTexture;
+    /**
+     * Creates a new instance CircleOfConfusionPostProcess
+     * @param name The name of the effect.
+     * @param depthTexture The depth texture of the scene to compute the circle of confusion. This must be set in order for this to function but may be set after initialization if needed.
+     * @param options The required width/height ratio to downsize to before computing the render pass.
+     * @param camera The camera to apply the render pass to.
+     * @param samplingMode The sampling mode to be used when computing the pass. (default: 0)
+     * @param engine The engine which the post process will be applied. (default: current engine)
+     * @param reusable If the post process can be reused on the same frame. (default: false)
+     * @param textureType Type of textures used when performing the post process. (default: 0)
+     * @param blockCompilation If compilation of the shader should not be done in the constructor. The updateEffect method can be used to compile the shader at a later time. (default: false)
+     */
+    constructor(name: string, depthTexture: Nullable<RenderTargetTexture>, options: number | CircleOfConfusionPostProcessOptions, camera: Nullable<Camera>, samplingMode?: number, engine?: AbstractEngine, reusable?: boolean, textureType?: number, blockCompilation?: boolean);
+    /**
+     * Depth texture to be used to compute the circle of confusion. This must be set here or in the constructor in order for the post process to function.
+     */
+    set depthTexture(value: RenderTargetTexture);
+}

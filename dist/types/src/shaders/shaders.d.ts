@@ -1,0 +1,37 @@
+import { WgslConvertParams } from './convert_wgsl';
+export declare const shaders: {};
+export declare const shaderTemplates: {
+    line: string[];
+    lineGradient: string[];
+    linePattern: string[];
+    lineSDF: string[];
+    test: string[];
+    background: string[];
+    clippingMask: string[];
+    circle: string[];
+    fill: string[];
+    fillPattern: string[];
+    fillOutline: string[];
+    fillOutlinePattern: string[];
+    fillExtrusion: string[];
+    fillExtrusionPattern: string[];
+    terrain: string[];
+    terrainDepth: string[];
+    terrainCoords: string[];
+    raster: string[];
+    hillshade: string[];
+    hillshadePrepare: string[];
+    symbolIcon: string[];
+    symbolSDF: string[];
+    symbolTextAndIcon: string[];
+    collisionBox: string[];
+    collisionCircle: string[];
+    heatmap: string[];
+    heatmapTexture: string[];
+};
+export declare function generateShader(key: string, shaderName: string, cvtParams: WgslConvertParams): {
+    vertexSource: string;
+    fragmentSource: string;
+    paramKeys: string[];
+    vertexInputKeys: string[];
+};
