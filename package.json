@@ -164,7 +164,7 @@
     "build-dist": "npm run build-css && npm run build-dev && npm run build-csp-dev && npm run build-prod && npm run build-csp",
     "build-dev": "cross-env NODE_OPTIONS=--max-old-space-size=6500 rollup --configPlugin @rollup/plugin-typescript -c --environment BUILD:dev",
     "watch-dev": "cross-env NODE_OPTIONS=--max-old-space-size=6500 rollup --configPlugin @rollup/plugin-typescript -c --environment BUILD:dev --watch",
-    "build-prod": "rollup --configPlugin @rollup/plugin-typescript -c --environment BUILD:production",
+    "build-prod": "cross-env NODE_OPTIONS=--max-old-space-size=6500 rollup --configPlugin @rollup/plugin-typescript -c --environment BUILD:production",
     "build-csp": "rollup --configPlugin @rollup/plugin-typescript -c rollup.config.csp.ts",
     "build-csp-dev": "rollup --configPlugin @rollup/plugin-typescript -c rollup.config.csp.ts --environment BUILD:dev",
     "build-css": "postcss -o dist/maplibre-gpu.css src/css/maplibre-gpu.css",

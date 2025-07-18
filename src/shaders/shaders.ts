@@ -10,6 +10,8 @@ import lineSDFVert from './line_sdf.vertex.wgsl';
 import lineSDFFrag from './line_sdf.fragment.wgsl';
 import testVert from './test.vertex.wgsl';
 import testFrag from './test.fragment.wgsl';
+import sweepVert from './sweep.vertex.wgsl';
+import sweepFrag from './sweep.fragment.wgsl';
 import backgroundVert from './background.vertex.wgsl';
 import backgroundFrag from './background.fragment.wgsl';
 import clippingMaskVert from './clipping_mask.vertex.wgsl';
@@ -64,6 +66,7 @@ export const shaderTemplates = {
     linePattern: [linePatternVert, linePatternFrag],
     lineSDF: [lineSDFVert, lineSDFFrag],
     test: [testVert, testFrag],
+    sweep: [sweepVert, sweepFrag],
     background: [backgroundVert, backgroundFrag],
     clippingMask: [clippingMaskVert, clippingMaskFrag],
     circle: [circleVert, circleFrag],

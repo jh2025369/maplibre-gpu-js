@@ -27,6 +27,7 @@ import {DataBuffer} from 'core/Buffers/dataBuffer';
 import {LineAtlas} from './line_atlas';
 import {Texture} from 'core/Materials/Textures/texture';
 import {drawTest} from './draw_test';
+import {drawSweep} from './draw_sweep';
 import {drawFill} from './draw_fill';
 import {drawFillExtrusion} from './draw_fill_extrusion';
 import {drawHillshade} from './draw_hillshade';
@@ -475,6 +476,11 @@ export class Painter {
 
         this.engine.endFrame();
         this.engine._viewportDepthRange(0, 1);
+
+        this.engine._startMainRenderPass(false, null, false, true);
+        // drawTest(this);
+        // drawSweep(this);
+        this.engine.endFrame();
     }
 
     maybeDrawDepthAndCoords(requireExact: boolean) {
@@ -520,7 +526,6 @@ export class Painter {
                 break;
             case 'line':
                 drawLine(painter, sourceCache, layer as any, coords);
-                // drawTest(painter, sourceCache, layer as any, coords);
                 break;
             case 'fill':
                 drawFill(painter, sourceCache, layer as any, coords);

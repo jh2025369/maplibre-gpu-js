@@ -1,6 +1,7 @@
 import type {Painter} from './painter';
 import {IEffectCreationOptions} from 'core/Materials/effect';
 import {VertexBuffer} from 'core/Buffers/buffer';
+import {UniformBuffer} from 'core/Materials/uniformBuffer';
 import {generateShader} from '../shaders/shaders';
 import {Texture} from 'core/Materials/Textures/texture';
 import {Constants} from 'core/Engines/constants';
@@ -8,7 +9,9 @@ import {ShaderLanguage} from 'core/Materials/shaderLanguage';
 import {WebGPUShaderProcessorCustom} from 'core/Engines/WebGPU/webgpuShaderProcessorsCustom';
 import {IShaderProcessor} from 'core/Engines/Processors/iShaderProcessor';
 
-export function drawTest(painter: Painter) {
+let time = 0;
+
+export function drawSweep(painter: Painter) {
     if (painter.renderPass !== 'translucent') return;
 
     const engine = painter.engine;
@@ -33,11 +36,11 @@ export function drawTest(painter: Painter) {
             convertSymbols: []
         }
     };
-    generateShader('test', 'test', convertParams);
+    generateShader('sweep', 'sweep', convertParams);
 
     const shaderProcessor = new WebGPUShaderProcessorCustom();
     const effect = engine.createEffect(
-        'test',
+        'sweep',
         <IEffectCreationOptions>{
             attributes: ['pos', 'uv'],
             uniformsNames: [],
@@ -54,10 +57,10 @@ export function drawTest(painter: Painter) {
     engine._currentMaterialContext = engine.createMaterialContext();
 
     const vertexData = new Float32Array([
-        0.5, 0.5,
-        -0.5, 0.5,
-        -0.5, -0.5,
-        0.5, -0.5
+        1, 1,
+        -1, 1,
+        -1, -1,
+        1, -1
     ]);
     const dataBuffer = engine.createVertexBuffer(vertexData);
     const vertexBuffer = new VertexBuffer(engine, dataBuffer, 'pos', {
@@ -94,21 +97,19 @@ export function drawTest(painter: Painter) {
     };
     engine.bindBuffers(vertexBuffers, indexBuffer, effect, null);
 
-    // const dasharray = layer.paint.get('line-dasharray');
-    // const patternProperty = layer.paint.get('line-pattern');
-    // const image = patternProperty.constantOr(1 as any);
-    // const crossfade = layer.getCrossfadeParameters();
-    // for (const coord of coords) {
-    //     const tile = sourceCache.getTile(coord);
-    //     if (image && !tile.patternsLoaded()) continue;
-
-    //     const terrainData = painter.style.map.terrain && painter.style.map.terrain.getTerrainData(coord);
-    //     const terrainCoord = terrainData ? coord : null;
-    //     if (!image && dasharray) {
-    //         lineSDFUniformValues(painter, tile, layer, dasharray, crossfade, terrainCoord);
-    //     }
-    //     painter.lineAtlas.bind(engine);
-    // }
+    const uniformBuffer = new UniformBuffer(engine, undefined, undefined, 'sweep_uniform');
+    uniformBuffer.addUniform('u_time', 1);
+    uniformBuffer.addUniform('u_pixel', 1);
+    uniformBuffer.addUniform('u_ratio', 1);
+    uniformBuffer.addUniform('u_outside', 1);
+    uniformBuffer.addUniform('u_inside', 1);
+    uniformBuffer.updateFloat('u_time', time);
+    uniformBuffer.updateFloat('u_pixel', engine._renderingCanvas.width / engine._renderingCanvas.height);
+    uniformBuffer.updateFloat('u_ratio', 1);
+    uniformBuffer.updateFloat('u_outside', 0.001);
+    uniformBuffer.updateFloat('u_inside', 0.05);
+    uniformBuffer.update();
+    engine.bindUniformBufferBase(uniformBuffer.getBuffer(), 0, 'uniforms');
 
     const width = 5;
     const height = 7;
@@ -124,16 +125,29 @@ export function drawTest(painter: Painter) {
         _, y, _, _, _,
         _, _, _, _, _,
     ].flat());
-    const texture = engine.createTextureNoUrl(
-        {width, height},
-        true,
-        false,
-        false,
-        Texture.NEAREST_SAMPLINGMODE,
-        textureData,
-        Constants.TEXTUREFORMAT_RGBA
+    // const texture = engine.createTextureNoUrl(
+    //     {width, height},
+    //     true,
+    //     false,
+    //     false,
+    //     Texture.NEAREST_SAMPLINGMODE,
+    //     textureData as any,
+    //     Constants.TEXTUREFORMAT_RGBA
+    // );
+    // engine.setTexture2(texture, 'u_image');
+
+    const texture = new Texture(
+        'https://s-cf-tw.shopeesz.com/file/sg-11134201-7rato-mb4py6ikbbdv44',
+        engine,
+        {
+            noMipmap: true,
+            invertY: false,
+            samplingMode: Texture.NEAREST_SAMPLINGMODE
+        }
     );
     engine.setTexture2(texture, 'u_image');
 
     engine._draw(0, 0, 0, 6, 1);
+
+    time += 2;
 }
