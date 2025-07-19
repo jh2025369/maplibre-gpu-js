@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Add line with babylon.js</title>
+    <meta property="og:description" content="Use a custom style layer with babylon.js to add line to the map." />
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='../../dist/maplibre-gpu.css' />
+    <script src='../../dist/maplibre-gpu-dev.js'></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+    </style>
+</head>
+<body>
+<!-- <script src="https://unpkg.com/babylonjs@5.42.2/babylon.js"></script> -->
+<!-- <script src="https://unpkg.com/babylonjs-loaders@5.42.2/babylonjs.loaders.min.js"></script> -->
+<div id="map"></div>
+<script>
+    const BABYLON = maplibregpu.BABYLON;
+
+    const map = (window.map = new maplibregpu.Map({
+        container: 'map',
+        style: 'https://api.maptiler.com/maps/basic/style.json?key=DkLFBaEX29APLZ1qA873',
+        zoom: 18,
+        center: [148.9819, -35.3981],
+        pitch: 60,
+        antialias: true // create the gl context with MSAA antialiasing, so custom layers are antialiased
+    }));
+
+    const worldOrigin = [148.9819, -35.3981];
+    const worldAltitude = 0;
+    
+    const worldRotate = [Math.PI / 2, 0, 0];
+
+    const worldOriginMercator = maplibregpu.MercatorCoordinate.fromLngLat(
+        worldOrigin,
+        worldAltitude
+    );
+    const worldScale = worldOriginMercator.meterInMercatorCoordinateUnits();
+
+    const worldMatrix = BABYLON.Matrix.Compose(
+        new BABYLON.Vector3(worldScale, worldScale, worldScale),
+        BABYLON.Quaternion.FromEulerAngles(
+            worldRotate[0],
+            worldRotate[1],
+            worldRotate[2]
+        ),
+        new BABYLON.Vector3(
+            worldOriginMercator.x,
+            worldOriginMercator.y,
+            worldOriginMercator.z
+        )
+    );
+
+    const customLayer = {
+        id: '3d-model',
+        type: 'custom',
+        renderingMode: '3d',
+        onAdd (map, engine) {
+            this.scene = new BABYLON.Scene(engine);
+            this.scene.autoClear = false;
+            this.scene.autoClearDepthAndStencil = false;
+            this.scene.detachControl();
+
+            this.scene.beforeRender = () => {
+                engine.wipeCaches(true);
+            };
+
+            this.camera = new BABYLON.Camera(
+                'Camera',
+                new BABYLON.Vector3(0, 0, 0),
+                this.scene
+            );
+
+            this.viewMatrix = BABYLON.Matrix.Identity();
+            this.camera.getViewMatrix = () => {
+                return this.viewMatrix;
+            };
+
+            this.scene2 = new BABYLON.Scene(engine);
+            this.scene2.autoClear = false;
+            this.scene2.autoClearDepthAndStencil = false;
+            this.scene2.detachControl();
+
+            this.scene2.beforeRender = () => {
+                engine.wipeCaches(true);
+            };
+
+            this.camera2 = new BABYLON.Camera(
+                'Camera2',
+                new BABYLON.Vector3(0, 0, 0),
+                this.scene2
+            );
+
+            const light = new BABYLON.HemisphericLight(
+                'light1',
+                new BABYLON.Vector3(0, 0, 100),
+                this.scene
+            );
+            light.intensity = 0.7;
+
+            const numLines = 5;
+            const pointsPerLine = 10;
+            const lines = [];
+            const pickLines = [];
+            const lineColors = [];
+
+            for (let i = 0; i < numLines; i++) {
+                const points = [];
+                for (let j = 0; j < pointsPerLine; j++) {
+                    points.push(new BABYLON.Vector3(
+                        Math.random() * 100,
+                        Math.random() * 100,
+                        Math.random() * 100
+                    ));
+                }
+                const line = BABYLON.MeshBuilder.CreateLines(`line${i}`, {points}, this.scene);
+                const coloredMaterial = new BABYLON.StandardMaterial('coloredMat', this.scene);
+                coloredMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0);
+                coloredMaterial.alpha = 0.5;
+                coloredMaterial.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+                line.material = coloredMaterial;
+                // line.color = new BABYLON.Color3(Math.random(), Math.random(), Math.random());
+                lines.push(line);
+
+                const id = i + 1;
+                const pickLine = BABYLON.MeshBuilder.CreateLines(`line${i}`, {points}, this.scene2);
+                pickLine.color = new BABYLON.Color3((id & 0xFF) / 255, ((id >> 8) & 0xFF) / 255, ((id >> 16) & 0xFF) / 255);
+                pickLines.push(pickLine);
+            }
+
+            this.renderTarget = new BABYLON.RenderTargetTexture(
+                'renderTarget',
+                {
+                    width: engine.getRenderWidth(),
+                    height: engine.getRenderHeight()
+                },
+                this.scene2,
+                true
+            );
+            this.renderTarget.renderList = pickLines;
+            this.renderTarget.activeCamera = this.camera;
+            this.renderTarget.clearColor = new BABYLON.Color4(0, 0, 0, 1);
+
+            engine._renderingCanvas.addEventListener('pointermove', async(evt) => {
+                const x = evt.clientX;
+                const y = engine.getRenderHeight() - evt.clientY;
+                const pixelData = await this.renderTarget.readPixels(0, 0, null, true, false, x, y, 1, 1);
+
+                const pickedId = (pixelData[0]) + (pixelData[1] << 8) + (pixelData[2] << 16);
+
+                if (pickedId > 0 && pickedId <= numLines) {
+                    console.log('Picked line:', pickLines[pickedId - 1].name);
+                }
+            });
+
+            this.map = map;
+
+            // const points = [];
+            // points.push(new BABYLON.Vector3(0, -100, 0));
+            // points.push(new BABYLON.Vector3(0, 100, 0));
+            // points.push(new BABYLON.Vector3(100, 100, 0));
+            // const line = BABYLON.MeshBuilder.CreateLines('line', {points}, this.scene);
+            // const coloredMaterial = new BABYLON.StandardMaterial('coloredMat', this.scene);
+            // coloredMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0);
+            // coloredMaterial.alpha = 0.5;
+            // coloredMaterial.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+            // line.material = coloredMaterial;
+        },
+        render (painter, matrix) {
+            this.viewMatrix.fromArray(painter.transform._viewMatrix);
+            const projectionMatrix = BABYLON.Matrix.FromArray(painter.transform._projectionMatrix);
+            this.viewMatrix = worldMatrix.multiply(this.viewMatrix);
+            this.camera.freezeProjectionMatrix(projectionMatrix);
+
+            this.scene.render(false);
+        },
+        prerender (engine, matrix) {
+            // const cameraMatrix = BABYLON.Matrix.FromArray(matrix);
+            // const wvpMatrix = worldMatrix.multiply(cameraMatrix);
+            // this.camera2.freezeProjectionMatrix(wvpMatrix);
+
+            // this.renderTarget.render(false, false);
+        },
+    };
+
+    map.on('style.load', () => {
+        map.addLayer(customLayer);
+    });
+</script>
+</body>
+</html>
