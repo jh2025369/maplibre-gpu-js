@@ -635,7 +635,7 @@ export class WebGPUEngine extends ThinWebGPUEngine {
         this._twgslOptions = twgslOptions;
         return navigator
             .gpu!.requestAdapter(this._options)
-            .then((adapter: GPUAdapter | undefined) => {
+            .then(async (adapter: GPUAdapter | undefined) => {
                 if (!adapter) {
                     // eslint-disable-next-line no-throw-literal
                     throw "Could not retrieve a WebGPU adapter (adapter is null).";

@@ -7,7 +7,7 @@ struct Uniforms {
 var<uniform> uniforms: Uniforms;
 
 @vertex
-fn main(@location(0) position: u32) -> @builtin(position) vec4f {
-    var a_pos: vec2<f32> = unpack2x16snorm(position) * 32767.0;
-    return uniforms.u_matrix * vec4f(a_pos, 0.0, 1.0);
+fn main(@location(0) a_pos: u32) -> @builtin(position) vec4f {
+    var position: vec2<f32> = unpack2x16snorm(a_pos) * 32767.0;
+    return uniforms.u_matrix * vec4f(position, 0.0, 1.0);
 }
