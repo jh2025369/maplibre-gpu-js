@@ -1,19 +1,14 @@
 import type {Painter} from './painter';
-import type {SourceCache} from '../source/source_cache';
-import type {LineStyleLayer} from '../style/style_layer/line_style_layer';
-import type {OverscaledTileID} from '../source/tile_id';
 import {IEffectCreationOptions} from 'core/Materials/effect';
 import {VertexBuffer} from 'core/Buffers/buffer';
-import {UniformBuffer} from 'core/Materials/uniformBuffer';
 import {generateShader} from '../shaders/shaders';
 import {Texture} from 'core/Materials/Textures/texture';
 import {Constants} from 'core/Engines/constants';
-import {lineSDFUniformValues} from './program/line_program';
 import {ShaderLanguage} from 'core/Materials/shaderLanguage';
 import {WebGPUShaderProcessorCustom} from 'core/Engines/WebGPU/webgpuShaderProcessorsCustom';
 import {IShaderProcessor} from 'core/Engines/Processors/iShaderProcessor';
 
-export function drawTest(painter: Painter, sourceCache: SourceCache, layer: LineStyleLayer, coords: Array<OverscaledTileID>) {
+export function drawTest(painter: Painter) {
     if (painter.renderPass !== 'translucent') return;
 
     const engine = painter.engine;

@@ -475,6 +475,10 @@ export class Painter {
 
         this.engine.endFrame();
         this.engine._viewportDepthRange(0, 1);
+
+        // this.engine._startMainRenderPass(false, null, false, true);
+        // drawTest(this);
+        // this.engine.endFrame();
     }
 
     maybeDrawDepthAndCoords(requireExact: boolean) {
@@ -520,7 +524,6 @@ export class Painter {
                 break;
             case 'line':
                 drawLine(painter, sourceCache, layer as any, coords);
-                // drawTest(painter, sourceCache, layer as any, coords);
                 break;
             case 'fill':
                 drawFill(painter, sourceCache, layer as any, coords);

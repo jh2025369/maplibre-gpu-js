@@ -37,7 +37,7 @@ export function drawBackground(painter: Painter, sourceCache: SourceCache, layer
 
     const layerID = layer.id;
 
-    const vertexBuffer = new VertexBuffer(engine, painter.tileExtentBuffer, 'position', {
+    const vertexBuffer = new VertexBuffer(engine, painter.tileExtentBuffer, 'a_pos', {
         updatable: true,
         label: `Geometry_${layerID}_data`,
         offset: 0,
@@ -56,7 +56,7 @@ export function drawBackground(painter: Painter, sourceCache: SourceCache, layer
         const terrainData = painter.style.map.terrain && painter.style.map.terrain.getTerrainData(tileID);
 
         const vertexBuffers = {
-            'position': vertexBuffer
+            'a_pos': vertexBuffer
         };
 
         program.draw(engine, 0, uniformValues, terrainData, layer.id, vertexBuffers, painter.quadTriangleIndexBuffer,
