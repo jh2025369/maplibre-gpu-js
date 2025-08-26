@@ -5,46 +5,65 @@ const name = "pbrBlockFinalLitComponents";
 const shader = `aggShadow=aggShadow/numLights;
 #if defined(ENVIRONMENTBRDF)
 #ifdef MS_BRDF_ENERGY_CONSERVATION
-var energyConservationFactor: vec3f=getEnergyConservationFactor(clearcoatOut.specularEnvironmentR0,environmentBrdf);
-#endif
-#endif
-#ifndef METALLICWORKFLOW
-#ifdef SPECULAR_GLOSSINESS_ENERGY_CONSERVATION
-surfaceAlbedo=(1.-reflectance)*surfaceAlbedo.rgb;
+var baseSpecularEnergyConservationFactor: vec3f=getEnergyConservationFactor(vec3f(reflectanceF0),environmentBrdf);var coloredEnergyConservationFactor: vec3f=getEnergyConservationFactor(clearcoatOut.specularEnvironmentR0,environmentBrdf);
 #endif
 #endif
 #if defined(SHEEN) && defined(SHEEN_ALBEDOSCALING) && defined(ENVIRONMENTBRDF)
 surfaceAlbedo=sheenOut.sheenAlbedoScaling*surfaceAlbedo.rgb;
 #endif
+#ifdef LEGACY_SPECULAR_ENERGY_CONSERVATION
+#ifndef METALLICWORKFLOW
+#ifdef SPECULAR_GLOSSINESS_ENERGY_CONSERVATION
+surfaceAlbedo=vec3f(1.-reflectanceF0)*surfaceAlbedo.rgb;
+#endif
+#endif
+#endif
 #ifdef REFLECTION
 var finalIrradiance: vec3f=reflectionOut.environmentIrradiance;
+#ifndef LEGACY_SPECULAR_ENERGY_CONSERVATION
+#if defined(METALLICWORKFLOW) || defined(SPECULAR_GLOSSINESS_ENERGY_CONSERVATION)
+var baseSpecularEnergy: vec3f=vec3f(baseSpecularEnvironmentReflectance);
+#if defined(ENVIRONMENTBRDF)
+#ifdef MS_BRDF_ENERGY_CONSERVATION
+baseSpecularEnergy*=baseSpecularEnergyConservationFactor;
+#endif
+#endif
+finalIrradiance*=clamp(vec3f(1.0)-baseSpecularEnergy,vec3f(0.0),vec3f(1.0));
+#endif
+#endif
 #if defined(CLEARCOAT)
 finalIrradiance*=clearcoatOut.conservationFactor;
 #if defined(CLEARCOAT_TINT)
 finalIrradiance*=clearcoatOut.absorption;
 #endif
 #endif
+#ifndef SS_APPLY_ALBEDO_AFTER_SUBSURFACE
+finalIrradiance*=surfaceAlbedo.rgb;
+#endif
 #if defined(SS_REFRACTION)
-finalIrradiance*=subSurfaceOut.refractionFactorForIrradiance;
+finalIrradiance*=subSurfaceOut.refractionOpacity;
 #endif
 #if defined(SS_TRANSLUCENCY)
 finalIrradiance*=(1.0-subSurfaceOut.translucencyIntensity);finalIrradiance+=subSurfaceOut.refractionIrradiance;
 #endif
-finalIrradiance*=surfaceAlbedo.rgb;finalIrradiance*=uniforms.vLightingIntensity.z;finalIrradiance*=aoOut.ambientOcclusionColor;
+#ifdef SS_APPLY_ALBEDO_AFTER_SUBSURFACE
+finalIrradiance*=surfaceAlbedo.rgb;
+#endif
+finalIrradiance*=uniforms.vLightingIntensity.z;finalIrradiance*=aoOut.ambientOcclusionColor;
 #endif
 #ifdef SPECULARTERM
 var finalSpecular: vec3f=specularBase;finalSpecular=max(finalSpecular,vec3f(0.0));var finalSpecularScaled: vec3f=finalSpecular*uniforms.vLightingIntensity.x*uniforms.vLightingIntensity.w;
 #if defined(ENVIRONMENTBRDF) && defined(MS_BRDF_ENERGY_CONSERVATION)
-finalSpecularScaled*=energyConservationFactor;
+finalSpecularScaled*=coloredEnergyConservationFactor;
 #endif
 #if defined(SHEEN) && defined(ENVIRONMENTBRDF) && defined(SHEEN_ALBEDOSCALING)
 finalSpecularScaled*=sheenOut.sheenAlbedoScaling;
 #endif
 #endif
 #ifdef REFLECTION
-var finalRadiance: vec3f=reflectionOut.environmentRadiance.rgb;finalRadiance*=subSurfaceOut.specularEnvironmentReflectance;var finalRadianceScaled: vec3f=finalRadiance*uniforms.vLightingIntensity.z;
+var finalRadiance: vec3f=reflectionOut.environmentRadiance.rgb;finalRadiance*=colorSpecularEnvironmentReflectance;;var finalRadianceScaled: vec3f=finalRadiance*uniforms.vLightingIntensity.z;
 #if defined(ENVIRONMENTBRDF) && defined(MS_BRDF_ENERGY_CONSERVATION)
-finalRadianceScaled*=energyConservationFactor;
+finalRadianceScaled*=coloredEnergyConservationFactor;
 #endif
 #if defined(SHEEN) && defined(ENVIRONMENTBRDF) && defined(SHEEN_ALBEDOSCALING)
 finalRadianceScaled*=sheenOut.sheenAlbedoScaling;

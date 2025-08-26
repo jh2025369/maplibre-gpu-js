@@ -12,6 +12,7 @@ import type { DataBuffer } from "core/Buffers/dataBuffer";
 import type { ComputeBindingMapping } from "core/Engines/Extensions/engine.computeShader";
 
 import "../../ShadersWGSL/boundingInfo.compute";
+import { _RetryWithInterval } from "core/Misc/timingTools";
 
 /** @internal */
 export class ComputeShaderBoundingHelper implements IBoundingInfoHelperPlatform {
@@ -125,6 +126,7 @@ export class ComputeShaderBoundingHelper implements IBoundingInfoHelperPlatform 
     }
 
     /** @internal */
+    // eslint-disable-next-line @typescript-eslint/promise-function-async, no-restricted-syntax
     public registerMeshListAsync(meshes: AbstractMesh | AbstractMesh[]): Promise<void> {
         this._disposeForMeshList();
 
@@ -144,7 +146,7 @@ export class ComputeShaderBoundingHelper implements IBoundingInfoHelperPlatform 
             this._processedMeshes.push(mesh);
 
             const manager = (<Mesh>mesh).morphTargetManager;
-            if (manager) {
+            if (manager && manager.supportsPositions) {
                 maxNumInfluencers = Math.max(maxNumInfluencers, manager.numTargets);
             }
         }
@@ -164,7 +166,7 @@ export class ComputeShaderBoundingHelper implements IBoundingInfoHelperPlatform 
             this._uniqueComputeShaders.add(computeShaderWithoutMorph);
 
             const manager = (<Mesh>mesh).morphTargetManager;
-            if (manager) {
+            if (manager && manager.supportsPositions) {
                 defines = defines.slice();
                 defines.push("#define MORPHTARGETS");
                 defines.push("#define NUM_MORPH_INFLUENCERS " + maxNumInfluencers);
@@ -185,18 +187,16 @@ export class ComputeShaderBoundingHelper implements IBoundingInfoHelperPlatform 
         }
 
         return new Promise((resolve) => {
-            const check = () => {
+            _RetryWithInterval(() => {
                 const iterator = this._uniqueComputeShaders.keys();
                 for (let key = iterator.next(); key.done !== true; key = iterator.next()) {
                     const computeShader = key.value;
                     if (!computeShader.isReady()) {
-                        setTimeout(check, 10);
-                        return;
+                        return false;
                     }
                 }
-                resolve();
-            };
-            check();
+                return true;
+            }, resolve);
         });
     }
 
@@ -233,7 +233,7 @@ export class ComputeShaderBoundingHelper implements IBoundingInfoHelperPlatform 
             const [computeShaderWithoutMorph, computeShaderWithMorph] = this._computeShaders[i];
 
             const manager = (<Mesh>mesh).morphTargetManager;
-            const hasMorphs = manager && manager.numInfluencers > 0;
+            const hasMorphs = manager && manager.numInfluencers > 0 && manager.supportsPositions;
             const computeShader = hasMorphs ? computeShaderWithMorph : computeShaderWithoutMorph;
 
             this._extractDataAndLink(computeShader, mesh as Mesh, VertexBuffer.PositionKind, 3, "positionBuffer", this._positionBuffers);
@@ -284,8 +284,8 @@ export class ComputeShaderBoundingHelper implements IBoundingInfoHelperPlatform 
     }
 
     /** @internal */
-    public fetchResultsForMeshListAsync(): Promise<void> {
-        return new Promise((resolve) => {
+    public async fetchResultsForMeshListAsync(): Promise<void> {
+        return await new Promise((resolve) => {
             const buffers: DataBuffer[] = [];
             let size = 0;
             for (let i = 0; i < this._resultBuffers.length; i++) {
@@ -301,6 +301,7 @@ export class ComputeShaderBoundingHelper implements IBoundingInfoHelperPlatform 
 
             const minmax = { minimum, maximum };
 
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises, github/no-then
             (this._engine as WebGPUEngine).readFromMultipleStorageBuffers(buffers, 0, undefined, resultData, true).then(() => {
                 let resultDataOffset = 0;
                 for (let j = 0; j < this._resultBuffers.length; j++) {

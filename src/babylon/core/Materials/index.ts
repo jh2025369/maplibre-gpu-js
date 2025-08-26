@@ -1,4 +1,4 @@
-/* eslint-disable import/no-internal-modules */
+/* eslint-disable @typescript-eslint/no-restricted-imports */
 export * from "./Background/index";
 export * from "./colorCurves";
 export * from "./iEffectFallbacks";
@@ -48,3 +48,9 @@ export * from "../Shaders/default.fragment";
 export * from "../Shaders/default.vertex";
 export * from "../ShadersWGSL/default.fragment";
 export * from "../ShadersWGSL/default.vertex";
+
+// GreasedLineSimplMaterial
+export * from "../Shaders/greasedLine.fragment";
+export * from "../Shaders/greasedLine.vertex";
+export * from "../ShadersWGSL/greasedLine.fragment";
+export * from "../ShadersWGSL/greasedLine.vertex";

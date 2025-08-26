@@ -1,7 +1,6 @@
 import { Matrix } from "../Maths/math.vector";
 import { VertexBuffer } from "../Buffers/buffer";
 import type { SubMesh } from "../Meshes/subMesh";
-import type { Mesh } from "../Meshes/mesh";
 import { Constants } from "../Engines/constants";
 import type { SmartArray } from "../Misc/smartArray";
 import { Texture } from "../Materials/Textures/texture";
@@ -20,8 +19,8 @@ import { Material } from "../Materials/material";
 import "../Shaders/geometry.fragment";
 import "../Shaders/geometry.vertex";
 import { MaterialFlags } from "../Materials/materialFlags";
-import { addClipPlaneUniforms, bindClipPlane, prepareStringDefinesForClipPlanes } from "../Materials/clipPlaneMaterialHelper";
-import { BindMorphTargetParameters, BindSceneUniformBuffer, PrepareAttributesForMorphTargetsInfluencers, PushAttributesForInstances } from "../Materials/materialHelper.functions";
+import { AddClipPlaneUniforms, BindClipPlane, PrepareStringDefinesForClipPlanes } from "../Materials/clipPlaneMaterialHelper";
+import { BindMorphTargetParameters, BindSceneUniformBuffer, PrepareDefinesAndAttributesForMorphTargets, PushAttributesForInstances } from "../Materials/materialHelper.functions";
 
 import "../Engines/Extensions/engine.multiRender";
 import { ShaderLanguage } from "core/Materials/shaderLanguage";
@@ -33,7 +32,7 @@ interface ISavedTransformationMatrix {
 }
 
 /** list the uniforms used by the geometry renderer */
-const uniforms = [
+const Uniforms = [
     "world",
     "mBones",
     "viewProjection",
@@ -57,7 +56,7 @@ const uniforms = [
     "morphTargetTextureIndices",
     "boneTextureWidth",
 ];
-addClipPlaneUniforms(uniforms);
+AddClipPlaneUniforms(Uniforms);
 
 /**
  * This renderer is helpful to fill one of the render target with a geometry buffer.
@@ -155,7 +154,7 @@ export class GeometryBufferRenderer {
     private _enableScreenspaceDepth: boolean = false;
     private _depthFormat: number;
     private _clearColor = new Color4(0, 0, 0, 0);
-    private _clearDepthColor = new Color4(1e8, 0, 0, 1); // "infinity" value - depth in the depth texture is view.z, not a 0..1 value!
+    private _clearDepthColor = new Color4(0, 0, 0, 1); // sets an invalid value by default - depth in the depth texture is view.z, so 0 is not possible because view.z can't be less than camera.minZ
 
     private _positionIndex: number = -1;
     private _velocityIndex: number = -1;
@@ -509,6 +508,7 @@ export class GeometryBufferRenderer {
         this._depthFormat = depthFormat;
         this._textureTypesAndFormats = textureTypesAndFormats || {};
 
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         this._initShaderSourceAsync();
 
         GeometryBufferRenderer._SceneComponentInitialization(this._scene);
@@ -554,10 +554,14 @@ export class GeometryBufferRenderer {
         const attribs = [VertexBuffer.PositionKind, VertexBuffer.NormalKind];
         const mesh = subMesh.getMesh();
 
+        let uv1 = false;
+        let uv2 = false;
+        const color = false;
+
         if (material) {
             let needUv = false;
             // Alpha test
-            if (material.needAlphaTesting() && material.getAlphaTestTexture()) {
+            if (material.needAlphaTestingForMesh(mesh) && material.getAlphaTestTexture()) {
                 defines.push("#define ALPHATEST");
                 defines.push(`#define ALPHATEST_UV${material.getAlphaTestTexture().coordinatesIndex + 1}`);
                 needUv = true;
@@ -699,10 +703,12 @@ export class GeometryBufferRenderer {
                 if (mesh.isVerticesDataPresent(VertexBuffer.UVKind)) {
                     attribs.push(VertexBuffer.UVKind);
                     defines.push("#define UV1");
+                    uv1 = true;
                 }
                 if (mesh.isVerticesDataPresent(VertexBuffer.UV2Kind)) {
                     attribs.push(VertexBuffer.UV2Kind);
                     defines.push("#define UV2");
+                    uv2 = true;
                 }
             }
         }
@@ -777,19 +783,20 @@ export class GeometryBufferRenderer {
         }
 
         // Morph targets
-        const morphTargetManager = (mesh as Mesh).morphTargetManager;
-        let numMorphInfluencers = 0;
-        if (morphTargetManager) {
-            numMorphInfluencers = morphTargetManager.numMaxInfluencers || morphTargetManager.numInfluencers;
-            if (numMorphInfluencers > 0) {
-                defines.push("#define MORPHTARGETS");
-                defines.push("#define NUM_MORPH_INFLUENCERS " + numMorphInfluencers);
-                if (morphTargetManager.isUsingTextureForTargets) {
-                    defines.push("#define MORPHTARGETS_TEXTURE");
-                }
-                PrepareAttributesForMorphTargetsInfluencers(attribs, mesh, numMorphInfluencers);
-            }
-        }
+        const numMorphInfluencers = mesh.morphTargetManager
+            ? PrepareDefinesAndAttributesForMorphTargets(
+                  mesh.morphTargetManager,
+                  defines,
+                  attribs,
+                  mesh,
+                  true, // usePositionMorph
+                  true, // useNormalMorph
+                  false, // useTangentMorph
+                  uv1, // useUVMorph
+                  uv2, // useUV2Morph
+                  color // useColorMorph
+              )
+            : 0;
 
         // Instances
         if (useInstances) {
@@ -807,7 +814,7 @@ export class GeometryBufferRenderer {
             defines.push("#define SCENE_MRT_COUNT " + this._multiRenderTarget.textures.length);
         }
 
-        prepareStringDefinesForClipPlanes(material, this._scene, defines);
+        PrepareStringDefinesForClipPlanes(material, this._scene, defines);
 
         // Get correct effect
         const engine = this._scene.getEngine();
@@ -820,7 +827,7 @@ export class GeometryBufferRenderer {
                     "geometry",
                     {
                         attributes: attribs,
-                        uniformsNames: uniforms,
+                        uniformsNames: Uniforms,
                         samplers: ["diffuseSampler", "bumpSampler", "reflectivitySampler", "albedoSampler", "morphTargets", "boneSampler"],
                         defines: join,
                         onCompiled: null,
@@ -1078,7 +1085,7 @@ export class GeometryBufferRenderer {
                 }
 
                 let sideOrientation: Nullable<number>;
-                const instanceDataStorage = (renderingMesh as Mesh)._instanceDataStorage;
+                const instanceDataStorage = renderingMesh._instanceDataStorage;
 
                 if (!instanceDataStorage.isFrozen && (material.backFaceCulling || material.sideOrientation !== null)) {
                     const mainDeterminant = effectiveMesh._getWorldMatrixDeterminant();
@@ -1088,13 +1095,13 @@ export class GeometryBufferRenderer {
                         sideOrientation = sideOrientation === Material.ClockWiseSideOrientation ? Material.CounterClockWiseSideOrientation : Material.ClockWiseSideOrientation;
                     }
                 } else {
-                    sideOrientation = instanceDataStorage.sideOrientation;
+                    sideOrientation = renderingMesh._effectiveSideOrientation;
                 }
 
                 material._preBind(drawWrapper, sideOrientation);
 
                 // Alpha test
-                if (material.needAlphaTesting()) {
+                if (material.needAlphaTestingForMesh(effectiveMesh)) {
                     const alphaTexture = material.getAlphaTestTexture();
                     if (alphaTexture) {
                         effect.setTexture("diffuseSampler", alphaTexture);
@@ -1194,7 +1201,7 @@ export class GeometryBufferRenderer {
                 }
 
                 // Clip plane
-                bindClipPlane(effect, material, this._scene);
+                BindClipPlane(effect, material, this._scene);
 
                 // Bones
                 if (renderingMesh.useBones && renderingMesh.computeBonesUsingShaders && renderingMesh.skeleton) {

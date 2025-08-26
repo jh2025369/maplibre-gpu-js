@@ -12,6 +12,7 @@ import type { Nullable } from "../types";
 import { ApplyPostProcess } from "./textureTools";
 
 import type { AbstractEngine } from "../Engines/abstractEngine";
+import { _RetryWithInterval } from "./timingTools";
 
 let screenshotCanvas: Nullable<HTMLCanvasElement> = null;
 
@@ -19,7 +20,7 @@ let screenshotCanvas: Nullable<HTMLCanvasElement> = null;
  * Captures a screenshot of the current rendering
  * @see https://doc.babylonjs.com/features/featuresDeepDive/scene/renderToPNG
  * @param engine defines the rendering engine
- * @param camera defines the source camera
+ * @param camera defines the source camera. If the camera is not the scene's active camera, {@link CreateScreenshotUsingRenderTarget} will be used instead, and `useFill` will be ignored
  * @param size This parameter can be set to a single number or to an object with the
  * following (optional) properties: precision, width, height. If a single number is passed,
  * it will be used for both width and height. If an object is passed, the screenshot size
@@ -32,6 +33,7 @@ let screenshotCanvas: Nullable<HTMLCanvasElement> = null;
  * Check your browser for supported MIME types
  * @param forceDownload force the system to download the image even if a successCallback is provided
  * @param quality The quality of the image if lossy mimeType is used (e.g. image/jpeg, image/webp). See {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob | HTMLCanvasElement.toBlob()}'s `quality` parameter.
+ * @param useFill fill the screenshot dimensions with the render canvas and clip any overflow. If false, fit the canvas within the screenshot, as in letterboxing.
  */
 export function CreateScreenshot(
     engine: AbstractEngine,
@@ -40,34 +42,15 @@ export function CreateScreenshot(
     successCallback?: (data: string) => void,
     mimeType = "image/png",
     forceDownload = false,
-    quality?: number
+    quality?: number,
+    useFill = false
 ): void {
-    const { height, width } = _GetScreenshotSize(engine, camera, size);
+    const { height, width } = GetScreenshotSize(engine, camera, size);
 
     if (!(height && width)) {
         Logger.Error("Invalid 'size' parameter !");
         return;
     }
-
-    if (!screenshotCanvas) {
-        screenshotCanvas = document.createElement("canvas");
-    }
-
-    screenshotCanvas.width = width;
-    screenshotCanvas.height = height;
-
-    const renderContext = screenshotCanvas.getContext("2d");
-
-    const ratio = engine.getRenderWidth() / engine.getRenderHeight();
-    let newWidth = width;
-    let newHeight = newWidth / ratio;
-    if (newHeight > height) {
-        newHeight = height;
-        newWidth = newHeight * ratio;
-    }
-
-    const offsetX = Math.max(0, width - newWidth) / 2;
-    const offsetY = Math.max(0, height - newHeight) / 2;
 
     const scene = camera.getScene();
     if (scene.activeCamera !== camera) {
@@ -95,32 +78,58 @@ export function CreateScreenshot(
             undefined,
             quality
         );
-    } else {
-        engine.onEndFrameObservable.addOnce(() => {
-            const renderingCanvas = engine.getRenderingCanvas();
-            if (renderContext && renderingCanvas) {
-                renderContext.drawImage(renderingCanvas, offsetX, offsetY, newWidth, newHeight);
-            }
-
-            if (screenshotCanvas) {
-                if (forceDownload) {
-                    Tools.EncodeScreenshotCanvasData(screenshotCanvas, undefined, mimeType, undefined, quality);
-                    if (successCallback) {
-                        successCallback("");
-                    }
-                } else {
-                    Tools.EncodeScreenshotCanvasData(screenshotCanvas, successCallback, mimeType, undefined, quality);
-                }
-            }
-        });
+        return;
     }
+
+    engine.onEndFrameObservable.addOnce(() => {
+        if (!screenshotCanvas) {
+            screenshotCanvas = document.createElement("canvas");
+        }
+        screenshotCanvas.width = width;
+        screenshotCanvas.height = height;
+
+        const renderContext = screenshotCanvas.getContext("2d");
+        const renderingCanvas = engine.getRenderingCanvas();
+        if (!renderContext || !renderingCanvas) {
+            Logger.Error("Failed to create screenshot. Rendering context or rendering canvas is not available.");
+            return;
+        }
+
+        const srcWidth = renderingCanvas.width;
+        const srcHeight = renderingCanvas.height;
+        const destWidth = screenshotCanvas.width;
+        const destHeight = screenshotCanvas.height;
+
+        // Calculate scale factors for width and height.
+        const scaleX = destWidth / srcWidth;
+        const scaleY = destHeight / srcHeight;
+        // Use the larger of the two scales to fill the screenshot dimensions, else use the smaller to fit.
+        const scale = useFill ? Math.max(scaleX, scaleY) : Math.min(scaleX, scaleY);
+        const newWidth = srcWidth * scale;
+        const newHeight = srcHeight * scale;
+
+        // Center the image in the screenshot canvas
+        const offsetX = (destWidth - newWidth) / 2;
+        const offsetY = (destHeight - newHeight) / 2;
+
+        renderContext.drawImage(renderingCanvas, 0, 0, srcWidth, srcHeight, offsetX, offsetY, newWidth, newHeight);
+
+        if (forceDownload) {
+            Tools.EncodeScreenshotCanvasData(screenshotCanvas, undefined, mimeType, undefined, quality);
+            if (successCallback) {
+                successCallback("");
+            }
+        } else {
+            Tools.EncodeScreenshotCanvasData(screenshotCanvas, successCallback, mimeType, undefined, quality);
+        }
+    });
 }
 
 /**
  * Captures a screenshot of the current rendering
  * @see https://doc.babylonjs.com/features/featuresDeepDive/scene/renderToPNG
  * @param engine defines the rendering engine
- * @param camera defines the source camera
+ * @param camera defines the source camera. If the camera is not the scene's active camera, {@link CreateScreenshotUsingRenderTarget} will be used instead, and `useFill` will be ignored
  * @param size This parameter can be set to a single number or to an object with the
  * following (optional) properties: precision, width, height. If a single number is passed,
  * it will be used for both width and height. If an object is passed, the screenshot size
@@ -129,11 +138,19 @@ export function CreateScreenshot(
  * @param mimeType defines the MIME type of the screenshot image (default: image/png).
  * Check your browser for supported MIME types
  * @param quality The quality of the image if lossy mimeType is used (e.g. image/jpeg, image/webp). See {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob | HTMLCanvasElement.toBlob()}'s `quality` parameter.
+ * @param useFill fill the screenshot dimensions with the render canvas and clip any overflow. If false, fit the canvas within the screenshot, as in letterboxing.
  * @returns screenshot as a string of base64-encoded characters. This string can be assigned
  * to the src parameter of an <img> to display it
  */
-export function CreateScreenshotAsync(engine: AbstractEngine, camera: Camera, size: IScreenshotSize | number, mimeType = "image/png", quality?: number): Promise<string> {
-    return new Promise((resolve, reject) => {
+export async function CreateScreenshotAsync(
+    engine: AbstractEngine,
+    camera: Camera,
+    size: IScreenshotSize | number,
+    mimeType = "image/png",
+    quality?: number,
+    useFill = false
+): Promise<string> {
+    return await new Promise((resolve, reject) => {
         CreateScreenshot(
             engine,
             camera,
@@ -147,26 +164,36 @@ export function CreateScreenshotAsync(engine: AbstractEngine, camera: Camera, si
             },
             mimeType,
             undefined,
-            quality
+            quality,
+            useFill
         );
     });
 }
 
 /**
- * Captures a screenshot of the current rendering for a specific size. This will render the entire canvas but will generate a blink (due to canvas resize)
+ * Captures and automatically downloads a screenshot of the current rendering for a specific size. This will render the entire canvas but will generate a blink (due to canvas resize)
+ * If screenshot image data is needed, use {@link CreateScreenshotAsync} instead.
  * @see https://doc.babylonjs.com/features/featuresDeepDive/scene/renderToPNG
  * @param engine defines the rendering engine
- * @param camera defines the source camera
+ * @param camera defines the source camera. If the camera is not the scene's active camera, {@link CreateScreenshotUsingRenderTarget} will be used instead, and `useFill` will be ignored
  * @param width defines the expected width
  * @param height defines the expected height
  * @param mimeType defines the MIME type of the screenshot image (default: image/png).
  * Check your browser for supported MIME types
  * @param quality The quality of the image if lossy mimeType is used (e.g. image/jpeg, image/webp). See {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob | HTMLCanvasElement.toBlob()}'s `quality` parameter.
- * @returns screenshot as a string of base64-encoded characters. This string can be assigned
- * to the src parameter of an <img> to display it
+ * @param useFill fill the screenshot dimensions with the render canvas and clip any overflow. If false, fit the canvas within the screenshot, as in letterboxing.
+ * @returns promise that resolves once the screenshot is taken
  */
-export function CreateScreenshotWithResizeAsync(engine: AbstractEngine, camera: Camera, width: number, height: number, mimeType = "image/png", quality?: number): Promise<void> {
-    return new Promise((resolve) => {
+export async function CreateScreenshotWithResizeAsync(
+    engine: AbstractEngine,
+    camera: Camera,
+    width: number,
+    height: number,
+    mimeType = "image/png",
+    quality?: number,
+    useFill = false
+): Promise<void> {
+    return await new Promise((resolve) => {
         CreateScreenshot(
             engine,
             camera,
@@ -176,7 +203,8 @@ export function CreateScreenshotWithResizeAsync(engine: AbstractEngine, camera: 
             },
             mimeType,
             true,
-            quality
+            quality,
+            useFill
         );
     });
 }
@@ -204,6 +232,7 @@ export function CreateScreenshotWithResizeAsync(engine: AbstractEngine, camera: 
  * @param useLayerMask if the camera's layer mask should be used to filter what should be rendered (default: true)
  * @param quality The quality of the image if lossy mimeType is used (e.g. image/jpeg, image/webp). See {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob | HTMLCanvasElement.toBlob()}'s `quality` parameter.
  * @param customizeTexture An optional callback that can be used to modify the render target texture before taking the screenshot. This can be used, for instance, to enable camera post-processes before taking the screenshot.
+ * @param customDumpData The function to use to dump the data. If not provided, the default DumpData function will be used.
  */
 export function CreateScreenshotUsingRenderTarget(
     engine: AbstractEngine,
@@ -218,9 +247,20 @@ export function CreateScreenshotUsingRenderTarget(
     enableStencilBuffer = false,
     useLayerMask = true,
     quality?: number,
-    customizeTexture?: (texture: RenderTargetTexture) => void
+    customizeTexture?: (texture: RenderTargetTexture) => void,
+    customDumpData?: (
+        width: number,
+        height: number,
+        data: ArrayBufferView,
+        successCallback?: (data: string | ArrayBuffer) => void,
+        mimeType?: string,
+        fileName?: string,
+        invertY?: boolean,
+        toArrayBuffer?: boolean,
+        quality?: number
+    ) => void
 ): void {
-    const { height, width, finalWidth, finalHeight } = _GetScreenshotSize(engine, camera, size);
+    const { height, width, finalWidth, finalHeight } = GetScreenshotSize(engine, camera, size);
     const targetTextureSize = { width, height };
 
     if (!(height && width)) {
@@ -228,8 +268,35 @@ export function CreateScreenshotUsingRenderTarget(
         return;
     }
 
-    const originalSize = { width: engine.getRenderWidth(), height: engine.getRenderHeight() };
-    engine.setSize(width, height); // we need this call to trigger onResizeObservable with the screenshot width/height on all the subsystems that are observing this event and that needs to (re)create some resources with the right dimensions
+    // Prevent engine to render on screen while we do the screenshot
+    engine.skipFrameRender = true;
+
+    const originalGetRenderWidth = engine.getRenderWidth;
+    const originalGetRenderHeight = engine.getRenderHeight;
+
+    // Override getRenderWidth and getRenderHeight to return the desired size of the render
+    // A few internal methods are relying on the canvas size to compute the render size
+    // so we need to override these methods to ensure the correct size is used during the preparation of the render
+    // as well as the screenshot
+    engine.getRenderWidth = (useScreen = false) => {
+        if (!useScreen && engine._currentRenderTarget) {
+            return engine._currentRenderTarget.width;
+        }
+
+        return width;
+    };
+    engine.getRenderHeight = (useScreen = false) => {
+        if (!useScreen && engine._currentRenderTarget) {
+            return engine._currentRenderTarget.height;
+        }
+
+        return height;
+    };
+
+    // Trigger a resize event to ensure the intermediate renders have the correct size
+    if (engine.onResizeObservable.hasObservers()) {
+        engine.onResizeObservable.notifyObservers(engine);
+    }
 
     const scene = camera.getScene();
 
@@ -257,34 +324,94 @@ export function CreateScreenshotUsingRenderTarget(
     texture.forceLayerMaskCheck = useLayerMask;
     customizeTexture?.(texture);
 
+    const dumpDataFunc = customDumpData || DumpData;
+
     const renderWhenReady = () => {
-        if (texture.isReadyForRendering() && camera.isReady(true)) {
-            engine.onEndFrameObservable.addOnce(() => {
-                if (finalWidth === width && finalHeight === height) {
-                    texture.readPixels(undefined, undefined, undefined, false)!.then((data) => {
-                        DumpData(width, height, data, successCallback as (data: string | ArrayBuffer) => void, mimeType, fileName, true, undefined, quality);
-                        texture.dispose();
-                    });
-                } else {
-                    const importPromise = engine.isWebGPU ? import("../ShadersWGSL/pass.fragment") : import("../Shaders/pass.fragment");
-                    importPromise.then(() =>
-                        ApplyPostProcess("pass", texture.getInternalTexture()!, scene, undefined, undefined, undefined, finalWidth, finalHeight).then((texture) => {
-                            engine._readTexturePixels(texture, finalWidth, finalHeight, -1, 0, null, true, false, 0, 0).then((data) => {
-                                DumpData(finalWidth, finalHeight, data, successCallback as (data: string | ArrayBuffer) => void, mimeType, fileName, true, undefined, quality);
-                                texture.dispose();
-                            });
-                        })
-                    );
+        _RetryWithInterval(
+            () => texture.isReadyForRendering() && camera.isReady(true),
+            () => {
+                engine.onEndFrameObservable.addOnce(() => {
+                    if (finalWidth === width && finalHeight === height) {
+                        // eslint-disable-next-line @typescript-eslint/no-floating-promises, github/no-then
+                        texture.readPixels(undefined, undefined, undefined, false)!.then((data) => {
+                            dumpDataFunc(width, height, data, successCallback as (data: string | ArrayBuffer) => void, mimeType, fileName, true, undefined, quality);
+                            texture.dispose();
+                        });
+                    } else {
+                        const importPromise = engine.isWebGPU ? import("../ShadersWGSL/pass.fragment") : import("../Shaders/pass.fragment");
+                        // eslint-disable-next-line @typescript-eslint/no-floating-promises, github/no-then
+                        importPromise.then(
+                            async () =>
+                                // eslint-disable-next-line github/no-then
+                                await ApplyPostProcess("pass", texture.getInternalTexture()!, scene, undefined, undefined, undefined, finalWidth, finalHeight).then((texture) => {
+                                    // eslint-disable-next-line @typescript-eslint/no-floating-promises, github/no-then
+                                    engine._readTexturePixels(texture, finalWidth, finalHeight, -1, 0, null, true, false, 0, 0).then((data) => {
+                                        dumpDataFunc(
+                                            finalWidth,
+                                            finalHeight,
+                                            data,
+                                            successCallback as (data: string | ArrayBuffer) => void,
+                                            mimeType,
+                                            fileName,
+                                            true,
+                                            undefined,
+                                            quality
+                                        );
+                                        texture.dispose();
+                                    });
+                                })
+                        );
+                    }
+                });
+                scene.incrementRenderId();
+                scene.resetCachedMaterial();
+
+                // Record the original scene setup
+                const originalCamera = scene.activeCamera;
+                const originalCameras = scene.activeCameras;
+                const originalOutputRenderTarget = camera.outputRenderTarget;
+                const originalSpritesEnabled = scene.spritesEnabled;
+
+                // Swap with the requested one
+                scene.activeCamera = camera;
+                scene.activeCameras = null;
+                camera.outputRenderTarget = texture;
+                scene.spritesEnabled = renderSprites;
+
+                const currentMeshList = scene.meshes;
+                scene.meshes = texture.renderList || scene.meshes;
+
+                // render the scene on the RTT
+                try {
+                    scene.render();
+                } finally {
+                    // Restore the original scene camera setup
+                    scene.activeCamera = originalCamera;
+                    scene.activeCameras = originalCameras;
+                    camera.outputRenderTarget = originalOutputRenderTarget;
+                    scene.spritesEnabled = originalSpritesEnabled;
+                    scene.meshes = currentMeshList;
+
+                    engine.getRenderWidth = originalGetRenderWidth;
+                    engine.getRenderHeight = originalGetRenderHeight;
+
+                    // Trigger a resize event to ensure the intermediate renders have the correct size
+                    if (engine.onResizeObservable.hasObservers()) {
+                        engine.onResizeObservable.notifyObservers(engine);
+                    }
+
+                    camera.getProjectionMatrix(true); // Force cache refresh;
+
+                    engine.skipFrameRender = false;
                 }
-            });
-            scene.incrementRenderId();
-            scene.resetCachedMaterial();
-            texture.render(true);
-            engine.setSize(originalSize.width, originalSize.height);
-            camera.getProjectionMatrix(true); // Force cache refresh;
-        } else {
-            setTimeout(renderWhenReady, 16);
-        }
+            },
+            () => {
+                // Restore engine frame rendering on error
+                engine.skipFrameRender = false;
+                engine.getRenderWidth = originalGetRenderWidth;
+                engine.getRenderHeight = originalGetRenderHeight;
+            }
+        );
     };
 
     const renderToTexture = () => {
@@ -298,6 +425,9 @@ export function CreateScreenshotUsingRenderTarget(
     if (antialiasing) {
         const fxaaPostProcess = new FxaaPostProcess("antialiasing", 1.0, scene.activeCamera);
         texture.addPostProcess(fxaaPostProcess);
+        // Ensures the correct background color is used
+        fxaaPostProcess.autoClear = true;
+
         // Async Shader Compilation can lead to none ready effects in synchronous code
         fxaaPostProcess.onEffectCreatedObservable.addOnce((e) => {
             if (!e.isReady()) {
@@ -336,10 +466,11 @@ export function CreateScreenshotUsingRenderTarget(
  * @param useLayerMask if the camera's layer mask should be used to filter what should be rendered (default: true)
  * @param quality The quality of the image if lossy mimeType is used (e.g. image/jpeg, image/webp). See {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob | HTMLCanvasElement.toBlob()}'s `quality` parameter.
  * @param customizeTexture An optional callback that can be used to modify the render target texture before taking the screenshot. This can be used, for instance, to enable camera post-processes before taking the screenshot.
+ * @param customDumpData The function to use to dump the data. If not provided, the default DumpData function will be used.
  * @returns screenshot as a string of base64-encoded characters. This string can be assigned
  * to the src parameter of an <img> to display it
  */
-export function CreateScreenshotUsingRenderTargetAsync(
+export async function CreateScreenshotUsingRenderTargetAsync(
     engine: AbstractEngine,
     camera: Camera,
     size: IScreenshotSize | number,
@@ -351,9 +482,20 @@ export function CreateScreenshotUsingRenderTargetAsync(
     enableStencilBuffer = false,
     useLayerMask = true,
     quality?: number,
-    customizeTexture?: (texture: RenderTargetTexture) => void
+    customizeTexture?: (texture: RenderTargetTexture) => void,
+    customDumpData?: (
+        width: number,
+        height: number,
+        data: ArrayBufferView,
+        successCallback?: (data: string | ArrayBuffer) => void,
+        mimeType?: string,
+        fileName?: string,
+        invertY?: boolean,
+        toArrayBuffer?: boolean,
+        quality?: number
+    ) => void
 ): Promise<string> {
-    return new Promise((resolve, reject) => {
+    return await new Promise((resolve, reject) => {
         CreateScreenshotUsingRenderTarget(
             engine,
             camera,
@@ -373,19 +515,20 @@ export function CreateScreenshotUsingRenderTargetAsync(
             enableStencilBuffer,
             useLayerMask,
             quality,
-            customizeTexture
+            customizeTexture,
+            customDumpData
         );
     });
 }
 
 /**
  * Gets height and width for screenshot size
- * @param engine
- * @param camera
- * @param size
- * @private
+ * @param engine The engine to use for rendering
+ * @param camera The camera to use for rendering
+ * @param size This size of the screenshot. can be a number or an object implementing IScreenshotSize
+ * @returns height and width for screenshot size
  */
-function _GetScreenshotSize(engine: AbstractEngine, camera: Camera, size: IScreenshotSize | number): { height: number; width: number; finalWidth: number; finalHeight: number } {
+function GetScreenshotSize(engine: AbstractEngine, camera: Camera, size: IScreenshotSize | number): { height: number; width: number; finalWidth: number; finalHeight: number } {
     let height = 0;
     let width = 0;
     let finalWidth = 0;
@@ -471,7 +614,7 @@ export const ScreenshotTools = {
      * Captures a screenshot of the current rendering
      * @see https://doc.babylonjs.com/features/featuresDeepDive/scene/renderToPNG
      * @param engine defines the rendering engine
-     * @param camera defines the source camera
+     * @param camera defines the source camera. If the camera is not the scene's active camera, {@link CreateScreenshotUsingRenderTarget} will be used instead, and `useFill` will be ignored
      * @param size This parameter can be set to a single number or to an object with the
      * following (optional) properties: precision, width, height. If a single number is passed,
      * it will be used for both width and height. If an object is passed, the screenshot size
@@ -484,6 +627,7 @@ export const ScreenshotTools = {
      * Check your browser for supported MIME types
      * @param forceDownload force the system to download the image even if a successCallback is provided
      * @param quality The quality of the image if lossy mimeType is used (e.g. image/jpeg, image/webp). See {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob | HTMLCanvasElement.toBlob()}'s `quality` parameter.
+     * @param useFill fill the screenshot dimensions with the render canvas and clip any overflow. If false, fit the canvas within the screenshot, as in letterboxing.
      */
     CreateScreenshot,
 
@@ -491,7 +635,7 @@ export const ScreenshotTools = {
      * Captures a screenshot of the current rendering
      * @see https://doc.babylonjs.com/features/featuresDeepDive/scene/renderToPNG
      * @param engine defines the rendering engine
-     * @param camera defines the source camera
+     * @param camera defines the source camera. If the camera is not the scene's active camera, {@link CreateScreenshotUsingRenderTarget} will be used instead, and `useFill` will be ignored
      * @param size This parameter can be set to a single number or to an object with the
      * following (optional) properties: precision, width, height. If a single number is passed,
      * it will be used for both width and height. If an object is passed, the screenshot size
@@ -500,23 +644,25 @@ export const ScreenshotTools = {
      * @param mimeType defines the MIME type of the screenshot image (default: image/png).
      * Check your browser for supported MIME types
      * @param quality The quality of the image if lossy mimeType is used (e.g. image/jpeg, image/webp). See {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob | HTMLCanvasElement.toBlob()}'s `quality` parameter.
+     * @param useFill fill the screenshot dimensions with the render canvas and clip any overflow. If false, fit the canvas within the screenshot, as in letterboxing.
      * @returns screenshot as a string of base64-encoded characters. This string can be assigned
      * to the src parameter of an <img> to display it
      */
     CreateScreenshotAsync,
 
     /**
-     * Captures a screenshot of the current rendering for a specific size. This will render the entire canvas but will generate a blink (due to canvas resize)
+     * Captures and automatically downloads a screenshot of the current rendering for a specific size. This will render the entire canvas but will generate a blink (due to canvas resize)
+     * If screenshot image data is needed, use {@link CreateScreenshotAsync} instead.
      * @see https://doc.babylonjs.com/features/featuresDeepDive/scene/renderToPNG
      * @param engine defines the rendering engine
-     * @param camera defines the source camera
+     * @param camera defines the source camera. If the camera is not the scene's active camera, {@link CreateScreenshotUsingRenderTarget} will be used instead, and `useFill` will be ignored
      * @param width defines the expected width
      * @param height defines the expected height
      * @param mimeType defines the MIME type of the screenshot image (default: image/png).
      * Check your browser for supported MIME types
      * @param quality The quality of the image if lossy mimeType is used (e.g. image/jpeg, image/webp). See {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob | HTMLCanvasElement.toBlob()}'s `quality` parameter.
-     * @returns screenshot as a string of base64-encoded characters. This string can be assigned
-     * to the src parameter of an <img> to display it
+     * @param useFill fill the screenshot dimensions with the render canvas and clip any overflow. If false, fit the canvas within the screenshot, as in letterboxing.
+     * @returns promise that resolves once the screenshot is taken
      */
     CreateScreenshotWithResizeAsync,
 

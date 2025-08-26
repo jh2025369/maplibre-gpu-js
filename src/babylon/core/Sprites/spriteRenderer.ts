@@ -18,6 +18,7 @@ import { ShaderLanguage } from "../Materials/shaderLanguage";
 /**
  * Options for the SpriteRenderer
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export interface SpriteRendererOptions {
     /**
      * Sets a boolean indicating if the renderer must render sprites with pixel perfect rendering.
@@ -233,6 +234,7 @@ export class SpriteRenderer {
         this._vertexBuffers["cellInfo"] = cellInfo;
         this._vertexBuffers[VertexBuffer.ColorKind] = colors;
 
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         this._initShaderSourceAsync();
     }
 
@@ -297,6 +299,7 @@ export class SpriteRenderer {
         );
 
         this._drawWrapperDepth.effect = this._drawWrapperBase.effect;
+        this._drawWrapperBase.effect._refCount++;
         this._drawWrapperDepth.materialContext = this._drawWrapperBase.materialContext;
     }
 
@@ -377,7 +380,7 @@ export class SpriteRenderer {
 
         // Scene Info
         if (shouldRenderFog) {
-            const scene = this._scene!;
+            const scene = this._scene;
 
             // Fog
             effect.setFloat4("vFogInfos", scene.fogMode, scene.fogStart, scene.fogEnd, scene.fogDensity);
@@ -428,7 +431,7 @@ export class SpriteRenderer {
 
         // Restore Right Handed
         if (useRightHandedSystem) {
-            this._scene!.getEngine().setState(culling, zOffset, false, true, undefined, undefined, zOffsetUnits);
+            this._scene.getEngine().setState(culling, zOffset, false, true, undefined, undefined, zOffsetUnits);
         }
 
         engine.unbindInstanceAttributes();
@@ -540,7 +543,7 @@ export class SpriteRenderer {
         this._buffer._rebuild();
 
         for (const key in this._vertexBuffers) {
-            const vertexBuffer = <VertexBuffer>this._vertexBuffers[key];
+            const vertexBuffer = this._vertexBuffers[key];
             vertexBuffer._rebuild();
         }
 

@@ -17,6 +17,7 @@ import { RenderTargetWrapper } from "./renderTargetWrapper";
 import type { IStencilState } from "../States/IStencilState";
 import { IsWrapper } from "../Materials/drawWrapper.functions";
 
+// eslint-disable-next-line @typescript-eslint/naming-convention
 declare const global: any;
 
 /**
@@ -170,6 +171,8 @@ export class NullEngine extends Engine {
             texture2DArrayMaxLayerCount: 128,
             disableMorphTargetTexture: false,
             textureNorm16: false,
+            blendParametersPerTarget: false,
+            dualSourceBlending: false,
         };
 
         this._features = {
@@ -348,6 +351,8 @@ export class NullEngine extends Engine {
             this._currentEffect._onBindObservable.notifyObservers(this._currentEffect || null);
         }
     }
+
+    public override setStateCullFaceType(cullBackFaces?: boolean, force?: boolean): void {}
 
     /**
      * Set various states to the webGL context
@@ -579,19 +584,20 @@ export class NullEngine extends Engine {
      * Sets the current alpha mode
      * @param mode defines the mode to use (one of the Engine.ALPHA_XXX)
      * @param noDepthWriteChange defines if depth writing state should remains unchanged (false by default)
+     * @param targetIndex defines the index of the target to set the alpha mode for (default is 0)
      * @see https://doc.babylonjs.com/features/featuresDeepDive/materials/advanced/transparent_rendering
      */
-    public override setAlphaMode(mode: number, noDepthWriteChange: boolean = false): void {
-        if (this._alphaMode === mode) {
+    public override setAlphaMode(mode: number, noDepthWriteChange: boolean = false, targetIndex = 0): void {
+        if (this._alphaMode[targetIndex] === mode) {
             return;
         }
 
-        this.alphaState.alphaBlend = mode !== Constants.ALPHA_DISABLE;
+        this.alphaState.setAlphaBlend(mode !== Constants.ALPHA_DISABLE, 0);
 
         if (!noDepthWriteChange) {
             this.setDepthWrite(mode === Constants.ALPHA_DISABLE);
         }
-        this._alphaMode = mode;
+        this._alphaMode[targetIndex] = mode;
     }
 
     /**
@@ -757,7 +763,7 @@ export class NullEngine extends Engine {
             fullOptions.type = options.type === undefined ? Constants.TEXTURETYPE_UNSIGNED_BYTE : options.type;
             fullOptions.samplingMode = options.samplingMode === undefined ? Constants.TEXTURE_TRILINEAR_SAMPLINGMODE : options.samplingMode;
         } else {
-            fullOptions.generateMipMaps = <boolean>options;
+            fullOptions.generateMipMaps = options as boolean;
             fullOptions.generateDepthBuffer = true;
             fullOptions.generateStencilBuffer = false;
             fullOptions.type = Constants.TEXTURETYPE_UNSIGNED_BYTE;

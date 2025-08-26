@@ -10,7 +10,11 @@ faceNormal=select(-faceNormal,faceNormal,fragmentInputs.frontFacing);
 normalW*=sign(dot(normalW,faceNormal));
 #endif
 #if defined(TWOSIDEDLIGHTING) && defined(NORMAL)
+#if defined(MIRRORED)
+normalW=select(normalW,-normalW,fragmentInputs.frontFacing);
+#else
 normalW=select(-normalW,normalW,fragmentInputs.frontFacing);
+#endif
 #endif
 `;
 // Sideeffect

@@ -29,6 +29,7 @@ import type { EffectWrapperCustomShaderCodeProcessing, EffectWrapperCreationOpti
 import { EffectWrapper } from "../Materials/effectRenderer";
 
 declare module "../Engines/abstractEngine" {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     export interface AbstractEngine {
         /**
          * Sets a texture to the context from a postprocess
@@ -66,6 +67,7 @@ AbstractEngine.prototype.setTextureFromPostProcessOutput = function (channel: nu
 };
 
 declare module "../Materials/effect" {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     export interface Effect {
         /**
          * Sets a texture to be the input of the specified post process. (To use the output, pass in the next post process in the pipeline)
@@ -494,6 +496,11 @@ export class PostProcess {
     }
 
     /**
+     * An event triggered when the post-process is disposed
+     */
+    public readonly onDisposeObservable = new Observable<void>();
+
+    /**
      * The input texture for this post process and the output texture of the previous post process. When added to a pipeline the previous post process will
      * render it's output into this texture and this texture will be used as textureSampler in the fragment shader of this post process.
      */
@@ -541,6 +548,7 @@ export class PostProcess {
     }
 
     protected readonly _effectWrapper: EffectWrapper;
+    protected readonly _useExistingThinPostProcess: boolean;
 
     /**
      * Creates a new instance PostProcess
@@ -640,7 +648,7 @@ export class PostProcess {
             }
         }
 
-        const useExistingThinPostProcess = !!effectWrapper;
+        this._useExistingThinPostProcess = !!effectWrapper;
 
         this._effectWrapper =
             effectWrapper ??
@@ -670,7 +678,7 @@ export class PostProcess {
             camera.attachPostProcess(this);
             this._engine = this._scene.getEngine();
 
-            this._scene.postProcesses.push(this);
+            this._scene.addPostProcess(this);
             this.uniqueId = this._scene.getUniqueId();
         } else if (engine) {
             this._engine = engine;
@@ -700,7 +708,7 @@ export class PostProcess {
 
         this._indexParameters = indexParameters;
 
-        if (!useExistingThinPostProcess) {
+        if (!this._useExistingThinPostProcess) {
             this._webGPUReady = this._shaderLanguage === ShaderLanguage.WGSL;
 
             const importPromises: Array<Promise<any>> = [];
@@ -929,15 +937,15 @@ export class PostProcess {
     /**
      * Activates the post process by intializing the textures to be used when executed. Notifies onActivateObservable.
      * When this post process is used in a pipeline, this is call will bind the input texture of this post process to the output of the previous.
-     * @param camera The camera that will be used in the post process. This camera will be used when calling onActivateObservable.
+     * @param cameraOrScene The camera that will be used in the post process. This camera will be used when calling onActivateObservable. You can also pass the scene if no camera is available.
      * @param sourceTexture The source texture to be inspected to get the width and height if not specified in the post process constructor. (default: null)
      * @param forceDepthStencil If true, a depth and stencil buffer will be generated. (default: false)
      * @returns The render target wrapper that was bound to be written to.
      */
-    public activate(camera: Nullable<Camera>, sourceTexture: Nullable<InternalTexture> = null, forceDepthStencil?: boolean): RenderTargetWrapper {
-        camera = camera || this._camera;
+    public activate(cameraOrScene: Nullable<Camera> | Scene, sourceTexture: Nullable<InternalTexture> = null, forceDepthStencil?: boolean): RenderTargetWrapper {
+        const camera = cameraOrScene === null || (cameraOrScene as Camera).cameraRigMode !== undefined ? (cameraOrScene as Camera) || this._camera : null;
 
-        const scene = camera.getScene();
+        const scene = camera?.getScene() ?? (cameraOrScene as Scene);
         const engine = scene.getEngine();
         const maxSize = engine.getCaps().maxTextureSize;
 
@@ -1003,7 +1011,7 @@ export class PostProcess {
 
         this._engine._debugInsertMarker?.(`post process ${this.name} input`);
 
-        this.onActivateObservable.notifyObservers(camera);
+        this.onActivateObservable.notifyObservers(camera!);
 
         // Clear
         if (this.autoClear && (this.alphaMode === Constants.ALPHA_DISABLE || this.forceAutoClearInAlphaMode)) {
@@ -1066,6 +1074,8 @@ export class PostProcess {
             this.getEngine().setAlphaConstants(this.alphaConstants.r, this.alphaConstants.g, this.alphaConstants.b, this.alphaConstants.a);
         }
 
+        this._engine.setAlphaMode(this.alphaMode);
+
         // Bind the output texture of the preivous post process as the input to this post process.
         let source: RenderTargetWrapper;
         if (this._shareOutputWithPostProcess) {
@@ -1084,7 +1094,7 @@ export class PostProcess {
         this._effectWrapper.drawWrapper.effect!.setVector2("scale", this._scaleRatio);
         this.onApplyObservable.notifyObservers(this._effectWrapper.drawWrapper.effect!);
 
-        this._effectWrapper.bind();
+        this._effectWrapper.bind(true);
 
         return this._effectWrapper.drawWrapper.effect;
     }
@@ -1129,14 +1139,15 @@ export class PostProcess {
     public dispose(camera?: Camera): void {
         camera = camera || this._camera;
 
+        if (!this._useExistingThinPostProcess) {
+            this._effectWrapper.dispose();
+        }
+
         this._disposeTextures();
 
         let index;
         if (this._scene) {
-            index = this._scene.postProcesses.indexOf(this);
-            if (index !== -1) {
-                this._scene.postProcesses.splice(index, 1);
-            }
+            index = this._scene.removePostProcess(this);
         }
 
         if (this._parentContainer) {
@@ -1151,6 +1162,8 @@ export class PostProcess {
         if (index !== -1) {
             this._engine.postProcesses.splice(index, 1);
         }
+
+        this.onDisposeObservable.notifyObservers();
 
         if (!camera) {
             return;
@@ -1238,7 +1251,7 @@ export class PostProcess {
         }
 
         const camera = scene ? scene.getCameraById(parsedPostProcess.cameraId) : null;
-        return postProcessType._Parse(parsedPostProcess, camera, scene, rootUrl);
+        return postProcessType._Parse(parsedPostProcess, camera, scene, rootUrl) as Nullable<PostProcess>;
     }
 
     /**

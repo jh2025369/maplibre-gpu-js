@@ -11,7 +11,7 @@ const shader = `varying vec2 vUV;uniform sampler2D textureSampler;
 #include<imageProcessingFunctions>
 #define CUSTOM_FRAGMENT_DEFINITIONS
 void main(void)
-{vec4 result=texture2D(textureSampler,vUV);
+{vec4 result=texture2D(textureSampler,vUV);result.rgb=max(result.rgb,vec3(0.));
 #ifdef IMAGEPROCESSING
 #ifndef FROMLINEARSPACE
 result.rgb=toLinearSpace(result.rgb);

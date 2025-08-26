@@ -102,6 +102,7 @@ export class Camera extends Node {
     /**
      * Defines that both eyes of the camera should be renderered in a VR mode (carbox).
      */
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     public static readonly RIG_MODE_VR = Constants.RIG_MODE_VR;
     /**
      * Custom rig mode allowing rig cameras to be populated manually with any number of cameras
@@ -261,6 +262,15 @@ export class Camera extends Node {
     public fov = 0.8;
 
     /**
+     * Sets the camera's field of view in radians based on the focal length and sensor size.
+     * @param value the focal length of the camera in mm.
+     * @param sensorSize the sensor width size of the camera in mm. (default is 36mm, which is a full frame sensor)
+     */
+    public setFocalLength(value: number, sensorSize: number = 36) {
+        this.fov = 2 * Math.atan(sensorSize / (2 * value));
+    }
+
+    /**
      * Projection plane tilt around the X axis (horizontal), set in Radians. (default is 0)
      * Can be used to make vertical lines in world space actually vertical on the screen.
      * See https://forum.babylonjs.com/t/add-vertical-shift-to-3ds-max-exporter-babylon-cameras/17480
@@ -277,7 +287,7 @@ export class Camera extends Node {
     public minZ = 1;
 
     /**
-     * Define the maximum distance the camera can see to.
+     * Define the maximum distance the camera can see to.  (default is 10000)
      * This is important to note that the depth buffer are not infinite and the further it end
      * the more your scene might encounter depth fighting issue.
      */
@@ -1091,10 +1101,10 @@ export class Camera extends Node {
 
         if (checkRigCameras && this.rigCameras.length > 0) {
             let result = false;
-            this.rigCameras.forEach((cam) => {
+            for (const cam of this.rigCameras) {
                 cam._updateFrustumPlanes();
                 result = result || target.isInFrustum(cam._frustumPlanes);
-            });
+            }
             return result;
         } else {
             return target.isInFrustum(this._frustumPlanes);

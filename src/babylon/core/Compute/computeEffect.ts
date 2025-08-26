@@ -4,12 +4,13 @@ import { Observable } from "../Misc/observable";
 import type { IComputePipelineContext } from "./IComputePipelineContext";
 import { GetDOMTextContent, IsWindowObjectExist } from "../Misc/domManagement";
 import { Finalize, Initialize, PreProcess } from "../Engines/Processors/shaderProcessor";
-import type { ProcessingOptions } from "../Engines/Processors/shaderProcessingOptions";
+import type { _IProcessingOptions } from "../Engines/Processors/shaderProcessingOptions";
 import { ShaderStore } from "../Engines/shaderStore";
 import { ShaderLanguage } from "../Materials/shaderLanguage";
 
 import type { AbstractEngine } from "../Engines/abstractEngine";
 import type { ComputeCompilationMessages } from "../Engines/Extensions/engine.computeShader";
+import { _RetryWithInterval } from "core/Misc/timingTools";
 
 /**
  * Defines the route to the shader code. The priority is as follows:
@@ -18,6 +19,7 @@ import type { ComputeCompilationMessages } from "../Engines/Extensions/engine.co
  *  * object: `{ compute: "custom" }`, used with `Effect.ShadersStore["customVertexShader"]` and `Effect.ShadersStore["customFragmentShader"]`
  *  * string: `"./COMMON_NAME"`, used with external files COMMON_NAME.vertex.fx and COMMON_NAME.fragment.fx in index.html folder.
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export type IComputeShaderPath = {
     /**
      * Directly pass the shader code
@@ -164,7 +166,7 @@ export class ComputeEffect {
             computeSource = baseName.compute || baseName;
         }
 
-        const processorOptions: ProcessingOptions = {
+        const processorOptions: _IProcessingOptions = {
             defines: this.defines.split("\n"),
             indexParameters: undefined,
             isFragment: false,
@@ -295,25 +297,23 @@ export class ComputeEffect {
         });
 
         if (!this._pipelineContext || this._pipelineContext.isAsync) {
-            setTimeout(() => {
-                this._checkIsReady(null);
-            }, 16);
+            this._checkIsReady(null);
         }
     }
 
     private _checkIsReady(previousPipelineContext: Nullable<IComputePipelineContext>) {
-        try {
-            if (this._isReadyInternal()) {
-                return;
-            }
-        } catch (e) {
-            this._processCompilationErrors(e, previousPipelineContext);
-            return;
-        }
-
-        setTimeout(() => {
-            this._checkIsReady(previousPipelineContext);
-        }, 16);
+        _RetryWithInterval(
+            () => this._isReadyInternal(),
+            () => {
+                // no-op, all work is done in _isReadyInternal
+            },
+            (e) => {
+                this._processCompilationErrors(e, previousPipelineContext);
+            },
+            undefined,
+            undefined,
+            false
+        );
     }
 
     private _loadShader(shader: any, key: string, optionalKey: string, callback: (data: any) => void): void {

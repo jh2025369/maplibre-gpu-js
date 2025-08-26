@@ -384,16 +384,28 @@ export class InputManager {
             const actionManager = pickResult.pickedMesh._getActionManagerForTrigger();
             if (actionManager) {
                 if (actionManager.hasPickTriggers) {
-                    actionManager.processTrigger(Constants.ACTION_OnPickDownTrigger, ActionEvent.CreateNew(pickResult.pickedMesh, evt, pickResult));
+                    actionManager.processTrigger(
+                        Constants.ACTION_OnPickDownTrigger,
+                        new ActionEvent(pickResult.pickedMesh, scene.pointerX, scene.pointerY, pickResult.pickedMesh, evt, pickResult)
+                    );
                     switch (evt.button) {
                         case 0:
-                            actionManager.processTrigger(Constants.ACTION_OnLeftPickTrigger, ActionEvent.CreateNew(pickResult.pickedMesh, evt, pickResult));
+                            actionManager.processTrigger(
+                                Constants.ACTION_OnLeftPickTrigger,
+                                new ActionEvent(pickResult.pickedMesh, scene.pointerX, scene.pointerY, pickResult.pickedMesh, evt, pickResult)
+                            );
                             break;
                         case 1:
-                            actionManager.processTrigger(Constants.ACTION_OnCenterPickTrigger, ActionEvent.CreateNew(pickResult.pickedMesh, evt, pickResult));
+                            actionManager.processTrigger(
+                                Constants.ACTION_OnCenterPickTrigger,
+                                new ActionEvent(pickResult.pickedMesh, scene.pointerX, scene.pointerY, pickResult.pickedMesh, evt, pickResult)
+                            );
                             break;
                         case 2:
-                            actionManager.processTrigger(Constants.ACTION_OnRightPickTrigger, ActionEvent.CreateNew(pickResult.pickedMesh, evt, pickResult));
+                            actionManager.processTrigger(
+                                Constants.ACTION_OnRightPickTrigger,
+                                new ActionEvent(pickResult.pickedMesh, scene.pointerX, scene.pointerY, pickResult.pickedMesh, evt, pickResult)
+                            );
                             break;
                     }
                 }
@@ -619,7 +631,7 @@ export class InputManager {
 
                 // If we have a delayed click, we need to resolve the TAP event
                 if (this._delayedClicks[btn]) {
-                    const evt = this._delayedClicks[btn]!.evt;
+                    const evt = this._delayedClicks[btn].evt;
                     const type = PointerEventTypes.POINTERTAP;
                     const pi = new PointerInfo(type, evt, this._currentPickResult);
                     if (scene.onPointerObservable.hasObservers() && scene.onPointerObservable.hasSpecificMask(type)) {
@@ -657,6 +669,9 @@ export class InputManager {
             }
 
             let needToIgnoreNext = false;
+
+            // Never pick if this is a multi-touch gesture (e.g. pinch)
+            checkPicking = checkPicking && !this._isMultiTouchGesture;
 
             if (checkPicking) {
                 const btn = evt.button;
@@ -1133,7 +1148,7 @@ export class InputManager {
     }
 
     /**
-     * Force the value of meshUnderPointer
+     * Set the value of meshUnderPointer for a given pointerId
      * @param mesh - defines the mesh to use
      * @param pointerId - optional pointer id when using more than one pointer. Defaults to 0
      * @param pickResult - optional pickingInfo data used to find mesh
@@ -1150,7 +1165,7 @@ export class InputManager {
         if (underPointerMesh) {
             actionManager = underPointerMesh._getActionManagerForTrigger(Constants.ACTION_OnPointerOutTrigger);
             if (actionManager) {
-                actionManager.processTrigger(Constants.ACTION_OnPointerOutTrigger, ActionEvent.CreateNew(underPointerMesh, evt, { pointerId }));
+                actionManager.processTrigger(Constants.ACTION_OnPointerOutTrigger, new ActionEvent(underPointerMesh, this._pointerX, this._pointerY, mesh, evt, { pointerId }));
             }
         }
 
@@ -1160,11 +1175,18 @@ export class InputManager {
 
             actionManager = mesh._getActionManagerForTrigger(Constants.ACTION_OnPointerOverTrigger);
             if (actionManager) {
-                actionManager.processTrigger(Constants.ACTION_OnPointerOverTrigger, ActionEvent.CreateNew(mesh, evt, { pointerId, pickResult }));
+                actionManager.processTrigger(Constants.ACTION_OnPointerOverTrigger, new ActionEvent(mesh, this._pointerX, this._pointerY, mesh, evt, { pointerId, pickResult }));
             }
         } else {
             delete this._meshUnderPointerId[pointerId];
             this._pointerOverMesh = null;
+        }
+        // if we reached this point, meshUnderPointerId has been updated. We need to notify observers that are registered.
+        if (this._scene.onMeshUnderPointerUpdatedObservable.hasObservers()) {
+            this._scene.onMeshUnderPointerUpdatedObservable.notifyObservers({
+                mesh,
+                pointerId,
+            });
         }
     }
 

@@ -43,10 +43,11 @@ import type { TrianglePickingPredicate } from "../Culling/ray";
 import type { RenderingGroup } from "../Rendering/renderingGroup";
 import type { IEdgesRendererOptions } from "../Rendering/edgesRenderer";
 import type { MorphTarget } from "../Morph/morphTarget";
+import type { Geometry } from "./geometry";
 import { nativeOverride } from "../Misc/decorators";
 import { AbstractEngine } from "core/Engines/abstractEngine";
 
-function applyMorph(data: FloatArray, kind: string, morphTargetManager: MorphTargetManager): void {
+function ApplyMorph(data: FloatArray, kind: string, morphTargetManager: MorphTargetManager): void {
     let getTargetData: Nullable<(target: MorphTarget) => Nullable<FloatArray>> = null;
     switch (kind) {
         case VertexBuffer.PositionKind:
@@ -60,6 +61,12 @@ function applyMorph(data: FloatArray, kind: string, morphTargetManager: MorphTar
             break;
         case VertexBuffer.UVKind:
             getTargetData = (target) => target.getUVs();
+            break;
+        case VertexBuffer.UV2Kind:
+            getTargetData = (target) => target.getUV2s();
+            break;
+        case VertexBuffer.ColorKind:
+            getTargetData = (target) => target.getColors();
             break;
         default:
             return;
@@ -81,7 +88,7 @@ function applyMorph(data: FloatArray, kind: string, morphTargetManager: MorphTar
     }
 }
 
-function applySkeleton(
+function ApplySkeleton(
     data: FloatArray,
     kind: string,
     skeletonMatrices: Float32Array,
@@ -163,6 +170,7 @@ class _FacetDataStorage {
     public facetPartitioning: number[][]; // partitioning array of facet index arrays
     public facetNb: number = 0; // facet number
     public partitioningSubdivisions: number = 10; // number of subdivisions per axis in the partitioning space
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     public partitioningBBoxRatio: number = 1.01; // the partitioning array space is by default 1% bigger than the bounding box
     public facetDataEnabled: boolean = false; // is the facet data feature enabled on this mesh ?
     public facetParameters: any = {}; // keep a reference to the object parameters to avoid memory re-allocation
@@ -209,8 +217,7 @@ class _InternalAbstractMeshDataInfo {
     public _isActiveIntermediate = false;
     public _onlyForInstancesIntermediate = false;
     public _actAsRegularMesh = false;
-    public _currentLOD: Nullable<AbstractMesh> = null;
-    public _currentLODIsUpToDate: boolean = false;
+    public _currentLOD: Map<Camera, [Nullable<AbstractMesh>, number]> = new Map();
     public _collisionRetryCount: number = 3;
     public _morphTargetManager: Nullable<MorphTargetManager> = null;
     public _renderingGroupId = 0;
@@ -365,9 +372,11 @@ export abstract class AbstractMesh extends TransformNode implements IDisposable,
      * Ex : 1.01 (default) the partitioning space is 1% bigger than the bounding box
      * @see https://doc.babylonjs.com/features/featuresDeepDive/mesh/facetData#tweaking-the-partitioning
      */
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     public get partitioningBBoxRatio(): number {
         return this._internalAbstractMeshDataInfo._facetData.partitioningBBoxRatio;
     }
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     public set partitioningBBoxRatio(ratio: number) {
         this._internalAbstractMeshDataInfo._facetData.partitioningBBoxRatio = ratio;
     }
@@ -693,7 +702,15 @@ export abstract class AbstractMesh extends TransformNode implements IDisposable,
         if (!this._internalAbstractMeshDataInfo._materialForRenderPass) {
             this._internalAbstractMeshDataInfo._materialForRenderPass = [];
         }
+        const currentMaterial = this._internalAbstractMeshDataInfo._materialForRenderPass[renderPassId];
+        if (currentMaterial?.meshMap?.[this.uniqueId]) {
+            currentMaterial.meshMap[this.uniqueId] = undefined;
+        }
+
         this._internalAbstractMeshDataInfo._materialForRenderPass[renderPassId] = material;
+        if (material && material.meshMap) {
+            material.meshMap[this.uniqueId] = this;
+        }
     }
 
     /**
@@ -1078,7 +1095,7 @@ export abstract class AbstractMesh extends TransformNode implements IDisposable,
      * @returns a string representation of the current mesh
      */
     public override toString(fullDetails?: boolean): string {
-        let ret = "Name: " + this.name + ", isInstance: " + (this.getClassName() !== "InstancedMesh" ? "YES" : "NO");
+        let ret = "Name: " + this.name + ", isInstance: " + (this.getClassName() === "InstancedMesh" ? "YES" : "NO");
         ret += ", # of submeshes: " + (this.subMeshes ? this.subMeshes.length : 0);
 
         const skeleton = this._internalAbstractMeshDataInfo._skeleton;
@@ -1286,6 +1303,11 @@ export abstract class AbstractMesh extends TransformNode implements IDisposable,
     public getLOD(camera: Camera): Nullable<AbstractMesh> {
         return this;
     }
+
+    /**
+     * The mesh's internal Geometry object. Implemented by child classes.
+     */
+    public abstract get geometry(): Nullable<Geometry>;
 
     /**
      * Returns 0 by default. Implemented by child classes
@@ -1696,7 +1718,7 @@ export abstract class AbstractMesh extends TransformNode implements IDisposable,
         matricesIndicesExtraData: Nullable<FloatArray>,
         matricesWeightsExtraData: Nullable<FloatArray>
     ): void {
-        applySkeleton(data, kind, skeletonMatrices, matricesIndicesData, matricesWeightsData, matricesIndicesExtraData, matricesWeightsExtraData);
+        ApplySkeleton(data, kind, skeletonMatrices, matricesIndicesData, matricesWeightsData, matricesIndicesExtraData, matricesWeightsExtraData);
     }
 
     /** @internal */
@@ -1733,7 +1755,7 @@ export abstract class AbstractMesh extends TransformNode implements IDisposable,
         }
 
         if (options.applyMorph && this.morphTargetManager) {
-            applyMorph(data, kind, this.morphTargetManager);
+            ApplyMorph(data, kind, this.morphTargetManager);
         }
 
         if (options.applySkeleton && this.skeleton) {
@@ -1907,9 +1929,10 @@ export abstract class AbstractMesh extends TransformNode implements IDisposable,
      * Move the mesh using collision engine
      * @see https://doc.babylonjs.com/features/featuresDeepDive/cameras/camera_collisions
      * @param displacement defines the requested displacement vector
+     * @param slideOnCollide If true, the mesh will slide along a collider's surface.  If false, it will stop moving at the first collision. (true by default)
      * @returns the current mesh
      */
-    public moveWithCollisions(displacement: Vector3): AbstractMesh {
+    public moveWithCollisions(displacement: Vector3, slideOnCollide: boolean = true): AbstractMesh {
         const globalPosition = this.getAbsolutePosition();
 
         globalPosition.addToRef(this.ellipsoidOffset, this._internalAbstractMeshDataInfo._meshCollisionData._oldPositionForCollisions);
@@ -1928,7 +1951,8 @@ export abstract class AbstractMesh extends TransformNode implements IDisposable,
             this.collisionRetryCount,
             this,
             this._onCollisionPositionChange,
-            this.uniqueId
+            this.uniqueId,
+            slideOnCollide
         );
         return this;
     }
@@ -2251,7 +2275,7 @@ export abstract class AbstractMesh extends TransformNode implements IDisposable,
         // Lights
         const lights = scene.lights;
 
-        lights.forEach((light: Light) => {
+        for (const light of lights) {
             let meshIndex = light.includedOnlyMeshes.indexOf(this);
 
             if (meshIndex !== -1) {
@@ -2281,7 +2305,7 @@ export abstract class AbstractMesh extends TransformNode implements IDisposable,
                     }
                 }
             }
-        });
+        }
 
         // SubMeshes
         if (this.getClassName() !== "InstancedMesh" || this.getClassName() !== "InstancedLinesMesh") {
@@ -2390,9 +2414,9 @@ export abstract class AbstractMesh extends TransformNode implements IDisposable,
             // init arrays, matrix and sort function on first call
             data.facetDepthSortEnabled = true;
             if (indices instanceof Uint16Array) {
-                data.depthSortedIndices = new Uint16Array(indices!);
+                data.depthSortedIndices = new Uint16Array(indices);
             } else if (indices instanceof Uint32Array) {
-                data.depthSortedIndices = new Uint32Array(indices!);
+                data.depthSortedIndices = new Uint32Array(indices);
             } else {
                 let needs32bits = false;
                 for (let i = 0; i < indices!.length; i++) {
@@ -2736,6 +2760,26 @@ export abstract class AbstractMesh extends TransformNode implements IDisposable,
 
         VertexData.ComputeNormals(positions, indices, normals, { useRightHandedSystem: this.getScene().useRightHandedSystem });
         this.setVerticesData(VertexBuffer.NormalKind, normals, updatable);
+        return this;
+    }
+
+    /**
+     * Optimize the indices order so that we keep the faces with similar indices together
+     * @returns the current mesh
+     */
+    public async optimizeIndicesAsync(): Promise<AbstractMesh> {
+        const indices = this.getIndices();
+
+        if (!indices) {
+            return this;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        const { OptimizeIndices } = await import("./mesh.vertexData.functions");
+
+        OptimizeIndices(indices);
+
+        this.setIndices(indices, this.getTotalVertices());
         return this;
     }
 

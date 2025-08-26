@@ -3,6 +3,7 @@ import type { DataBuffer } from "../../Buffers/dataBuffer";
 import type { IndicesArray, DataArray } from "../../types";
 
 declare module "../../Engines/abstractEngine" {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     export interface AbstractEngine {
         /**
          * Update a dynamic index buffer
@@ -60,15 +61,15 @@ ThinEngine.prototype.updateDynamicVertexBuffer = function (this: ThinEngine, ver
         }
     } else {
         if (data instanceof Array) {
-            this._gl.bufferSubData(this._gl.ARRAY_BUFFER, 0, new Float32Array(data).subarray(byteOffset, byteOffset + byteLength));
+            this._gl.bufferSubData(this._gl.ARRAY_BUFFER, byteOffset, new Float32Array(data).subarray(0, byteLength / 4));
         } else {
             if (data instanceof ArrayBuffer) {
-                data = new Uint8Array(data, byteOffset, byteLength);
+                data = new Uint8Array(data, 0, byteLength);
             } else {
-                data = new Uint8Array(data.buffer, data.byteOffset + byteOffset, byteLength);
+                data = new Uint8Array(data.buffer, data.byteOffset, byteLength);
             }
 
-            this._gl.bufferSubData(this._gl.ARRAY_BUFFER, 0, data);
+            this._gl.bufferSubData(this._gl.ARRAY_BUFFER, byteOffset, data);
         }
     }
 

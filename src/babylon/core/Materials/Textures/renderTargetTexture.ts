@@ -25,6 +25,7 @@ import { Logger } from "../../Misc/logger";
 import { ObjectRenderer } from "core/Rendering/objectRenderer";
 
 declare module "../effect" {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     export interface Effect {
         /**
          * Sets a depth stencil texture from a render target on the engine to be used in the shader.
@@ -47,6 +48,7 @@ Effect.prototype.setDepthStencilTexture = function (channel: string, texture: Nu
 /**
  * Options for the RenderTargetTexture constructor
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export interface RenderTargetTextureOptions {
     /** True (default: false) if mipmaps need to be generated after render */
     generateMipMaps?: boolean;
@@ -95,6 +97,9 @@ export interface RenderTargetTextureOptions {
 
     /** Defines the underlying texture texture space */
     gammaSpace?: boolean;
+
+    /** If not provided (default), a new object renderer instance will be created */
+    existingObjectRenderer?: ObjectRenderer;
 }
 
 /**
@@ -215,6 +220,30 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
 
     public set activeCamera(value: Nullable<Camera>) {
         this._objectRenderer.activeCamera = value;
+    }
+
+    /**
+     * Define the camera used to calculate the LOD of the objects.
+     * If not defined, activeCamera will be used. If not defined nor activeCamera, scene's active camera will be used.
+     */
+    public get cameraForLOD(): Nullable<Camera> {
+        return this._objectRenderer.cameraForLOD;
+    }
+
+    public set cameraForLOD(value: Nullable<Camera>) {
+        this._objectRenderer.cameraForLOD = value;
+    }
+
+    /**
+     * If true, the renderer will render all objects without any image processing applied.
+     * If false (default value), the renderer will use the current setting of the scene's image processing configuration.
+     */
+    public get disableImageProcessing() {
+        return this._objectRenderer.disableImageProcessing;
+    }
+
+    public set disableImageProcessing(value: boolean) {
+        this._objectRenderer.disableImageProcessing = value;
     }
 
     /**
@@ -396,6 +425,7 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
     private _currentLayer: number;
     private _currentUseCameraPostProcess: boolean;
     private _currentDumpForDebug: boolean;
+    private _dontDisposeObjectRenderer = false;
 
     /**
      * Current render pass id of the render target texture. Note it can change over the rendering as there's a separate id for each face of a cube / each layer of an array layer!
@@ -492,9 +522,16 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
         return this._renderTarget?._depthStencilTexture ?? null;
     }
 
+    /** @internal */
+    public _disableEngineStages = false; // TODO: remove this when the shadow generator task (frame graph) is reworked (see https://github.com/BabylonJS/Babylon.js/pull/15962#discussion_r1874417607)
+
+    private readonly _onBeforeRenderingManagerRenderObserver: Nullable<Observer<number>>;
+    private readonly _onAfterRenderingManagerRenderObserver: Nullable<Observer<number>>;
+    private readonly _onFastPathRenderObserver: Nullable<Observer<number>>;
+
     /**
-     * Instantiate a render target texture. This is mainly used to render of screen the scene to for instance apply post process
-     * or used a shadow, depth texture...
+     * Instantiate a render target texture. This is mainly used to render the scene off screen, to apply (for instance) post processing effects
+     * or use a shadow or depth texture...
      * @param name The friendly name of the texture
      * @param size The size of the RTT (number if square, or {width: number, height:number} or {ratio:} to define a ratio from the main scene)
      * @param scene The scene the RTT belongs to. Default is the last created scene.
@@ -503,8 +540,8 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
     constructor(name: string, size: TextureSize | { ratio: number }, scene?: Nullable<Scene>, options?: RenderTargetTextureOptions);
 
     /**
-     * Instantiate a render target texture. This is mainly used to render of screen the scene to for instance apply post process
-     * or used a shadow, depth texture...
+     * Instantiate a render target texture. This is mainly used to render the scene off screen, to apply (for instance) post processing effects
+     * or use a shadow or depth texture...
      * @param name The friendly name of the texture
      * @param size The size of the RTT (number if square, or {width: number, height:number} or {ratio:} to define a ratio from the main scene)
      * @param scene The scene the RTT belongs to. Default is the last created scene
@@ -565,6 +602,7 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
     ) {
         let colorAttachment: InternalTexture | undefined = undefined;
         let gammaSpace = true;
+        let existingObjectRenderer: ObjectRenderer | undefined = undefined;
         if (typeof generateMipMaps === "object") {
             const options = generateMipMaps;
             generateMipMaps = !!options.generateMipMaps;
@@ -583,6 +621,7 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
             useSRGBBuffer = !!options.useSRGBBuffer;
             colorAttachment = options.colorAttachment;
             gammaSpace = options.gammaSpace ?? gammaSpace;
+            existingObjectRenderer = options.existingObjectRenderer;
         }
 
         super(null, scene, !generateMipMaps, undefined, samplingMode, undefined, undefined, undefined, undefined, format);
@@ -599,18 +638,23 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
         this.name = name;
         this.isRenderTarget = true;
         this._initialSizeParameter = size;
+        this._dontDisposeObjectRenderer = !!existingObjectRenderer;
 
         this._processSizeParameter(size);
 
-        this._objectRenderer = new ObjectRenderer(name, scene, {
-            numPasses: isCube ? 6 : this.getRenderLayers() || 1,
-            doNotChangeAspectRatio,
-        });
+        this._objectRenderer =
+            existingObjectRenderer ??
+            new ObjectRenderer(name, scene, {
+                numPasses: isCube ? 6 : this.getRenderLayers() || 1,
+                doNotChangeAspectRatio,
+            });
 
-        this._objectRenderer.onBeforeRenderingManagerRenderObservable.add(() => {
+        this._onBeforeRenderingManagerRenderObserver = this._objectRenderer.onBeforeRenderingManagerRenderObservable.add(() => {
             // Before clear
-            for (const step of this._scene!._beforeRenderTargetClearStage) {
-                step.action(this, this._currentFaceIndex, this._currentLayer);
+            if (!this._disableEngineStages) {
+                for (const step of this._scene!._beforeRenderTargetClearStage) {
+                    step.action(this, this._currentFaceIndex, this._currentLayer);
+                }
             }
 
             // Clear
@@ -625,15 +669,19 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
             }
 
             // Before Camera Draw
-            for (const step of this._scene!._beforeRenderTargetDrawStage) {
-                step.action(this, this._currentFaceIndex, this._currentLayer);
+            if (!this._disableEngineStages) {
+                for (const step of this._scene!._beforeRenderTargetDrawStage) {
+                    step.action(this, this._currentFaceIndex, this._currentLayer);
+                }
             }
         });
 
-        this._objectRenderer.onAfterRenderingManagerRenderObservable.add(() => {
+        this._onAfterRenderingManagerRenderObserver = this._objectRenderer.onAfterRenderingManagerRenderObservable.add(() => {
             // After Camera Draw
-            for (const step of this._scene!._afterRenderTargetDrawStage) {
-                step.action(this, this._currentFaceIndex, this._currentLayer);
+            if (!this._disableEngineStages) {
+                for (const step of this._scene!._afterRenderTargetDrawStage) {
+                    step.action(this, this._currentFaceIndex, this._currentLayer);
+                }
             }
 
             const saveGenerateMipMaps = this._texture?.generateMipMaps ?? false;
@@ -650,8 +698,10 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
                 this._scene!.postProcessManager._finalizeFrame(false, this._renderTarget ?? undefined, this._currentFaceIndex);
             }
 
-            for (const step of this._scene!._afterRenderTargetPostProcessStage) {
-                step.action(this, this._currentFaceIndex, this._currentLayer);
+            if (!this._disableEngineStages) {
+                for (const step of this._scene!._afterRenderTargetPostProcessStage) {
+                    step.action(this, this._currentFaceIndex, this._currentLayer);
+                }
             }
 
             if (this._texture) {
@@ -667,12 +717,13 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
                 if (!this._dumpTools) {
                     Logger.Error("dumpTools module is still being loaded. To speed up the process import dump tools directly in your project");
                 } else {
+                    // eslint-disable-next-line @typescript-eslint/no-floating-promises
                     this._dumpTools.DumpFramebuffer(this.getRenderWidth(), this.getRenderHeight(), engine);
                 }
             }
         });
 
-        this._objectRenderer.onFastPathRenderObservable.add(() => {
+        this._onFastPathRenderObserver = this._objectRenderer.onFastPathRenderObservable.add(() => {
             if (this.onClearObservable.hasObservers()) {
                 this.onClearObservable.notifyObservers(engine);
             } else {
@@ -1000,6 +1051,7 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
         if (!this._dumpToolsLoading) {
             this._dumpToolsLoading = true;
             // avoid a static import to allow ignoring the import in some cases
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises, github/no-then
             import("../../Misc/dumpTools").then((module) => (this._dumpTools = module));
         }
 
@@ -1097,7 +1149,9 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
     public _prepareFrame(scene: Scene, faceIndex?: number, layer?: number, useCameraPostProcess?: boolean) {
         if (this._postProcessManager) {
             if (!this._prePassEnabled) {
-                this._postProcessManager._prepareFrame(this._texture, this._postProcesses);
+                if (!this._postProcessManager._prepareFrame(this._texture, this._postProcesses)) {
+                    this._bindFrameBuffer(faceIndex, layer);
+                }
             }
         } else if (!useCameraPostProcess || !scene.postProcessManager._prepareFrame(this._texture)) {
             this._bindFrameBuffer(faceIndex, layer);
@@ -1253,7 +1307,13 @@ export class RenderTargetTexture extends Texture implements IRenderTargetTexture
             this._prePassRenderTarget.dispose();
         }
 
-        this._objectRenderer.dispose();
+        this._objectRenderer.onBeforeRenderingManagerRenderObservable.remove(this._onBeforeRenderingManagerRenderObserver);
+        this._objectRenderer.onAfterRenderingManagerRenderObservable.remove(this._onAfterRenderingManagerRenderObserver);
+        this._objectRenderer.onFastPathRenderObservable.remove(this._onFastPathRenderObserver);
+
+        if (!this._dontDisposeObjectRenderer) {
+            this._objectRenderer.dispose();
+        }
 
         this.clearPostProcesses(true);
 

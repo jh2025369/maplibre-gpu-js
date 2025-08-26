@@ -8,7 +8,7 @@ import "./ShadersInclude/logDepthFragment";
 const name = "outlinePixelShader";
 const shader = `uniform color: vec4f;
 #ifdef ALPHATEST
-varying vUV: vec2;var diffuseSamplerSampler: sampler;var diffuseSampler: texture_2d<f32>;
+varying vUV: vec2f;var diffuseSamplerSampler: sampler;var diffuseSampler: texture_2d<f32>;
 #endif
 #include<clipPlaneFragmentDeclaration>
 #include<logDepthDeclaration>

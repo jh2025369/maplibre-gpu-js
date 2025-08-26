@@ -56,6 +56,11 @@ export function registerBuiltInGLTFExtensions() {
         return new KHR_lights(loader);
     });
 
+    registerGLTFExtension("EXT_lights_ies", true, async (loader) => {
+        const { EXT_lights_ies } = await import("./EXT_lights_ies");
+        return new EXT_lights_ies(loader);
+    });
+
     registerGLTFExtension("KHR_materials_anisotropy", true, async (loader) => {
         const { KHR_materials_anisotropy } = await import("./KHR_materials_anisotropy");
         return new KHR_materials_anisotropy(loader);
@@ -64,6 +69,11 @@ export function registerBuiltInGLTFExtensions() {
     registerGLTFExtension("KHR_materials_clearcoat", true, async (loader) => {
         const { KHR_materials_clearcoat } = await import("./KHR_materials_clearcoat");
         return new KHR_materials_clearcoat(loader);
+    });
+
+    registerGLTFExtension("EXT_materials_diffuse_roughness", true, async (loader) => {
+        const { EXT_materials_diffuse_roughness } = await import("./EXT_materials_diffuse_roughness");
+        return new EXT_materials_diffuse_roughness(loader);
     });
 
     registerGLTFExtension("KHR_materials_diffuse_transmission", true, async (loader) => {
@@ -169,5 +179,15 @@ export function registerBuiltInGLTFExtensions() {
     registerGLTFExtension("KHR_node_visibility", true, async (loader) => {
         const { KHR_node_visibility } = await import("./KHR_node_visibility");
         return new KHR_node_visibility(loader);
+    });
+
+    registerGLTFExtension("KHR_node_hoverability", true, async (loader) => {
+        const { KHR_node_hoverability } = await import("./KHR_node_hoverability");
+        return new KHR_node_hoverability(loader);
+    });
+
+    registerGLTFExtension("KHR_node_selectability", true, async (loader) => {
+        const { KHR_node_selectability } = await import("./KHR_node_selectability");
+        return new KHR_node_selectability(loader);
     });
 }

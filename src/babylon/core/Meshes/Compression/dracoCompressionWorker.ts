@@ -1,59 +1,184 @@
-import type { Nullable } from "core/types";
-import type { DecoderBuffer, Decoder, Mesh, PointCloud, Status } from "draco3dgltf";
+import type { Nullable, TypedArray, TypedArrayConstructor } from "core/types";
+import type { EncoderMessage, IDracoAttributeData, IDracoEncodedMeshData, IDracoEncoderOptions } from "./dracoEncoder.types";
+import type { DecoderMessage } from "./dracoDecoder.types";
+import type { DecoderBuffer, Decoder, Mesh, PointCloud, Status, DecoderModule, EncoderModule, MeshBuilder, Encoder, DracoInt8Array } from "draco3dgltf";
 import { DracoDecoderModule } from "draco3dgltf";
+import type { VertexDataTypedArray } from "core/Buffers/bufferUtils";
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
 declare let DracoDecoderModule: DracoDecoderModule;
+// eslint-disable-next-line @typescript-eslint/naming-convention
+declare let DracoEncoderModule: (props: { wasmBinary?: ArrayBuffer }) => Promise<EncoderModule>;
 
-export interface AttributeData {
-    kind: string;
-    data: ArrayBufferView;
-    size: number;
-    byteOffset: number;
-    byteStride: number;
-    normalized: boolean;
-}
-
-interface InitDoneMessage {
+interface IInitDoneMessage {
     id: "initDone";
 }
 
-interface DecodeMeshDoneMessage {
-    id: "decodeMeshDone";
-    totalVertices: number;
-}
-
-interface IndicesMessage {
-    id: "indices";
-    data: Uint16Array | Uint32Array;
-}
-
-interface AttributeMessage extends AttributeData {
-    id: "attribute";
-}
-export type Message = InitDoneMessage | DecodeMeshDoneMessage | IndicesMessage | AttributeMessage;
 // WorkerGlobalScope
+// eslint-disable-next-line @typescript-eslint/naming-convention
 declare function importScripts(...urls: string[]): void;
-declare function postMessage(message: Message, transfer?: any[]): void;
+// eslint-disable-next-line @typescript-eslint/naming-convention
+declare function postMessage(message: IInitDoneMessage | DecoderMessage | EncoderMessage, transfer?: ArrayBufferLike[]): void;
 
 /**
  * @internal
  */
-export function decodeMesh(
-    decoderModule: any /*DecoderModule*/,
+export function EncodeMesh(
+    module: unknown /** EncoderModule */,
+    attributes: Array<IDracoAttributeData>,
+    indices: Nullable<Uint16Array | Uint32Array>,
+    options: IDracoEncoderOptions
+): Nullable<IDracoEncodedMeshData> {
+    const encoderModule = module as EncoderModule;
+    let encoder: Nullable<Encoder> = null;
+    let meshBuilder: Nullable<MeshBuilder> = null;
+    let mesh: Nullable<Mesh> = null;
+    let encodedNativeBuffer: Nullable<DracoInt8Array> = null;
+    const attributeIDs: Record<string, number> = {}; // Babylon kind -> Draco unique id
+
+    // Double-check that at least a position attribute is provided
+    const positionAttribute = attributes.find((a) => a.dracoName === "POSITION");
+    if (!positionAttribute) {
+        throw new Error("Position attribute is required for Draco encoding");
+    }
+
+    // If no indices are provided, assume mesh is unindexed. Let's generate them, since Draco meshes require them.
+    // TODO: This may be the POINT_CLOUD case, but need to investigate. Should work for now-- just less efficient.
+    if (!indices) {
+        // Assume position attribute is the largest attribute.
+        const positionVerticesCount = positionAttribute.data.length / positionAttribute.size;
+        indices = new (positionVerticesCount > 65535 ? Uint32Array : Uint16Array)(positionVerticesCount);
+        for (let i = 0; i < positionVerticesCount; i++) {
+            indices[i] = i;
+        }
+    }
+
+    try {
+        encoder = new encoderModule.Encoder();
+        meshBuilder = new encoderModule.MeshBuilder();
+        mesh = new encoderModule.Mesh();
+
+        // Add the faces
+        meshBuilder.AddFacesToMesh(mesh, indices.length / 3, indices);
+
+        const addAttributeMap = new Map<
+            Function,
+            (builder: MeshBuilder, mesh: Mesh, attr: any, count: number, size: number, data: Exclude<VertexDataTypedArray, Uint8ClampedArray>) => number
+        >([
+            [Float32Array, (mb, m, a, c, s, d) => mb.AddFloatAttribute(m, a, c, s, d)],
+            [Uint32Array, (mb, m, a, c, s, d) => mb.AddUInt32Attribute(m, a, c, s, d)],
+            [Uint16Array, (mb, m, a, c, s, d) => mb.AddUInt16Attribute(m, a, c, s, d)],
+            [Uint8Array, (mb, m, a, c, s, d) => mb.AddUInt8Attribute(m, a, c, s, d)],
+            [Int32Array, (mb, m, a, c, s, d) => mb.AddInt32Attribute(m, a, c, s, d)],
+            [Int16Array, (mb, m, a, c, s, d) => mb.AddInt16Attribute(m, a, c, s, d)],
+            [Int8Array, (mb, m, a, c, s, d) => mb.AddInt8Attribute(m, a, c, s, d)],
+        ]);
+
+        // Add the attributes
+        for (const attribute of attributes) {
+            if (attribute.data instanceof Uint8ClampedArray) {
+                attribute.data = new Uint8Array(attribute.data); // Draco does not support Uint8ClampedArray
+            }
+            const addAttribute = addAttributeMap.get(attribute.data.constructor)!;
+            const verticesCount = attribute.data.length / attribute.size;
+            attributeIDs[attribute.kind] = addAttribute(meshBuilder, mesh, encoderModule[attribute.dracoName], verticesCount, attribute.size, attribute.data);
+            if (options.quantizationBits && options.quantizationBits[attribute.dracoName]) {
+                encoder.SetAttributeQuantization(encoderModule[attribute.dracoName], options.quantizationBits[attribute.dracoName]);
+            }
+        }
+
+        // Set the options
+        if (options.method) {
+            encoder.SetEncodingMethod(encoderModule[options.method]);
+        }
+        if (options.encodeSpeed !== undefined && options.decodeSpeed !== undefined) {
+            encoder.SetSpeedOptions(options.encodeSpeed, options.decodeSpeed);
+        }
+
+        // Encode to native buffer
+        encodedNativeBuffer = new encoderModule.DracoInt8Array();
+        const encodedLength = encoder.EncodeMeshToDracoBuffer(mesh, encodedNativeBuffer);
+        if (encodedLength <= 0) {
+            throw new Error("Draco encoding failed.");
+        }
+
+        // Copy the native buffer data to worker heap
+        const encodedData = new Int8Array(encodedLength);
+        for (let i = 0; i < encodedLength; i++) {
+            encodedData[i] = encodedNativeBuffer.GetValue(i);
+        }
+
+        return { data: encodedData, attributeIds: attributeIDs };
+    } finally {
+        if (mesh) {
+            encoderModule.destroy(mesh);
+        }
+        if (meshBuilder) {
+            encoderModule.destroy(meshBuilder);
+        }
+        if (encoder) {
+            encoderModule.destroy(encoder);
+        }
+        if (encodedNativeBuffer) {
+            encoderModule.destroy(encodedNativeBuffer);
+        }
+    }
+}
+
+/**
+ * The worker function that gets converted to a blob url to pass into a worker.
+ * To be used if a developer wants to create their own worker instance and inject it instead of using the default worker.
+ */
+export function EncoderWorkerFunction(): void {
+    let encoderPromise: PromiseLike<EncoderModule> | undefined;
+
+    onmessage = (event) => {
+        const message = event.data;
+        switch (message.id) {
+            case "init": {
+                // if URL is provided then load the script. Otherwise expect the script to be loaded already
+                if (message.url) {
+                    importScripts(message.url);
+                }
+                const initEncoderObject = message.wasmBinary ? { wasmBinary: message.wasmBinary } : {};
+                encoderPromise = DracoEncoderModule(initEncoderObject);
+                postMessage({ id: "initDone" });
+                break;
+            }
+            case "encodeMesh": {
+                if (!encoderPromise) {
+                    throw new Error("Draco encoder module is not available");
+                }
+                // eslint-disable-next-line github/no-then
+                encoderPromise.then((encoder) => {
+                    const result = EncodeMesh(encoder, message.attributes, message.indices, message.options);
+                    postMessage({ id: "encodeMeshDone", encodedMeshData: result }, result ? [result.data.buffer] : undefined);
+                });
+                break;
+            }
+        }
+    };
+}
+
+/**
+ * @internal
+ */
+export function DecodeMesh(
+    module: unknown /** DecoderModule */,
     data: Int8Array,
-    attributes: { [kind: string]: number } | undefined,
+    attributeIDs: Record<string, number> | undefined,
     onIndicesData: (indices: Uint16Array | Uint32Array) => void,
     onAttributeData: (kind: string, data: ArrayBufferView, size: number, offset: number, stride: number, normalized: boolean) => void
 ): number {
+    const decoderModule = module as DecoderModule;
     let decoder: Nullable<Decoder> = null;
     let buffer: Nullable<DecoderBuffer> = null;
     let geometry: Nullable<Mesh | PointCloud> = null;
 
     try {
-        decoder = new decoderModule.Decoder() as Decoder;
+        decoder = new decoderModule.Decoder();
 
-        buffer = new decoderModule.DecoderBuffer() as DecoderBuffer;
+        buffer = new decoderModule.DecoderBuffer();
         buffer.Init(data, data.byteLength);
 
         let status: Status;
@@ -80,7 +205,7 @@ export function decodeMesh(
                     decoderModule._free(ptr);
                 }
 
-                geometry = mesh as Mesh;
+                geometry = mesh;
                 break;
             }
             case decoderModule.POINT_CLOUD: {
@@ -90,7 +215,7 @@ export function decodeMesh(
                     throw new Error(status.error_msg());
                 }
 
-                geometry = pointCloud as PointCloud;
+                geometry = pointCloud;
                 break;
             }
             default: {
@@ -100,14 +225,14 @@ export function decodeMesh(
 
         const numPoints = geometry.num_points();
 
-        const processAttribute = (decoder: Decoder, geometry: Mesh | PointCloud, kind: string, attribute: any) => {
+        const processAttribute = (decoder: Decoder, geometry: Mesh | PointCloud, kind: string, attribute: any /** Attribute */) => {
             const dataType = attribute.data_type();
             const numComponents = attribute.num_components();
             const normalized = attribute.normalized();
             const byteStride = attribute.byte_stride();
             const byteOffset = attribute.byte_offset();
 
-            const dataTypeInfo = {
+            const dataTypeInfo: Record<number, { typedArrayConstructor: TypedArrayConstructor; heap: TypedArray }> = {
                 [decoderModule.DT_FLOAT32]: { typedArrayConstructor: Float32Array, heap: decoderModule.HEAPF32 },
                 [decoderModule.DT_INT8]: { typedArrayConstructor: Int8Array, heap: decoderModule.HEAP8 },
                 [decoderModule.DT_INT16]: { typedArrayConstructor: Int16Array, heap: decoderModule.HEAP16 },
@@ -135,14 +260,14 @@ export function decodeMesh(
             }
         };
 
-        if (attributes) {
-            for (const kind in attributes) {
-                const id = attributes[kind];
+        if (attributeIDs) {
+            for (const kind in attributeIDs) {
+                const id = attributeIDs[kind];
                 const attribute = decoder.GetAttributeByUniqueId(geometry, id);
                 processAttribute(decoder, geometry, kind, attribute);
             }
         } else {
-            const dracoAttributeTypes: { [kind: string]: number } = {
+            const dracoAttributeTypes: Record<string, number> = {
                 position: decoderModule.POSITION,
                 normal: decoderModule.NORMAL,
                 color: decoderModule.COLOR,
@@ -178,19 +303,18 @@ export function decodeMesh(
  * The worker function that gets converted to a blob url to pass into a worker.
  * To be used if a developer wants to create their own worker instance and inject it instead of using the default worker.
  */
-export function workerFunction(): void {
-    let decoderPromise: PromiseLike<any> | undefined;
+export function DecoderWorkerFunction(): void {
+    let decoderPromise: PromiseLike<DecoderModule> | undefined;
 
     onmessage = (event) => {
         const message = event.data;
         switch (message.id) {
             case "init": {
-                const decoder = message.decoder;
                 // if URL is provided then load the script. Otherwise expect the script to be loaded already
-                if (decoder.url) {
-                    importScripts(decoder.url);
+                if (message.url) {
+                    importScripts(message.url);
                 }
-                const initDecoderObject = decoder.wasmBinary ? { wasmBinary: decoder.wasmBinary } : {};
+                const initDecoderObject = message.wasmBinary ? { wasmBinary: message.wasmBinary } : {};
                 decoderPromise = DracoDecoderModule(initDecoderObject);
                 postMessage({ id: "initDone" });
                 break;
@@ -199,8 +323,9 @@ export function workerFunction(): void {
                 if (!decoderPromise) {
                     throw new Error("Draco decoder module is not available");
                 }
+                // eslint-disable-next-line github/no-then
                 decoderPromise.then((decoder) => {
-                    const numPoints = decodeMesh(
+                    const numPoints = DecodeMesh(
                         decoder,
                         message.dataView,
                         message.attributes,
@@ -219,22 +344,27 @@ export function workerFunction(): void {
     };
 }
 
+// For backwards compatibility
+export { DecoderWorkerFunction as workerFunction };
+
 /**
  * Initializes a worker that was created for the draco agent pool
  * @param worker  The worker to initialize
- * @param decoderWasmBinary The wasm binary to load into the worker
+ * @param wasmBinary The wasm binary to load into the worker
  * @param moduleUrl The url to the draco decoder module (optional)
  * @returns A promise that resolves when the worker is initialized
  */
-export function initializeWebWorker(worker: Worker, decoderWasmBinary?: ArrayBuffer, moduleUrl?: string): Promise<Worker> {
-    return new Promise<Worker>((resolve, reject) => {
+// eslint-disable-next-line @typescript-eslint/naming-convention
+export async function initializeWebWorker(worker: Worker, wasmBinary?: ArrayBuffer, moduleUrl?: string): Promise<Worker> {
+    return await new Promise<Worker>((resolve, reject) => {
         const onError = (error: ErrorEvent) => {
             worker.removeEventListener("error", onError);
             worker.removeEventListener("message", onMessage);
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
             reject(error);
         };
 
-        const onMessage = (event: MessageEvent<Message>) => {
+        const onMessage = (event: MessageEvent<IInitDoneMessage>) => {
             if (event.data.id === "initDone") {
                 worker.removeEventListener("error", onError);
                 worker.removeEventListener("message", onMessage);
@@ -245,23 +375,20 @@ export function initializeWebWorker(worker: Worker, decoderWasmBinary?: ArrayBuf
         worker.addEventListener("error", onError);
         worker.addEventListener("message", onMessage);
 
-        if (!decoderWasmBinary) {
+        // Load with either JS-only or WASM version
+        if (!wasmBinary) {
             worker.postMessage({
                 id: "init",
-                decoder: {
-                    url: moduleUrl,
-                },
+                url: moduleUrl,
             });
         } else {
             // clone the array buffer to make it transferable
-            const clone = decoderWasmBinary.slice(0);
+            const clone = wasmBinary.slice(0);
             worker.postMessage(
                 {
                     id: "init",
-                    decoder: {
-                        url: moduleUrl,
-                        wasmBinary: clone,
-                    },
+                    url: moduleUrl,
+                    wasmBinary: clone,
                 },
                 [clone]
             );

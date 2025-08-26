@@ -43,7 +43,7 @@ import { PBRAnisotropicConfiguration } from "./pbrAnisotropicConfiguration";
 import { PBRSheenConfiguration } from "./pbrSheenConfiguration";
 import { PBRSubSurfaceConfiguration } from "./pbrSubSurfaceConfiguration";
 import { DetailMapConfiguration } from "../material.detailMapConfiguration";
-import { addClipPlaneUniforms, bindClipPlane } from "../clipPlaneMaterialHelper";
+import { AddClipPlaneUniforms, BindClipPlane } from "../clipPlaneMaterialHelper";
 import {
     BindBonesParameters,
     BindFogParameters,
@@ -80,7 +80,7 @@ export class PBRMaterialDefines extends MaterialDefines implements IImageProcess
 
     public NUM_SAMPLES = "0";
     public REALTIME_FILTERING = false;
-
+    public IBL_CDF_FILTERING = false;
     public MAINUV1 = false;
     public MAINUV2 = false;
     public MAINUV3 = false;
@@ -98,6 +98,11 @@ export class PBRMaterialDefines extends MaterialDefines implements IImageProcess
     public GAMMAALBEDO = false;
     public ALBEDODIRECTUV = 0;
     public VERTEXCOLOR = false;
+
+    public BASE_WEIGHT = false;
+    public BASE_WEIGHTDIRECTUV = 0;
+    public BASE_DIFFUSE_ROUGHNESS = false;
+    public BASE_DIFFUSE_ROUGHNESSDIRECTUV = 0;
 
     public BAKED_VERTEX_ANIMATION_TEXTURE = false;
 
@@ -182,6 +187,7 @@ export class PBRMaterialDefines extends MaterialDefines implements IImageProcess
     public INVERTCUBICMAP = false;
     public USESPHERICALFROMREFLECTIONMAP = false;
     public USEIRRADIANCEMAP = false;
+    public USE_IRRADIANCE_DOMINANT_DIRECTION = false;
     public USESPHERICALINVERTEX = false;
     public REFLECTIONMAP_OPPOSITEZ = false;
     public LODINREFLECTIONALPHA = false;
@@ -208,6 +214,8 @@ export class PBRMaterialDefines extends MaterialDefines implements IImageProcess
     public PREPASS_DEPTH_INDEX = -1;
     public PREPASS_SCREENSPACE_DEPTH = false;
     public PREPASS_SCREENSPACE_DEPTH_INDEX = -1;
+    public PREPASS_NORMALIZED_VIEW_DEPTH = false;
+    public PREPASS_NORMALIZED_VIEW_DEPTH_INDEX = -1;
     public PREPASS_NORMAL = false;
     public PREPASS_NORMAL_INDEX = -1;
     public PREPASS_NORMAL_WORLDSPACE = false;
@@ -233,9 +241,18 @@ export class PBRMaterialDefines extends MaterialDefines implements IImageProcess
     public NONUNIFORMSCALING = false;
 
     public MORPHTARGETS = false;
+    public MORPHTARGETS_POSITION = false;
     public MORPHTARGETS_NORMAL = false;
     public MORPHTARGETS_TANGENT = false;
     public MORPHTARGETS_UV = false;
+    public MORPHTARGETS_UV2 = false;
+    public MORPHTARGETS_COLOR = false;
+    public MORPHTARGETTEXTURE_HASPOSITIONS = false;
+    public MORPHTARGETTEXTURE_HASNORMALS = false;
+    public MORPHTARGETTEXTURE_HASTANGENTS = false;
+    public MORPHTARGETTEXTURE_HASUVS = false;
+    public MORPHTARGETTEXTURE_HASUV2S = false;
+    public MORPHTARGETTEXTURE_HASCOLORS = false;
     public NUM_MORPH_INFLUENCERS = 0;
     public MORPHTARGETS_TEXTURE = false;
 
@@ -261,6 +278,7 @@ export class PBRMaterialDefines extends MaterialDefines implements IImageProcess
     public USEPHYSICALLIGHTFALLOFF = false;
     public USEGLTFLIGHTFALLOFF = false;
     public TWOSIDEDLIGHTING = false;
+    public MIRRORED = false;
     public SHADOWFLOAT = false;
     public CLIPPLANE = false;
     public CLIPPLANE2 = false;
@@ -273,6 +291,7 @@ export class PBRMaterialDefines extends MaterialDefines implements IImageProcess
     public LOGARITHMICDEPTH = false;
     public CAMERA_ORTHOGRAPHIC = false;
     public CAMERA_PERSPECTIVE = false;
+    public AREALIGHTSUPPORTED = true;
 
     public FORCENORMALFORWARD = false;
 
@@ -310,8 +329,8 @@ export class PBRMaterialDefines extends MaterialDefines implements IImageProcess
  * This offers the main features of a standard PBR material.
  * For more information, please refer to the documentation :
  * https://doc.babylonjs.com/features/featuresDeepDive/materials/using/introToPBR
- * #CGHTSM#1 : WebGL
- * #CGHTSM#2 : WebGPU
+ * @see [WebGL](https://playground.babylonjs.com/#CGHTSM#1)
+ * @see [WebGPU](https://playground.babylonjs.com/#CGHTSM#2)
  */
 export abstract class PBRBaseMaterial extends PushMaterial {
     /**
@@ -408,6 +427,18 @@ export abstract class PBRBaseMaterial extends PushMaterial {
      * @internal
      */
     public _albedoTexture: Nullable<BaseTexture> = null;
+
+    /**
+     * Base Weight texture (multiplier to the diffuse and metal lobes).
+     * @internal
+     */
+    public _baseWeightTexture: Nullable<BaseTexture> = null;
+
+    /**
+     * Base Diffuse Roughness texture (roughness of the diffuse lobe).
+     * @internal
+     */
+    public _baseDiffuseRoughnessTexture: Nullable<BaseTexture> = null;
 
     /**
      * AKA Occlusion Texture in other nomenclature.
@@ -550,6 +581,19 @@ export abstract class PBRBaseMaterial extends PushMaterial {
      * @internal
      */
     public _albedoColor = new Color3(1, 1, 1);
+
+    /**
+     * Base Weight (multiplier to the diffuse and metal lobes).
+     * @internal
+     */
+    public _baseWeight = 1;
+
+    /**
+     * Base Diffuse Roughness (roughness of the diffuse lobe).
+     * Can also be used to scale the corresponding texture.
+     * @internal
+     */
+    public _baseDiffuseRoughness: Nullable<number> = null;
 
     /**
      * AKA Specular Color in other nomenclature.
@@ -724,12 +768,6 @@ export abstract class PBRBaseMaterial extends PushMaterial {
      * @internal
      */
     public _alphaCutOff = 0.4;
-
-    /**
-     * Enforces alpha test in opaque or blend mode in order to improve the performances of some situations.
-     * @internal
-     */
-    public override _forceAlphaTest = false;
 
     /**
      * A fresnel is applied to the alpha of the model to ensure grazing angles edges are not alpha tested.
@@ -1016,6 +1054,10 @@ export abstract class PBRBaseMaterial extends PushMaterial {
      * @returns whether or not this material should be rendered in alpha blend mode.
      */
     public override needAlphaBlending(): boolean {
+        if (this._hasTransparencyMode) {
+            return this._transparencyModeIsBlend;
+        }
+
         if (this._disableAlphaBlending) {
             return false;
         }
@@ -1027,8 +1069,8 @@ export abstract class PBRBaseMaterial extends PushMaterial {
      * @returns whether or not this material should be rendered in alpha test mode.
      */
     public override needAlphaTesting(): boolean {
-        if (this._forceAlphaTest) {
-            return true;
+        if (this._hasTransparencyMode) {
+            return this._transparencyModeIsTest;
         }
 
         if (this.subSurface?.disableAlphaBlending) {
@@ -1099,6 +1141,18 @@ export abstract class PBRBaseMaterial extends PushMaterial {
             if (scene.texturesEnabled) {
                 if (this._albedoTexture && MaterialFlags.DiffuseTextureEnabled) {
                     if (!this._albedoTexture.isReadyOrNotBlocking()) {
+                        return false;
+                    }
+                }
+
+                if (this._baseWeightTexture && MaterialFlags.BaseWeightTextureEnabled) {
+                    if (!this._baseWeightTexture.isReadyOrNotBlocking()) {
+                        return false;
+                    }
+                }
+
+                if (this._baseDiffuseRoughnessTexture && MaterialFlags.BaseDiffuseRoughnessTextureEnabled) {
+                    if (!this._baseDiffuseRoughnessTexture.isReadyOrNotBlocking()) {
                         return false;
                     }
                 }
@@ -1202,6 +1256,15 @@ export abstract class PBRBaseMaterial extends PushMaterial {
         if (defines._areImageProcessingDirty && this._imageProcessingConfiguration) {
             if (!this._imageProcessingConfiguration.isReady()) {
                 return false;
+            }
+        }
+
+        // Check if Area Lights have LTC texture.
+        if (defines["AREALIGHTUSED"]) {
+            for (let index = 0; index < mesh.lightSources.length; index++) {
+                if (!mesh.lightSources[index]._isReady()) {
+                    return false;
+                }
             }
         }
 
@@ -1405,6 +1468,8 @@ export abstract class PBRBaseMaterial extends PushMaterial {
             "vLightsType",
             "vAmbientColor",
             "vAlbedoColor",
+            "baseWeight",
+            "baseDiffuseRoughness",
             "vReflectivityColor",
             "vMetallicReflectanceFactors",
             "vEmissiveColor",
@@ -1414,6 +1479,8 @@ export abstract class PBRBaseMaterial extends PushMaterial {
             "vFogColor",
             "pointSize",
             "vAlbedoInfos",
+            "vBaseWeightInfos",
+            "vBaseDiffuseRoughnessInfos",
             "vAmbientInfos",
             "vOpacityInfos",
             "vReflectionInfos",
@@ -1429,6 +1496,8 @@ export abstract class PBRBaseMaterial extends PushMaterial {
             "vLightmapInfos",
             "mBones",
             "albedoMatrix",
+            "baseWeightMatrix",
+            "baseDiffuseRoughnessMatrix",
             "ambientMatrix",
             "opacityMatrix",
             "reflectionMatrix",
@@ -1461,15 +1530,19 @@ export abstract class PBRBaseMaterial extends PushMaterial {
             "vSphericalL21",
             "vSphericalL22",
             "vReflectionMicrosurfaceInfos",
+            "vReflectionDominantDirection",
             "vTangentSpaceParams",
             "boneTextureWidth",
             "vDebugMode",
             "morphTargetTextureInfo",
             "morphTargetTextureIndices",
+            "cameraInfo",
         ];
 
         const samplers = [
             "albedoSampler",
+            "baseWeightSampler",
+            "baseDiffuseRoughnessSampler",
             "reflectivitySampler",
             "ambientSampler",
             "emissiveSampler",
@@ -1488,6 +1561,9 @@ export abstract class PBRBaseMaterial extends PushMaterial {
             "morphTargets",
             "oitDepthSampler",
             "oitFrontColorSampler",
+            "icdfSampler",
+            "areaLightsLTC1Sampler",
+            "areaLightsLTC2Sampler",
         ];
 
         const uniformBuffers = ["Material", "Scene", "Mesh"];
@@ -1510,7 +1586,7 @@ export abstract class PBRBaseMaterial extends PushMaterial {
 
         PrePassConfiguration.AddUniforms(uniforms);
         PrePassConfiguration.AddSamplers(samplers);
-        addClipPlaneUniforms(uniforms);
+        AddClipPlaneUniforms(uniforms);
 
         if (ImageProcessingConfiguration) {
             ImageProcessingConfiguration.PrepareUniforms(uniforms, defines);
@@ -1603,6 +1679,8 @@ export abstract class PBRBaseMaterial extends PushMaterial {
             }
             if (scene.texturesEnabled) {
                 defines.ALBEDODIRECTUV = 0;
+                defines.BASE_WEIGHTDIRECTUV = 0;
+                defines.BASE_DIFFUSE_ROUGHNESSDIRECTUV = 0;
                 defines.AMBIENTDIRECTUV = 0;
                 defines.OPACITYDIRECTUV = 0;
                 defines.EMISSIVEDIRECTUV = 0;
@@ -1622,6 +1700,18 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                     defines.GAMMAALBEDO = this._albedoTexture.gammaSpace;
                 } else {
                     defines.ALBEDO = false;
+                }
+
+                if (this._baseWeightTexture && MaterialFlags.BaseWeightTextureEnabled) {
+                    PrepareDefinesForMergedUV(this._baseWeightTexture, defines, "BASE_WEIGHT");
+                } else {
+                    defines.BASE_WEIGHT = false;
+                }
+
+                if (this._baseDiffuseRoughnessTexture && MaterialFlags.BaseDiffuseRoughnessTextureEnabled) {
+                    PrepareDefinesForMergedUV(this._baseDiffuseRoughnessTexture, defines, "BASE_DIFFUSE_ROUGHNESS");
+                } else {
+                    defines.BASE_DIFFUSE_ROUGHNESS = false;
                 }
 
                 if (this._ambientTexture && MaterialFlags.AmbientTextureEnabled) {
@@ -1645,6 +1735,7 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                     defines.RGBDREFLECTION = reflectionTexture.isRGBD;
                     defines.LODINREFLECTIONALPHA = reflectionTexture.lodLevelInAlpha;
                     defines.LINEARSPECULARREFLECTION = reflectionTexture.linearSpecularLOD;
+                    defines.USEIRRADIANCEMAP = false;
 
                     if (this.realTimeFiltering && this.realTimeFilteringQuality > 0) {
                         defines.NUM_SAMPLES = "" + this.realTimeFilteringQuality;
@@ -1653,6 +1744,9 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                         }
 
                         defines.REALTIME_FILTERING = true;
+                        if (this.getScene().iblCdfGenerator) {
+                            defines.IBL_CDF_FILTERING = true;
+                        }
                     } else {
                         defines.REALTIME_FILTERING = false;
                     }
@@ -1708,12 +1802,23 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                         if (reflectionTexture.irradianceTexture) {
                             defines.USEIRRADIANCEMAP = true;
                             defines.USESPHERICALFROMREFLECTIONMAP = false;
+                            defines.USESPHERICALINVERTEX = false;
+                            if (reflectionTexture.irradianceTexture._dominantDirection) {
+                                defines.USE_IRRADIANCE_DOMINANT_DIRECTION = true;
+                            }
                         }
                         // Assume using spherical polynomial if the reflection texture is a cube map
                         else if (reflectionTexture.isCube) {
                             defines.USESPHERICALFROMREFLECTIONMAP = true;
                             defines.USEIRRADIANCEMAP = false;
-                            if (this._forceIrradianceInFragment || this.realTimeFiltering || this._twoSidedLighting || engine.getCaps().maxVaryingVectors <= 8) {
+                            defines.USE_IRRADIANCE_DOMINANT_DIRECTION = false;
+                            if (
+                                this._forceIrradianceInFragment ||
+                                this.realTimeFiltering ||
+                                this._twoSidedLighting ||
+                                engine.getCaps().maxVaryingVectors <= 8 ||
+                                this._baseDiffuseRoughnessTexture
+                            ) {
                                 defines.USESPHERICALINVERTEX = false;
                             } else {
                                 defines.USESPHERICALINVERTEX = true;
@@ -1736,6 +1841,7 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                     defines.INVERTCUBICMAP = false;
                     defines.USESPHERICALFROMREFLECTIONMAP = false;
                     defines.USEIRRADIANCEMAP = false;
+                    defines.USE_IRRADIANCE_DOMINANT_DIRECTION = false;
                     defines.USESPHERICALINVERTEX = false;
                     defines.REFLECTIONMAP_OPPOSITEZ = false;
                     defines.LODINREFLECTIONALPHA = false;
@@ -1865,6 +1971,9 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                 defines.TWOSIDEDLIGHTING = false;
             }
 
+            // We need it to not invert normals in two sided lighting mode (based on the winding of the face)
+            defines.MIRRORED = !!scene._mirroredCameraPosition;
+
             defines.SPECULARAA = engine.getCaps().standardDerivatives && this._enableSpecularAntiAliasing;
         }
 
@@ -1894,7 +2003,7 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                 this._useLogarithmicDepth,
                 this.pointsCloud,
                 this.fogEnabled,
-                this._shouldTurnAlphaTestOn(mesh) || this._forceAlphaTest,
+                this.needAlphaTestingForMesh(mesh),
                 defines,
                 this._applyDecalMapAfterDetailMap
             );
@@ -1968,6 +2077,8 @@ export abstract class PBRBaseMaterial extends PushMaterial {
         // Order is important !
         const ubo = this._uniformBuffer;
         ubo.addUniform("vAlbedoInfos", 2);
+        ubo.addUniform("vBaseWeightInfos", 2);
+        ubo.addUniform("vBaseDiffuseRoughnessInfos", 2);
         ubo.addUniform("vAmbientInfos", 4);
         ubo.addUniform("vOpacityInfos", 2);
         ubo.addUniform("vEmissiveInfos", 2);
@@ -1980,6 +2091,8 @@ export abstract class PBRBaseMaterial extends PushMaterial {
         ubo.addUniform("vReflectionSize", 3);
         ubo.addUniform("vBumpInfos", 3);
         ubo.addUniform("albedoMatrix", 16);
+        ubo.addUniform("baseWeightMatrix", 16);
+        ubo.addUniform("baseDiffuseRoughnessMatrix", 16);
         ubo.addUniform("ambientMatrix", 16);
         ubo.addUniform("opacityMatrix", 16);
         ubo.addUniform("emissiveMatrix", 16);
@@ -1992,9 +2105,12 @@ export abstract class PBRBaseMaterial extends PushMaterial {
 
         ubo.addUniform("vReflectionColor", 3);
         ubo.addUniform("vAlbedoColor", 4);
+        ubo.addUniform("baseWeight", 1);
+        ubo.addUniform("baseDiffuseRoughness", 1);
         ubo.addUniform("vLightingIntensity", 4);
 
         ubo.addUniform("vReflectionMicrosurfaceInfos", 3);
+        ubo.addUniform("vReflectionDominantDirection", 3);
         ubo.addUniform("pointSize", 1);
         ubo.addUniform("vReflectivityColor", 4);
         ubo.addUniform("vEmissiveColor", 3);
@@ -2027,6 +2143,8 @@ export abstract class PBRBaseMaterial extends PushMaterial {
         ubo.addUniform("vSphericalXY", 3);
         ubo.addUniform("vSphericalYZ", 3);
         ubo.addUniform("vSphericalZX", 3);
+
+        ubo.addUniform("cameraInfo", 4);
 
         super.buildUniformLayout();
     }
@@ -2064,7 +2182,14 @@ export abstract class PBRBaseMaterial extends PushMaterial {
 
         this.prePassConfiguration.bindForSubMesh(this._activeEffect, scene, mesh, world, this.isFrozen);
 
-        MaterialHelperGeometryRendering.Bind(engine.currentRenderPassId, this._activeEffect, mesh, world);
+        MaterialHelperGeometryRendering.Bind(engine.currentRenderPassId, this._activeEffect, mesh, world, this);
+
+        const camera = scene.activeCamera;
+        if (camera) {
+            this._uniformBuffer.updateFloat4("cameraInfo", camera.minZ, camera.maxZ, 0, 0);
+        } else {
+            this._uniformBuffer.updateFloat4("cameraInfo", 0, 0, 0, 0);
+        }
 
         this._eventInfo.subMesh = subMesh;
         this._callbackPluginEventHardBindForSubMesh(this._eventInfo);
@@ -2094,6 +2219,16 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                         BindTextureMatrix(this._albedoTexture, ubo, "albedo");
                     }
 
+                    if (this._baseWeightTexture && MaterialFlags.BaseWeightTextureEnabled) {
+                        ubo.updateFloat2("vBaseWeightInfos", this._baseWeightTexture.coordinatesIndex, this._baseWeightTexture.level);
+                        BindTextureMatrix(this._baseWeightTexture, ubo, "baseWeight");
+                    }
+
+                    if (this._baseDiffuseRoughnessTexture && MaterialFlags.BaseDiffuseRoughnessTextureEnabled) {
+                        ubo.updateFloat2("vBaseDiffuseRoughnessInfos", this._baseDiffuseRoughnessTexture.coordinatesIndex, this._baseDiffuseRoughnessTexture.level);
+                        BindTextureMatrix(this._baseDiffuseRoughnessTexture, ubo, "baseDiffuseRoughness");
+                    }
+
                     if (this._ambientTexture && MaterialFlags.AmbientTextureEnabled) {
                         ubo.updateFloat4(
                             "vAmbientInfos",
@@ -2112,7 +2247,7 @@ export abstract class PBRBaseMaterial extends PushMaterial {
 
                     if (reflectionTexture && MaterialFlags.ReflectionTextureEnabled) {
                         ubo.updateMatrix("reflectionMatrix", reflectionTexture.getReflectionTextureMatrix());
-                        ubo.updateFloat2("vReflectionInfos", reflectionTexture.level, 0);
+                        ubo.updateFloat2("vReflectionInfos", reflectionTexture.level * scene.iblIntensity, 0);
 
                         if ((<any>reflectionTexture).boundingBoxSize) {
                             const cubeTexture = <CubeTexture>reflectionTexture;
@@ -2161,6 +2296,11 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                                     ubo.updateFloat3("vSphericalYZ", polynomials.yz.x, polynomials.yz.y, polynomials.yz.z);
                                     ubo.updateFloat3("vSphericalZX", polynomials.zx.x, polynomials.zx.y, polynomials.zx.z);
                                 }
+                            }
+                        } else {
+                            // If we're using an irradiance map with a dominant direction assigned, set it.
+                            if (defines.USEIRRADIANCEMAP && defines.USE_IRRADIANCE_DOMINANT_DIRECTION) {
+                                ubo.updateVector3("vReflectionDominantDirection", reflectionTexture.irradianceTexture!._dominantDirection!);
                             }
                         }
 
@@ -2226,23 +2366,18 @@ export abstract class PBRBaseMaterial extends PushMaterial {
 
                 // Colors
                 if (defines.METALLICWORKFLOW) {
-                    TmpColors.Color3[0].r = this._metallic === undefined || this._metallic === null ? 1 : this._metallic;
-                    TmpColors.Color3[0].g = this._roughness === undefined || this._roughness === null ? 1 : this._roughness;
-                    ubo.updateColor4("vReflectivityColor", TmpColors.Color3[0], 1);
-
+                    TmpColors.Color4[0].r = this._metallic === undefined || this._metallic === null ? 1 : this._metallic;
+                    TmpColors.Color4[0].g = this._roughness === undefined || this._roughness === null ? 1 : this._roughness;
                     const ior = this.subSurface?._indexOfRefraction ?? 1.5;
                     const outsideIOR = 1; // consider air as clear coat and other layers would remap in the shader.
-
+                    TmpColors.Color4[0].b = ior;
                     // We are here deriving our default reflectance from a common value for none metallic surface.
                     // Based of the schlick fresnel approximation model
                     // for dielectrics.
                     const f0 = Math.pow((ior - outsideIOR) / (ior + outsideIOR), 2);
-
-                    // Tweak the default F0 and F90 based on our given setup
-                    this._metallicReflectanceColor.scaleToRef(f0 * this._metallicF0Factor, TmpColors.Color3[0]);
-                    const metallicF90 = this._metallicF0Factor;
-
-                    ubo.updateColor4("vMetallicReflectanceFactors", TmpColors.Color3[0], metallicF90);
+                    TmpColors.Color4[0].a = f0;
+                    ubo.updateDirectColor4("vReflectivityColor", TmpColors.Color4[0]);
+                    ubo.updateColor4("vMetallicReflectanceFactors", this._metallicReflectanceColor, this._metallicF0Factor);
                 } else {
                     ubo.updateColor4("vReflectivityColor", this._reflectivityColor, this._microSurface);
                 }
@@ -2254,6 +2389,9 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                 } else {
                     ubo.updateColor4("vAlbedoColor", this._albedoColor, this.alpha);
                 }
+
+                ubo.updateFloat("baseWeight", this._baseWeight);
+                ubo.updateFloat("baseDiffuseRoughness", this._baseDiffuseRoughness || 0.0);
 
                 // Misc
                 this._lightingInfos.x = this._directIntensity;
@@ -2277,6 +2415,14 @@ export abstract class PBRBaseMaterial extends PushMaterial {
                     ubo.setTexture("albedoSampler", this._albedoTexture);
                 }
 
+                if (this._baseWeightTexture && MaterialFlags.BaseWeightTextureEnabled) {
+                    ubo.setTexture("baseWeightSampler", this._baseWeightTexture);
+                }
+
+                if (this._baseDiffuseRoughnessTexture && MaterialFlags.BaseDiffuseRoughnessTextureEnabled) {
+                    ubo.setTexture("baseDiffuseRoughnessSampler", this._baseDiffuseRoughnessTexture);
+                }
+
                 if (this._ambientTexture && MaterialFlags.AmbientTextureEnabled) {
                     ubo.setTexture("ambientSampler", this._ambientTexture);
                 }
@@ -2296,6 +2442,12 @@ export abstract class PBRBaseMaterial extends PushMaterial {
 
                     if (defines.USEIRRADIANCEMAP) {
                         ubo.setTexture("irradianceSampler", reflectionTexture.irradianceTexture);
+                    }
+
+                    //if realtime filtering and using CDF maps, set them.
+                    const cdfGenerator = this.getScene().iblCdfGenerator;
+                    if (this.realTimeFiltering && cdfGenerator) {
+                        ubo.setTexture("icdfSampler", cdfGenerator.getIcdfTexture());
                     }
                 }
 
@@ -2345,7 +2497,7 @@ export abstract class PBRBaseMaterial extends PushMaterial {
             this._callbackPluginEventBindForSubMesh(this._eventInfo);
 
             // Clip plane
-            bindClipPlane(this._activeEffect, this, scene);
+            BindClipPlane(this._activeEffect, this, scene);
 
             this.bindEyePosition(effect);
         } else if (scene.getEngine()._features.needToAlwaysBindUniformBuffers) {
@@ -2382,7 +2534,7 @@ export abstract class PBRBaseMaterial extends PushMaterial {
             }
 
             // image processing
-            this._imageProcessingConfiguration!.bind(this._activeEffect);
+            this._imageProcessingConfiguration.bind(this._activeEffect);
 
             // Log. depth
             BindLogDepth(defines, this._activeEffect, scene);
@@ -2403,6 +2555,14 @@ export abstract class PBRBaseMaterial extends PushMaterial {
 
         if (this._albedoTexture && this._albedoTexture.animations && this._albedoTexture.animations.length > 0) {
             results.push(this._albedoTexture);
+        }
+
+        if (this._baseWeightTexture && this._baseWeightTexture.animations && this._baseWeightTexture.animations.length > 0) {
+            results.push(this._baseWeightTexture);
+        }
+
+        if (this._baseDiffuseRoughnessTexture && this._baseDiffuseRoughnessTexture.animations && this._baseDiffuseRoughnessTexture.animations.length > 0) {
+            results.push(this._baseDiffuseRoughnessTexture);
         }
 
         if (this._ambientTexture && this._ambientTexture.animations && this._ambientTexture.animations.length > 0) {
@@ -2473,6 +2633,14 @@ export abstract class PBRBaseMaterial extends PushMaterial {
             activeTextures.push(this._albedoTexture);
         }
 
+        if (this._baseWeightTexture) {
+            activeTextures.push(this._baseWeightTexture);
+        }
+
+        if (this._baseDiffuseRoughnessTexture) {
+            activeTextures.push(this._baseDiffuseRoughnessTexture);
+        }
+
         if (this._ambientTexture) {
             activeTextures.push(this._ambientTexture);
         }
@@ -2531,6 +2699,14 @@ export abstract class PBRBaseMaterial extends PushMaterial {
         }
 
         if (this._albedoTexture === texture) {
+            return true;
+        }
+
+        if (this._baseWeightTexture === texture) {
+            return true;
+        }
+
+        if (this._baseDiffuseRoughnessTexture === texture) {
             return true;
         }
 
@@ -2613,6 +2789,8 @@ export abstract class PBRBaseMaterial extends PushMaterial {
             }
 
             this._albedoTexture?.dispose();
+            this._baseWeightTexture?.dispose();
+            this._baseDiffuseRoughnessTexture?.dispose();
             this._ambientTexture?.dispose();
             this._opacityTexture?.dispose();
             this._reflectionTexture?.dispose();

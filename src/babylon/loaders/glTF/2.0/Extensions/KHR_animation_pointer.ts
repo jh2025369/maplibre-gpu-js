@@ -3,35 +3,25 @@ import type { GLTFLoader } from "../glTFLoader";
 import type { Nullable } from "core/types";
 import type { Animation } from "core/Animations/animation";
 import type { IAnimatable } from "core/Animations/animatable.interface";
-import type { IAnimation, IAnimationChannel, IGLTF } from "../glTFLoaderInterfaces";
+import type { IAnimation, IAnimationChannel } from "../glTFLoaderInterfaces";
 import type { IKHRAnimationPointer } from "babylonjs-gltf2interface";
 import { AnimationChannelTargetPath } from "babylonjs-gltf2interface";
 import { Logger } from "core/Misc/logger";
-import { animationPointerTree } from "./KHR_animation_pointer.data";
-import { GLTFPathToObjectConverter } from "./gltfPathToObjectConverter";
-import type { AnimationPropertyInfo } from "../glTFLoaderAnimation";
+import type { GLTFPathToObjectConverter } from "./gltfPathToObjectConverter";
 import { registerGLTFExtension, unregisterGLTFExtension } from "../glTFLoaderExtensionRegistry";
+import { GetPathToObjectConverter } from "./objectModelMapping";
+import "./KHR_animation_pointer.data";
 
 const NAME = "KHR_animation_pointer";
 
 declare module "../../glTFFileLoader" {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc/require-jsdoc, @typescript-eslint/naming-convention
     export interface GLTFLoaderExtensionOptions {
         /**
          * Defines options for the KHR_animation_pointer extension.
          */
         // NOTE: Don't use NAME here as it will break the UMD type declarations.
         ["KHR_animation_pointer"]: {};
-    }
-}
-
-/**
- * Class to convert an animation pointer path to a smart object that
- * gets data from the animation buffer and creates animations.
- */
-class AnimationPointerPathToObjectConverter extends GLTFPathToObjectConverter<AnimationPropertyInfo[]> {
-    public constructor(gltf: IGLTF) {
-        super(gltf, animationPointerTree);
     }
 }
 
@@ -47,14 +37,14 @@ export class KHR_animation_pointer implements IGLTFLoaderExtension {
     public readonly name = NAME;
 
     private _loader: GLTFLoader;
-    private _pathToObjectConverter?: AnimationPointerPathToObjectConverter;
+    private _pathToObjectConverter?: GLTFPathToObjectConverter<any, any, any>;
 
     /**
      * @internal
      */
     constructor(loader: GLTFLoader) {
         this._loader = loader;
-        this._pathToObjectConverter = new AnimationPointerPathToObjectConverter(this._loader.gltf);
+        this._pathToObjectConverter = GetPathToObjectConverter(this._loader.gltf);
     }
 
     /**
@@ -79,6 +69,7 @@ export class KHR_animation_pointer implements IGLTFLoaderExtension {
      * @param onLoad Called for each animation loaded
      * @returns A void promise that resolves when the load is complete or null if not handled
      */
+    // eslint-disable-next-line no-restricted-syntax
     public _loadAnimationChannelAsync(
         context: string,
         animationContext: string,
@@ -107,8 +98,21 @@ export class KHR_animation_pointer implements IGLTFLoaderExtension {
         }
 
         try {
-            const targetInfo = this._pathToObjectConverter.convert(pointer);
-            return this._loader._loadAnimationChannelFromTargetInfoAsync(context, animationContext, animation, channel, targetInfo, onLoad);
+            const obj = this._pathToObjectConverter.convert(pointer);
+            if (!obj.info.interpolation) {
+                throw new Error(`${extensionContext}/pointer: Interpolation is missing`);
+            }
+            return this._loader._loadAnimationChannelFromTargetInfoAsync(
+                context,
+                animationContext,
+                animation,
+                channel,
+                {
+                    object: obj.object,
+                    info: obj.info.interpolation,
+                },
+                onLoad
+            );
         } catch (e) {
             Logger.Warn(`${extensionContext}/pointer: Invalid pointer (${pointer}) skipped`);
             return null;

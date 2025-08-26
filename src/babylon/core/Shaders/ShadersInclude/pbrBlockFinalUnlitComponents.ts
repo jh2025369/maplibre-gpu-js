@@ -2,7 +2,14 @@
 import { ShaderStore } from "../../Engines/shaderStore";
 
 const name = "pbrBlockFinalUnlitComponents";
-const shader = `vec3 finalDiffuse=diffuseBase;finalDiffuse*=surfaceAlbedo.rgb;finalDiffuse=max(finalDiffuse,0.0);finalDiffuse*=vLightingIntensity.x;vec3 finalAmbient=vAmbientColor;finalAmbient*=surfaceAlbedo.rgb;vec3 finalEmissive=vEmissiveColor;
+const shader = `vec3 finalDiffuse=diffuseBase;finalDiffuse*=surfaceAlbedo;
+#if defined(SS_REFRACTION) && !defined(UNLIT)
+finalDiffuse*=subSurfaceOut.refractionOpacity;
+#endif
+#if defined(SS_TRANSLUCENCY) && !defined(UNLIT)
+finalDiffuse+=diffuseTransmissionBase;
+#endif
+finalDiffuse=max(finalDiffuse,0.0);finalDiffuse*=vLightingIntensity.x;vec3 finalAmbient=vAmbientColor;finalAmbient*=surfaceAlbedo.rgb;vec3 finalEmissive=vEmissiveColor;
 #ifdef EMISSIVE
 vec3 emissiveColorTex=texture2D(emissiveSampler,vEmissiveUV+uvOffset).rgb;
 #ifdef GAMMAEMISSIVE

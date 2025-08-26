@@ -1,4 +1,6 @@
 uniform vAlbedoInfos: vec2f;
+uniform vBaseWeightInfos: vec2f;
+uniform vBaseDiffuseRoughnessInfos: vec2f;
 uniform vAmbientInfos: vec4f;
 uniform vOpacityInfos: vec2f;
 uniform vEmissiveInfos: vec2f;
@@ -11,6 +13,8 @@ uniform vReflectionPosition: vec3f;
 uniform vReflectionSize: vec3f;
 uniform vBumpInfos: vec3f;
 uniform albedoMatrix: mat4x4f;
+uniform baseWeightMatrix: mat4x4f;
+uniform baseDiffuseRoughnessMatrix: mat4x4f;
 uniform ambientMatrix: mat4x4f;
 uniform opacityMatrix: mat4x4f;
 uniform emissiveMatrix: mat4x4f;
@@ -22,8 +26,11 @@ uniform vTangentSpaceParams: vec2f;
 uniform reflectionMatrix: mat4x4f;
 uniform vReflectionColor: vec3f;
 uniform vAlbedoColor: vec4f;
+uniform baseWeight: f32;
+uniform baseDiffuseRoughness: f32;
 uniform vLightingIntensity: vec4f;
 uniform vReflectionMicrosurfaceInfos: vec3f;
+uniform vReflectionDominantDirection: vec3f;
 uniform pointSize: f32;
 uniform vReflectivityColor: vec4f;
 uniform vEmissiveColor: vec3f;
@@ -56,6 +63,8 @@ uniform vSphericalZZ: vec3f;
 uniform vSphericalXY: vec3f;
 uniform vSphericalYZ: vec3f;
 uniform vSphericalZX: vec3f;
+
+uniform cameraInfo: vec4f;
 
 #define ADDITIONAL_UBO_DECLARATION
 

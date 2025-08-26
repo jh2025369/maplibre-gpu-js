@@ -142,6 +142,8 @@ export interface IWebXRNearInteractionOptions {
     motionControllerTouchMaterialSnippetUrl?: string;
 }
 
+const LocalTempVectors = [new Vector3(), new Vector3(), new Vector3(), new Vector3()];
+
 /**
  * A module that will enable near interaction near interaction for hands and motion controllers of XR Input Sources
  */
@@ -246,6 +248,11 @@ export class WebXRNearInteraction extends WebXRAbstractFeature {
     public selectionMeshPickedColor: Color3 = new Color3(0.3, 0.3, 1.0);
 
     /**
+     * If set to true, the selection mesh will always be hidden. Otherwise it will be shown only when needed
+     */
+    public alwaysHideSelectionMesh: boolean = false;
+
+    /**
      * constructs a new background remover module
      * @param _xrSessionManager the session manager for this module
      * @param _options read-only options to be used in this module
@@ -276,7 +283,9 @@ export class WebXRNearInteraction extends WebXRAbstractFeature {
             return false;
         }
 
-        this._options.xrInput.controllers.forEach(this._attachController);
+        for (const controller of this._options.xrInput.controllers) {
+            this._attachController(controller);
+        }
         this._addNewAttachObserver(this._options.xrInput.onControllerAddedObservable, this._attachController);
         this._addNewAttachObserver(this._options.xrInput.onControllerRemovedObservable, (controller) => {
             // REMOVE the controller
@@ -298,9 +307,10 @@ export class WebXRNearInteraction extends WebXRAbstractFeature {
             return false;
         }
 
-        Object.keys(this._controllers).forEach((controllerId) => {
+        const keys = Object.keys(this._controllers);
+        for (const controllerId of keys) {
             this._detachController(controllerId);
-        });
+        }
 
         return true;
     }
@@ -457,7 +467,8 @@ export class WebXRNearInteraction extends WebXRAbstractFeature {
     }
 
     protected _onXRFrame(_xrFrame: XRFrame) {
-        Object.keys(this._controllers).forEach((id) => {
+        const keys = Object.keys(this._controllers);
+        for (const id of keys) {
             // only do this for the selected pointer
             const controllerData = this._controllers[id];
             const handData = controllerData.xrController?.inputSource.hand;
@@ -590,7 +601,7 @@ export class WebXRNearInteraction extends WebXRAbstractFeature {
                 if (controllerData.pick && controllerData.pick.pickedPoint && controllerData.pick.hit) {
                     controllerData.meshUnderPointer = controllerData.pick.pickedMesh;
                     controllerData.pickedPointVisualCue.position.copyFrom(controllerData.pick.pickedPoint);
-                    controllerData.pickedPointVisualCue.isVisible = true;
+                    controllerData.pickedPointVisualCue.isVisible = !this.alwaysHideSelectionMesh;
 
                     if (this._farInteractionFeature && this._farInteractionFeature.attached) {
                         this._farInteractionFeature._setPointerSelectionDisabledByPointerId(controllerData.id, true);
@@ -613,7 +624,7 @@ export class WebXRNearInteraction extends WebXRAbstractFeature {
                 state = ControllerOrbAnimationState.HOVER;
             }
             this._handleTransitionAnimation(controllerData, state);
-        });
+        }
     }
 
     private get _utilityLayerScene() {
@@ -703,7 +714,7 @@ export class WebXRNearInteraction extends WebXRAbstractFeature {
                     this._scene.simulatePointerUp(controllerData.pick, pointerEventInit);
                     controllerData.downTriggered = false;
                     controllerData.grabInteraction = false;
-                    controllerData.pickedPointVisualCue.isVisible = true;
+                    controllerData.pickedPointVisualCue.isVisible = !this.alwaysHideSelectionMesh;
                 }
             } else {
                 if (pressed && !this._options.enableNearInteractionOnAllControllers && !this._options.disableSwitchOnClick) {
@@ -764,7 +775,7 @@ export class WebXRNearInteraction extends WebXRAbstractFeature {
                 ) {
                     this._scene.simulatePointerUp(controllerData.pick, pointerEventInit);
                     controllerData.grabInteraction = false;
-                    controllerData.pickedPointVisualCue.isVisible = true;
+                    controllerData.pickedPointVisualCue.isVisible = !this.alwaysHideSelectionMesh;
                     controllerData.downTriggered = false;
                 }
             };
@@ -798,12 +809,13 @@ export class WebXRNearInteraction extends WebXRAbstractFeature {
             this._xrSessionManager.onXRFrameObservable.remove(controllerData.onFrameObserver);
         }
         if (controllerData.eventListeners) {
-            Object.keys(controllerData.eventListeners).forEach((eventName: string) => {
+            const keys = Object.keys(controllerData.eventListeners);
+            for (const eventName of keys) {
                 const func = controllerData.eventListeners && controllerData.eventListeners[eventName as XREventType];
                 if (func) {
                     this._xrSessionManager.session.removeEventListener(eventName as XREventType, func as any);
                 }
-            });
+            }
         }
         controllerData.touchCollisionMesh.dispose();
         controllerData.pickedPointVisualCue.dispose();
@@ -857,9 +869,11 @@ export class WebXRNearInteraction extends WebXRAbstractFeature {
                 parsePromise = NodeMaterial.ParseFromSnippetAsync("8RUNKL#3", meshCreationScene);
             }
             parsePromise
+                // eslint-disable-next-line github/no-then
                 .then((mat) => {
                     touchCollisionMesh.material = mat;
                 })
+                // eslint-disable-next-line github/no-then
                 .catch((err) => {
                     Logger.Warn(`Error creating touch material in WebXRNearInteraction: ${err}`);
                 });
@@ -994,9 +1008,12 @@ export class WebXRNearInteraction extends WebXRAbstractFeature {
             return pi;
         }
 
-        const result = TmpVectors.Vector3[0];
-        const tmpVec = TmpVectors.Vector3[1];
-        const tmpRay = new Ray(Vector3.Zero(), Vector3.Zero(), 1);
+        const result = LocalTempVectors[0];
+        const tmpVec = LocalTempVectors[1];
+        LocalTempVectors[2].setAll(0);
+        LocalTempVectors[3].setAll(0);
+
+        const tmpRay = new Ray(LocalTempVectors[2], LocalTempVectors[3], 1);
 
         let distance = +Infinity;
         let tmp, tmpDistanceSphereToCenter, tmpDistanceSurfaceToCenter, intersectionInfo;
@@ -1015,8 +1032,8 @@ export class WebXRNearInteraction extends WebXRAbstractFeature {
             tmp = Vector3.Distance(tmpVec, sphere.center);
 
             // Check for finger inside of mesh
-            tmpDistanceSurfaceToCenter = Vector3.Distance(tmpVec, mesh.getAbsolutePosition());
-            tmpDistanceSphereToCenter = Vector3.Distance(sphere.center, mesh.getAbsolutePosition());
+            tmpDistanceSurfaceToCenter = Vector3.DistanceSquared(tmpVec, mesh.getAbsolutePosition());
+            tmpDistanceSphereToCenter = Vector3.DistanceSquared(sphere.center, mesh.getAbsolutePosition());
             if (tmpDistanceSphereToCenter !== -1 && tmpDistanceSurfaceToCenter !== -1 && tmpDistanceSurfaceToCenter > tmpDistanceSphereToCenter) {
                 tmp = 0;
                 tmpVec.copyFrom(sphere.center);

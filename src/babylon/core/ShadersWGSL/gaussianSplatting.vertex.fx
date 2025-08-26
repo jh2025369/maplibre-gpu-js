@@ -1,6 +1,7 @@
 #include<sceneUboDeclaration>
 #include<meshUboDeclaration>
 
+#include<helperFunctions>
 #include<clipPlaneVertexDeclaration>
 #include<fogVertexDeclaration>
 #include<logDepthDeclaration>
@@ -13,13 +14,24 @@ attribute position: vec2f;
 uniform invViewport: vec2f;
 uniform dataTextureSize: vec2f;
 uniform focal: vec2f;
+uniform kernelSize: f32;
+uniform eyePosition: vec3f;
+uniform viewDirectionFactor: vec3f;
 
 // textures
 var covariancesATexture: texture_2d<f32>;
 var covariancesBTexture: texture_2d<f32>;
 var centersTexture: texture_2d<f32>;
 var colorsTexture: texture_2d<f32>;
-
+#if SH_DEGREE > 0
+var shTexture0: texture_2d<u32>;
+#endif
+#if SH_DEGREE > 1
+var shTexture1: texture_2d<u32>;
+#endif
+#if SH_DEGREE > 2
+var shTexture2: texture_2d<u32>;
+#endif
 // Output
 varying vColor: vec4f;
 varying vPosition: vec2f;
@@ -35,9 +47,20 @@ fn main(input : VertexInputs) -> FragmentInputs {
 
     let worldPos: vec4f = mesh.world * vec4f(splat.center.xyz, 1.0);
 
-    vertexOutputs.vColor = splat.color;
     vertexOutputs.vPosition = input.position;
-    vertexOutputs.position = gaussianSplatting(input.position, worldPos.xyz, vec2f(1.0, 1.0), covA, covB, mesh.world, scene.view, scene.projection, uniforms.focal, uniforms.invViewport);
+
+#if SH_DEGREE > 0
+    let worldRot: mat3x3f =  mat3x3f(mesh.world[0].xyz, mesh.world[1].xyz, mesh.world[2].xyz);
+    let normWorldRot: mat3x3f = inverseMat3(worldRot);
+
+    var dir: vec3f = normalize(normWorldRot * (worldPos.xyz - uniforms.eyePosition.xyz));
+    dir *= viewDirectionFactor;
+    vertexOutputs.vColor = vec4f(splat.color.xyz + computeSH(splat, dir), splat.color.w);
+#else
+    vertexOutputs.vColor = splat.color;
+#endif
+
+    vertexOutputs.position = gaussianSplatting(input.position, worldPos.xyz, vec2f(1.0, 1.0), covA, covB, mesh.world, scene.view, scene.projection, uniforms.focal, uniforms.invViewport, uniforms.kernelSize);
 
 #include<clipPlaneVertex>
 #include<fogVertex>

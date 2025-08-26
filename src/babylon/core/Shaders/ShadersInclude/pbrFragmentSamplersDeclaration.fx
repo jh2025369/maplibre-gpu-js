@@ -1,4 +1,6 @@
 #include<samplerFragmentDeclaration>(_DEFINENAME_,ALBEDO,_VARYINGNAME_,Albedo,_SAMPLERNAME_,albedo)
+#include<samplerFragmentDeclaration>(_DEFINENAME_,BASE_WEIGHT,_VARYINGNAME_,BaseWeight,_SAMPLERNAME_,baseWeight)
+#include<samplerFragmentDeclaration>(_DEFINENAME_,BASE_DIFFUSE_ROUGHNESS,_VARYINGNAME_,BaseDiffuseRoughness,_SAMPLERNAME_,baseDiffuseRoughness)
 #include<samplerFragmentDeclaration>(_DEFINENAME_,AMBIENT,_VARYINGNAME_,Ambient,_SAMPLERNAME_,ambient)
 #include<samplerFragmentDeclaration>(_DEFINENAME_,OPACITY,_VARYINGNAME_,Opacity,_SAMPLERNAME_,opacity)
 #include<samplerFragmentDeclaration>(_DEFINENAME_,EMISSIVE,_VARYINGNAME_,Emissive,_SAMPLERNAME_,emissive)
@@ -42,7 +44,7 @@
         #define sampleReflection(s, c) textureCube(s, c)
 
         uniform samplerCube reflectionSampler;
-        
+
         #ifdef LODBASEDMICROSFURACE
             #define sampleReflectionLod(s, c, l) textureCubeLodEXT(s, c, l)
         #else
@@ -88,7 +90,7 @@
     #ifdef SS_REFRACTION
         #ifdef SS_REFRACTIONMAP_3D
             #define sampleRefraction(s, c) textureCube(s, c)
-            
+
             uniform samplerCube refractionSampler;
 
             #ifdef LODBASEDMICROSFURACE
@@ -99,7 +101,7 @@
             #endif
         #else
             #define sampleRefraction(s, c) texture2D(s, c)
-            
+
             uniform sampler2D refractionSampler;
 
             #ifdef LODBASEDMICROSFURACE
@@ -115,4 +117,8 @@
     #include<samplerFragmentDeclaration>(_DEFINENAME_,SS_REFRACTIONINTENSITY_TEXTURE,_VARYINGNAME_,RefractionIntensity,_SAMPLERNAME_,refractionIntensity)
     #include<samplerFragmentDeclaration>(_DEFINENAME_,SS_TRANSLUCENCYINTENSITY_TEXTURE,_VARYINGNAME_,TranslucencyIntensity,_SAMPLERNAME_,translucencyIntensity)
     #include<samplerFragmentDeclaration>(_DEFINENAME_,SS_TRANSLUCENCYCOLOR_TEXTURE,_VARYINGNAME_,TranslucencyColor,_SAMPLERNAME_,translucencyColor)
+#endif
+
+#ifdef IBL_CDF_FILTERING
+    uniform sampler2D icdfSampler;
 #endif

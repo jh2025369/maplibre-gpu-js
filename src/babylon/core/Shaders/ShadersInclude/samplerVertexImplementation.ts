@@ -7,7 +7,7 @@ if (v_INFONAME_==0.)
 {v_VARYINGNAME_UV=vec2(_MATRIXNAME_Matrix*vec4(uvUpdated,1.0,0.0));}
 #ifdef UV2
 else if (v_INFONAME_==1.)
-{v_VARYINGNAME_UV=vec2(_MATRIXNAME_Matrix*vec4(uv2,1.0,0.0));}
+{v_VARYINGNAME_UV=vec2(_MATRIXNAME_Matrix*vec4(uv2Updated,1.0,0.0));}
 #endif
 #ifdef UV3
 else if (v_INFONAME_==2.)

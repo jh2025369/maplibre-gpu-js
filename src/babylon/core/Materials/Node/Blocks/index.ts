@@ -1,4 +1,4 @@
-/* eslint-disable import/no-internal-modules */
+/* eslint-disable @typescript-eslint/no-restricted-imports */
 export * from "./Vertex/index";
 export * from "./Fragment/index";
 export * from "./Dual/index";
@@ -66,4 +66,6 @@ export * from "./colorConverterBlock";
 export * from "./loopBlock";
 export * from "./storageReadBlock";
 export * from "./storageWriteBlock";
+export * from "./matrixSplitterBlock";
 export * from "./GaussianSplatting/index";
+export * from "./debugBlock";

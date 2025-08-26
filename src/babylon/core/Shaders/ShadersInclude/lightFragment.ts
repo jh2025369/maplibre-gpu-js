@@ -16,17 +16,39 @@ preInfo=computePointAndSpotPreLightingInfo(light{X}.vLightData,viewDirectionW,no
 preInfo=computeHemisphericPreLightingInfo(light{X}.vLightData,viewDirectionW,normalW);
 #elif defined(DIRLIGHT{X})
 preInfo=computeDirectionalPreLightingInfo(light{X}.vLightData,viewDirectionW,normalW);
+#elif defined(AREALIGHT{X}) && defined(AREALIGHTSUPPORTED)
+preInfo=computeAreaPreLightingInfo(areaLightsLTC1Sampler,areaLightsLTC2Sampler,viewDirectionW,normalW,vPositionW,light{X}.vLightData,light{X}.vLightWidth.xyz,light{X}.vLightHeight.xyz,roughness);
 #endif
 preInfo.NdotV=NdotV;
 #ifdef SPOTLIGHT{X}
 #ifdef LIGHT_FALLOFF_GLTF{X}
-preInfo.attenuation=computeDistanceLightFalloff_GLTF(preInfo.lightDistanceSquared,light{X}.vLightFalloff.y);preInfo.attenuation*=computeDirectionalLightFalloff_GLTF(light{X}.vLightDirection.xyz,preInfo.L,light{X}.vLightFalloff.z,light{X}.vLightFalloff.w);
-#elif defined(LIGHT_FALLOFF_PHYSICAL{X})
-preInfo.attenuation=computeDistanceLightFalloff_Physical(preInfo.lightDistanceSquared);preInfo.attenuation*=computeDirectionalLightFalloff_Physical(light{X}.vLightDirection.xyz,preInfo.L,light{X}.vLightDirection.w);
-#elif defined(LIGHT_FALLOFF_STANDARD{X})
-preInfo.attenuation=computeDistanceLightFalloff_Standard(preInfo.lightOffset,light{X}.vLightFalloff.x);preInfo.attenuation*=computeDirectionalLightFalloff_Standard(light{X}.vLightDirection.xyz,preInfo.L,light{X}.vLightDirection.w,light{X}.vLightData.w);
+preInfo.attenuation=computeDistanceLightFalloff_GLTF(preInfo.lightDistanceSquared,light{X}.vLightFalloff.y);
+#ifdef IESLIGHTTEXTURE{X}
+preInfo.attenuation*=computeDirectionalLightFalloff_IES(light{X}.vLightDirection.xyz,preInfo.L,iesLightTexture{X});
 #else
-preInfo.attenuation=computeDistanceLightFalloff(preInfo.lightOffset,preInfo.lightDistanceSquared,light{X}.vLightFalloff.x,light{X}.vLightFalloff.y);preInfo.attenuation*=computeDirectionalLightFalloff(light{X}.vLightDirection.xyz,preInfo.L,light{X}.vLightDirection.w,light{X}.vLightData.w,light{X}.vLightFalloff.z,light{X}.vLightFalloff.w);
+preInfo.attenuation*=computeDirectionalLightFalloff_GLTF(light{X}.vLightDirection.xyz,preInfo.L,light{X}.vLightFalloff.z,light{X}.vLightFalloff.w);
+#endif
+#elif defined(LIGHT_FALLOFF_PHYSICAL{X})
+preInfo.attenuation=computeDistanceLightFalloff_Physical(preInfo.lightDistanceSquared);
+#ifdef IESLIGHTTEXTURE{X}
+preInfo.attenuation*=computeDirectionalLightFalloff_IES(light{X}.vLightDirection.xyz,preInfo.L,iesLightTexture{X});
+#else
+preInfo.attenuation*=computeDirectionalLightFalloff_Physical(light{X}.vLightDirection.xyz,preInfo.L,light{X}.vLightDirection.w);
+#endif
+#elif defined(LIGHT_FALLOFF_STANDARD{X})
+preInfo.attenuation=computeDistanceLightFalloff_Standard(preInfo.lightOffset,light{X}.vLightFalloff.x);
+#ifdef IESLIGHTTEXTURE{X}
+preInfo.attenuation*=computeDirectionalLightFalloff_IES(light{X}.vLightDirection.xyz,preInfo.L,iesLightTexture{X});
+#else
+preInfo.attenuation*=computeDirectionalLightFalloff_Standard(light{X}.vLightDirection.xyz,preInfo.L,light{X}.vLightDirection.w,light{X}.vLightData.w);
+#endif
+#else
+preInfo.attenuation=computeDistanceLightFalloff(preInfo.lightOffset,preInfo.lightDistanceSquared,light{X}.vLightFalloff.x,light{X}.vLightFalloff.y);
+#ifdef IESLIGHTTEXTURE{X}
+preInfo.attenuation*=computeDirectionalLightFalloff_IES(light{X}.vLightDirection.xyz,preInfo.L,iesLightTexture{X});
+#else
+preInfo.attenuation*=computeDirectionalLightFalloff(light{X}.vLightDirection.xyz,preInfo.L,light{X}.vLightDirection.w,light{X}.vLightData.w,light{X}.vLightFalloff.z,light{X}.vLightFalloff.w);
+#endif
 #endif
 #elif defined(POINTLIGHT{X})
 #ifdef LIGHT_FALLOFF_GLTF{X}
@@ -41,28 +63,51 @@ preInfo.attenuation=computeDistanceLightFalloff(preInfo.lightOffset,preInfo.ligh
 #else
 preInfo.attenuation=1.0;
 #endif
-#ifdef HEMILIGHT{X}
+#if defined(HEMILIGHT{X}) || defined(AREALIGHT{X})
 preInfo.roughness=roughness;
 #else
 preInfo.roughness=adjustRoughnessFromLightProperties(roughness,light{X}.vLightSpecular.a,preInfo.lightDistance);
 #endif
+preInfo.diffuseRoughness=diffuseRoughness;preInfo.surfaceAlbedo=surfaceAlbedo;
 #ifdef IRIDESCENCE
 preInfo.iridescenceIntensity=iridescenceIntensity;
 #endif
+#ifdef SS_TRANSLUCENCY
+info.diffuseTransmission=vec3(0.0);
+#endif
 #ifdef HEMILIGHT{X}
 info.diffuse=computeHemisphericDiffuseLighting(preInfo,diffuse{X}.rgb,light{X}.vLightGround);
+#elif defined(AREALIGHT{X})
+info.diffuse=computeAreaDiffuseLighting(preInfo,diffuse{X}.rgb);
 #elif defined(SS_TRANSLUCENCY)
-info.diffuse=computeDiffuseAndTransmittedLighting(preInfo,diffuse{X}.rgb,subSurfaceOut.transmittance);
+#ifndef SS_TRANSLUCENCY_LEGACY
+info.diffuse=computeDiffuseLighting(preInfo,diffuse{X}.rgb)*(1.0-subSurfaceOut.translucencyIntensity);info.diffuseTransmission=computeDiffuseTransmittedLighting(preInfo,diffuse{X}.rgb,subSurfaceOut.transmittance); 
+#else
+info.diffuse=computeDiffuseTransmittedLighting(preInfo,diffuse{X}.rgb,subSurfaceOut.transmittance);
+#endif
 #else
 info.diffuse=computeDiffuseLighting(preInfo,diffuse{X}.rgb);
 #endif
 #ifdef SPECULARTERM
+#if AREALIGHT{X}
+info.specular=computeAreaSpecularLighting(preInfo,light{X}.vLightSpecular.rgb,clearcoatOut.specularEnvironmentR0,reflectivityOut.colorReflectanceF90);
+#else
+#if (CONDUCTOR_SPECULAR_MODEL==CONDUCTOR_SPECULAR_MODEL_OPENPBR)
+{vec3 metalFresnel=reflectivityOut.specularWeight*getF82Specular(preInfo.VdotH,clearcoatOut.specularEnvironmentR0,reflectivityOut.colorReflectanceF90,reflectivityOut.roughness);vec3 dielectricFresnel=fresnelSchlickGGX(preInfo.VdotH,reflectivityOut.dielectricColorF0,reflectivityOut.colorReflectanceF90);coloredFresnel=mix(dielectricFresnel,metalFresnel,reflectivityOut.metallic);}
+#else
+coloredFresnel=fresnelSchlickGGX(preInfo.VdotH,clearcoatOut.specularEnvironmentR0,reflectivityOut.colorReflectanceF90);
+#endif
+#ifndef LEGACY_SPECULAR_ENERGY_CONSERVATION
+{float NdotH=dot(normalW,preInfo.H);vec3 fresnel=fresnelSchlickGGX(NdotH,vec3(reflectanceF0),specularEnvironmentR90);info.diffuse*=(vec3(1.0)-fresnel);}
+#endif
 #ifdef ANISOTROPIC
 info.specular=computeAnisotropicSpecularLighting(preInfo,viewDirectionW,normalW,anisotropicOut.anisotropicTangent,anisotropicOut.anisotropicBitangent,anisotropicOut.anisotropy,clearcoatOut.specularEnvironmentR0,specularEnvironmentR90,AARoughnessFactors.x,diffuse{X}.rgb);
 #else
-info.specular=computeSpecularLighting(preInfo,normalW,clearcoatOut.specularEnvironmentR0,specularEnvironmentR90,AARoughnessFactors.x,diffuse{X}.rgb);
+info.specular=computeSpecularLighting(preInfo,normalW,clearcoatOut.specularEnvironmentR0,coloredFresnel,AARoughnessFactors.x,diffuse{X}.rgb);
 #endif
 #endif
+#endif
+#ifndef AREALIGHT{X}
 #ifdef SHEEN
 #ifdef SHEEN_LINKWITHALBEDO
 preInfo.roughness=sheenOut.sheenIntensity;
@@ -84,11 +129,17 @@ preInfo.roughness=adjustRoughnessFromLightProperties(clearcoatOut.clearCoatRough
 info.clearCoat=computeClearCoatLighting(preInfo,clearcoatOut.clearCoatNormalW,clearcoatOut.clearCoatAARoughnessFactors.x,clearcoatOut.clearCoatIntensity,diffuse{X}.rgb);
 #ifdef CLEARCOAT_TINT
 absorption=computeClearCoatLightingAbsorption(clearcoatOut.clearCoatNdotVRefract,preInfo.L,clearcoatOut.clearCoatNormalW,clearcoatOut.clearCoatColor,clearcoatOut.clearCoatThickness,clearcoatOut.clearCoatIntensity);info.diffuse*=absorption;
+#ifdef SS_TRANSLUCENCY
+info.diffuseTransmission*=absorption;
+#endif
 #ifdef SPECULARTERM
 info.specular*=absorption;
 #endif
 #endif
 info.diffuse*=info.clearCoat.w;
+#ifdef SS_TRANSLUCENCY
+info.diffuseTransmission*=info.clearCoat.w;
+#endif
 #ifdef SPECULARTERM
 info.specular*=info.clearCoat.w;
 #endif
@@ -96,13 +147,26 @@ info.specular*=info.clearCoat.w;
 info.sheen*=info.clearCoat.w;
 #endif
 #endif
+#endif
 #else
 #ifdef SPOTLIGHT{X}
+#ifdef IESLIGHTTEXTURE{X}
+info=computeIESSpotLighting(viewDirectionW,normalW,light{X}.vLightData,light{X}.vLightDirection,diffuse{X}.rgb,light{X}.vLightSpecular.rgb,diffuse{X}.a,glossiness,iesLightTexture{X});
+#else
 info=computeSpotLighting(viewDirectionW,normalW,light{X}.vLightData,light{X}.vLightDirection,diffuse{X}.rgb,light{X}.vLightSpecular.rgb,diffuse{X}.a,glossiness);
+#endif
 #elif defined(HEMILIGHT{X})
 info=computeHemisphericLighting(viewDirectionW,normalW,light{X}.vLightData,diffuse{X}.rgb,light{X}.vLightSpecular.rgb,light{X}.vLightGround,glossiness);
 #elif defined(POINTLIGHT{X}) || defined(DIRLIGHT{X})
 info=computeLighting(viewDirectionW,normalW,light{X}.vLightData,diffuse{X}.rgb,light{X}.vLightSpecular.rgb,diffuse{X}.a,glossiness);
+#elif defined(AREALIGHT{X}) && defined(AREALIGHTSUPPORTED)
+info=computeAreaLighting(areaLightsLTC1Sampler,areaLightsLTC2Sampler,viewDirectionW,normalW,vPositionW,light{X}.vLightData.xyz,light{X}.vLightWidth.rgb,light{X}.vLightHeight.rgb,diffuse{X}.rgb,light{X}.vLightSpecular.rgb,
+#ifdef AREALIGHTNOROUGHTNESS
+0.5
+#else
+vReflectionInfos.y
+#endif
+);
 #endif
 #endif
 #ifdef PROJECTEDLIGHTTEXTURE{X}
@@ -111,7 +175,7 @@ info.diffuse*=computeProjectionTextureDiffuseLighting(projectionLightTexture{X},
 #endif
 #ifdef SHADOW{X}
 #ifdef SHADOWCSM{X}
-for (int i=0; i<SHADOWCSMNUM_CASCADES{X}; i++) 
+for (int i=0; i<SHADOWCSMNUM_CASCADES{X}; i++)
 {
 #ifdef SHADOWCSM_RIGHTHANDED{X}
 diff{X}=viewFrustumZ{X}[i]+vPositionFromCamera{X}.z;
@@ -251,8 +315,11 @@ sheenBase+=info.sheen.rgb*shadow;
 #else
 #ifdef SHADOWCSMDEBUG{X}
 diffuseBase+=info.diffuse*shadowDebug{X};
-#else 
+#else
 diffuseBase+=info.diffuse*shadow;
+#endif
+#ifdef SS_TRANSLUCENCY
+diffuseTransmissionBase+=info.diffuseTransmission*shadow;
 #endif
 #ifdef SPECULARTERM
 specularBase+=info.specular*shadow;

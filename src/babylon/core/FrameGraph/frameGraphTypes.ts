@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-internal-modules
 import type { Nullable, TextureSize, FrameGraphContext } from "core/index";
 
 /**
@@ -9,11 +8,13 @@ export type FrameGraphTextureHandle = number;
 /**
  * Represents a texture handle for the backbuffer color texture.
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export const backbufferColorTextureHandle: FrameGraphTextureHandle = 0;
 
 /**
  * Represents a texture handle for the backbuffer depth/stencil texture.
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export const backbufferDepthStencilTextureHandle: FrameGraphTextureHandle = 1;
 
 /**
@@ -79,6 +80,11 @@ export interface IFrameGraphPass {
      * The name of the pass.
      */
     name: string;
+
+    /**
+     * Whether the pass is disabled.
+     */
+    disabled: boolean;
 
     /**
      * Sets the function to execute when the pass is executed

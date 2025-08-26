@@ -1,4 +1,4 @@
-/* eslint-disable import/no-internal-modules */
+/* eslint-disable @typescript-eslint/no-restricted-imports */
 export * from "./light";
 export * from "./shadowLight";
 export * from "./Shadows/index";
@@ -6,3 +6,6 @@ export * from "./directionalLight";
 export * from "./hemisphericLight";
 export * from "./pointLight";
 export * from "./spotLight";
+export * from "./areaLight";
+export * from "./rectAreaLight";
+export * from "./IES/iesLoader";

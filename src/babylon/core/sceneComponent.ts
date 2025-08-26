@@ -28,7 +28,6 @@ export class SceneComponentConstants {
     public static readonly NAME_PREPASSRENDERER = "PrePassRenderer";
     public static readonly NAME_DEPTHRENDERER = "DepthRenderer";
     public static readonly NAME_DEPTHPEELINGRENDERER = "DepthPeelingRenderer";
-    public static readonly NAME_IBLSHADOWSRENDERER = "IblShadowsRenderer";
     public static readonly NAME_POSTPROCESSRENDERPIPELINEMANAGER = "PostProcessRenderPipelineManager";
     public static readonly NAME_SPRITE = "Sprite";
     public static readonly NAME_SUBSURFACE = "SubSurface";
@@ -39,6 +38,7 @@ export class SceneComponentConstants {
     public static readonly NAME_PHYSICSENGINE = "PhysicsEngine";
     public static readonly NAME_AUDIO = "Audio";
     public static readonly NAME_FLUIDRENDERER = "FluidRenderer";
+    public static readonly NAME_IBLCDFGENERATOR = "iblCDFGenerator";
 
     public static readonly STEP_ISREADYFORMESH_EFFECTLAYER = 0;
 
@@ -131,7 +131,7 @@ export interface ISceneComponent {
     rebuild(): void;
 
     /**
-     * Disposes the component and the associated ressources.
+     * Disposes the component and the associated resources.
      */
     dispose(): void;
 }
@@ -252,7 +252,7 @@ export class Stage<T extends Function> extends Array<{ index: number; component:
      * @returns A new instance of a Stage
      */
     static Create<T extends Function>(): Stage<T> {
-        return Object.create(Stage.prototype);
+        return Object.create(Stage.prototype) as Stage<T>;
     }
 
     /**

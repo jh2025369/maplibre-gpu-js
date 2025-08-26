@@ -6,13 +6,14 @@ import type { IMaterial, ITextureInfo } from "../glTFLoaderInterfaces";
 import type { IGLTFLoaderExtension } from "../glTFLoaderExtension";
 import { GLTFLoader } from "../glTFLoader";
 import { Color3 } from "core/Maths/math.color";
-import type { IKHRMaterialsSpecular } from "babylonjs-gltf2interface";
+import { Constants } from "core/Engines/constants";
+import type { IEXTMaterialsSpecularEdgeColor, IKHRMaterialsSpecular } from "babylonjs-gltf2interface";
 import { registerGLTFExtension, unregisterGLTFExtension } from "../glTFLoaderExtensionRegistry";
 
 const NAME = "KHR_materials_specular";
 
 declare module "../../glTFFileLoader" {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc/require-jsdoc, @typescript-eslint/naming-convention
     export interface GLTFLoaderExtensionOptions {
         /**
          * Defines options for the KHR_materials_specular extension.
@@ -60,15 +61,27 @@ export class KHR_materials_specular implements IGLTFLoaderExtension {
     /**
      * @internal
      */
+    // eslint-disable-next-line no-restricted-syntax
     public loadMaterialPropertiesAsync(context: string, material: IMaterial, babylonMaterial: Material): Nullable<Promise<void>> {
-        return GLTFLoader.LoadExtensionAsync<IKHRMaterialsSpecular>(context, material, this.name, (extensionContext, extension) => {
+        return GLTFLoader.LoadExtensionAsync<IKHRMaterialsSpecular>(context, material, this.name, async (extensionContext, extension) => {
             const promises = new Array<Promise<any>>();
             promises.push(this._loader.loadMaterialPropertiesAsync(context, material, babylonMaterial));
             promises.push(this._loadSpecularPropertiesAsync(extensionContext, extension, babylonMaterial));
-            return Promise.all(promises).then(() => {});
+            // Handle the EXT_materials_specular_edge_color sub-extension
+            // https://github.com/KhronosGroup/glTF/blob/2a1111b88f052cbd3e2d82abb9faee56e7494904/extensions/2.0/Vendor/EXT_materials_specular_edge_color/README.md
+            if (extension.extensions && extension.extensions.EXT_materials_specular_edge_color && babylonMaterial instanceof PBRMaterial) {
+                const specularEdgeColorExtension = extension.extensions.EXT_materials_specular_edge_color as IEXTMaterialsSpecularEdgeColor;
+                if (specularEdgeColorExtension.specularEdgeColorEnabled) {
+                    babylonMaterial.brdf.dielectricSpecularModel = Constants.MATERIAL_DIELECTRIC_SPECULAR_MODEL_OPENPBR;
+                    babylonMaterial.brdf.conductorSpecularModel = Constants.MATERIAL_CONDUCTOR_SPECULAR_MODEL_OPENPBR;
+                }
+            }
+            // eslint-disable-next-line github/no-then
+            return await Promise.all(promises).then(() => {});
         });
     }
 
+    // eslint-disable-next-line @typescript-eslint/promise-function-async, no-restricted-syntax
     private _loadSpecularPropertiesAsync(context: string, properties: IKHRMaterialsSpecular, babylonMaterial: Material): Promise<void> {
         if (!(babylonMaterial instanceof PBRMaterial)) {
             throw new Error(`${context}: Material type not supported`);
@@ -104,6 +117,7 @@ export class KHR_materials_specular implements IGLTFLoaderExtension {
             );
         }
 
+        // eslint-disable-next-line github/no-then
         return Promise.all(promises).then(() => {});
     }
 }

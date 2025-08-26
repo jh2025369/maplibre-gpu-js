@@ -1,8 +1,5 @@
+import type { MaterialDefines, Effect, Mesh, AbstractMesh, Material } from "core/index";
 import { Constants } from "core/Engines/constants";
-import type { MaterialDefines } from "core/Materials/materialDefines";
-import type { Effect } from "core/Materials/effect";
-import type { Mesh } from "core/Meshes/mesh";
-import type { AbstractMesh } from "core/Meshes/abstractMesh";
 import { Matrix } from "core/Maths/math.vector";
 
 /**
@@ -64,6 +61,11 @@ export type GeometryRenderingConfiguration = {
      * List of excluded skinned meshes.
      */
     excludedSkinnedMesh: AbstractMesh[];
+
+    /**
+     * Whether to reverse culling for the geometry rendering (meaning, if back faces should be culled, front faces are culled instead, and the other way around).
+     */
+    reverseCulling: boolean;
 };
 
 /**
@@ -158,6 +160,13 @@ export class MaterialHelperGeometryRendering {
             define: "PREPASS_ALBEDO",
             defineIndex: "PREPASS_ALBEDO_INDEX",
         },
+        {
+            type: Constants.PREPASS_NORMALIZED_VIEW_DEPTH_TEXTURE_TYPE,
+            name: "NormalizedViewDepth",
+            clearType: GeometryRenderingTextureClearType.One,
+            define: "PREPASS_NORMALIZED_VIEW_DEPTH",
+            defineIndex: "PREPASS_NORMALIZED_VIEW_DEPTH_INDEX",
+        },
     ];
 
     private static _Configurations: { [renderPassId: number]: GeometryRenderingConfiguration } = {};
@@ -176,6 +185,7 @@ export class MaterialHelperGeometryRendering {
             previousBones: {},
             lastUpdateFrameId: -1,
             excludedSkinnedMesh: [],
+            reverseCulling: false,
         };
         return MaterialHelperGeometryRendering._Configurations[renderPassId];
     }
@@ -273,11 +283,19 @@ export class MaterialHelperGeometryRendering {
      * @param effect The effect to bind the geometry rendering data to.
      * @param mesh The mesh to bind the geometry rendering data for.
      * @param world The world matrix of the mesh.
+     * @param material The material of the mesh.
      */
-    public static Bind(renderPassId: number, effect: Effect, mesh: Mesh, world: Matrix) {
+    public static Bind(renderPassId: number, effect: Effect, mesh: Mesh, world: Matrix, material: Material) {
         const configuration = MaterialHelperGeometryRendering._Configurations[renderPassId];
         if (!configuration) {
             return;
+        }
+
+        const scene = mesh.getScene();
+        const engine = scene.getEngine();
+
+        if (configuration.reverseCulling) {
+            engine.setStateCullFaceType(scene._mirroredCameraPosition ? material.cullBackFaces : !material.cullBackFaces);
         }
 
         if (configuration.defines["PREPASS_VELOCITY_INDEX"] !== undefined || configuration.defines["PREPASS_VELOCITY_LINEAR_INDEX"] !== undefined) {
@@ -285,14 +303,10 @@ export class MaterialHelperGeometryRendering {
                 configuration.previousWorldMatrices[mesh.uniqueId] = world.clone();
             }
 
-            const scene = mesh.getScene();
-
             if (!configuration.previousViewProjection) {
                 configuration.previousViewProjection = scene.getTransformMatrix().clone();
                 configuration.currentViewProjection = scene.getTransformMatrix().clone();
             }
-
-            const engine = scene.getEngine();
 
             if (configuration.currentViewProjection.updateFlag !== scene.getTransformMatrix().updateFlag) {
                 // First update of the prepass configuration for this rendering pass

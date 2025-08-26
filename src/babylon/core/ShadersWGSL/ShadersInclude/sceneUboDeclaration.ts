@@ -8,7 +8,9 @@ viewProjectionR : mat4x4<f32>,
 #endif 
 view : mat4x4<f32>,
 projection : mat4x4<f32>,
-vEyePosition : vec4<f32>,};var<uniform> scene : Scene;
+vEyePosition : vec4<f32>,};
+#define SCENE_UBO
+var<uniform> scene : Scene;
 `;
 // Sideeffect
 ShaderStore.IncludesShadersStoreWGSL[name] = shader;

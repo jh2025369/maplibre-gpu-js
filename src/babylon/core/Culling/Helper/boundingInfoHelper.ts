@@ -2,21 +2,15 @@ import type { AbstractMesh } from "core/Meshes/abstractMesh";
 import type { AbstractEngine } from "core/Engines/abstractEngine";
 import type { IBoundingInfoHelperPlatform } from "./IBoundingInfoHelperPlatform";
 import type { ThinEngine } from "core/Engines";
+import { Logger } from "core/Misc/logger";
 
 /**
  * Utility class to help with bounding info management
  * Warning: using the BoundingInfoHelper class may be slower than executing calculations on the CPU!
  * This will happen if there are a lot of meshes / few vertices (like with the BrainStem model)
  * The BoundingInfoHelper will perform better if there are few meshes / a lot of vertices
- * #BCNJD4#56 =\> does not use the BoundingInfoHelper class, performs calculations on the CPU
- * #BCNJD4#55 =\> same as #56 but use the BoundingInfoHelper class
- * #BCNJD4#40 =\> example with bones and morphs (webGL2)
- * #BCNJD4#42 =\> example with bones and morphs (webGPU)
- * #HPV2TZ#475 =\> only morph (webGL2)
- * #HPV2TZ#476 =\> only morph (webGPU)
- * #B8B8Z2#51 =\> Large scale test (CPU) =\> for each mesh, this test calculates a bounding box which is the union of the bounding boxes of all the frames in a given animation
- * #B8B8Z2#49 =\> Large scale test (webGL2)
- * #B8B8Z2#50 =\> Large scale test (webGPU)
+ *  https://playground.babylonjs.com/#QPOERJ#9 : WebGL
+ *  https://playground.babylonjs.com/#QPOERJ#10 : WebGPU
  */
 export class BoundingInfoHelper {
     private _platform: IBoundingInfoHelperPlatform;
@@ -30,7 +24,7 @@ export class BoundingInfoHelper {
         this._engine = engine;
     }
 
-    private async _initializePlatform() {
+    private async _initializePlatformAsync() {
         if (!this._platform) {
             if (this._engine.getCaps().supportComputeShaders) {
                 const module = await import("./computeShaderBoundingHelper");
@@ -50,8 +44,8 @@ export class BoundingInfoHelper {
      * @returns a promise that resolves when the bounding info is/are computed
      */
     public async computeAsync(target: AbstractMesh | AbstractMesh[]): Promise<void> {
-        await this._initializePlatform();
-        return this._platform.processAsync(target);
+        await this._initializePlatformAsync();
+        return await this._platform.processAsync(target);
     }
 
     /**
@@ -61,8 +55,8 @@ export class BoundingInfoHelper {
      * @returns a promise that resolves when the initialization is done
      */
     public async batchInitializeAsync(target: AbstractMesh | AbstractMesh[]): Promise<void> {
-        await this._initializePlatform();
-        return this._platform.registerMeshListAsync(target);
+        await this._initializePlatformAsync();
+        return await this._platform.registerMeshListAsync(target);
     }
 
     /**
@@ -70,6 +64,10 @@ export class BoundingInfoHelper {
      * If called multiple times, the second, third, etc calls will perform a union of the bounding boxes calculated in the previous calls
      */
     public batchProcess(): void {
+        if (this._platform === null) {
+            Logger.Warn("Helper is not initialized. Skipping batch.");
+            return;
+        }
         this._platform.processMeshList();
     }
 
@@ -78,13 +76,16 @@ export class BoundingInfoHelper {
      * @returns a promise that resolves when the bounding info is/are computed
      */
     public async batchFetchResultsAsync(): Promise<void> {
-        return this._platform.fetchResultsForMeshListAsync();
+        await this._initializePlatformAsync();
+        return await this._platform.fetchResultsForMeshListAsync();
     }
 
     /**
      * Dispose and release associated resources
      */
     public dispose(): void {
-        this._platform.dispose();
+        if (this._platform) {
+            this._platform.dispose();
+        }
     }
 }

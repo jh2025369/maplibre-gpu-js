@@ -10,7 +10,7 @@ import type { Material } from "../Materials/material";
 import { EngineStore } from "../Engines/engineStore";
 import { StandardMaterial } from "../Materials/standardMaterial";
 import type { IPhysicsEnginePlugin as IPhysicsEnginePluginV1 } from "../Physics/v1/IPhysicsEnginePlugin";
-import type { IPhysicsEnginePluginV2, PhysicsMassProperties } from "../Physics/v2/IPhysicsEnginePlugin";
+import { PhysicsConstraintAxis, PhysicsConstraintAxisLimitMode, type IPhysicsEnginePluginV2, type PhysicsMassProperties } from "../Physics/v2/IPhysicsEnginePlugin";
 import { PhysicsImpostor } from "../Physics/v1/physicsImpostor";
 import { UtilityLayerRenderer } from "../Rendering/utilityLayerRenderer";
 import { CreateCylinder } from "../Meshes/Builders/cylinderBuilder";
@@ -44,7 +44,7 @@ export class PhysicsViewer {
     /** @internal */
     protected _inertiaMeshes: Array<Nullable<AbstractMesh>> = [];
     /** @internal */
-    protected _constraintMeshes: Array<Nullable<AbstractMesh>> = [];
+    protected _constraintMeshes: Array<Nullable<Array<AbstractMesh>>> = [];
     /** @internal */
     protected _scene: Nullable<Scene>;
     /** @internal */
@@ -61,6 +61,7 @@ export class PhysicsViewer {
     private _inertiaRenderFunction: () => void;
     private _constraintRenderFunction: () => void;
     private _utilityLayer: Nullable<UtilityLayerRenderer>;
+    private _ownUtilityLayer = false;
 
     private _debugBoxMesh: Mesh;
     private _debugSphereMesh: Mesh;
@@ -71,12 +72,15 @@ export class PhysicsViewer {
     private _debugMeshMeshes = new Array<Mesh>();
 
     private _constraintAxesSize = 0.4;
+    private _constraintAngularSize = 0.4;
 
     /**
      * Creates a new PhysicsViewer
      * @param scene defines the hosting scene
+     * @param size Physics V2 size scalar
+     * @param utilityLayer The utility layer the viewer will be added to
      */
-    constructor(scene?: Scene) {
+    constructor(scene?: Scene, size?: number, utilityLayer: UtilityLayerRenderer = UtilityLayerRenderer.DefaultUtilityLayer) {
         this._scene = scene || EngineStore.LastCreatedScene;
         if (!this._scene) {
             return;
@@ -87,9 +91,18 @@ export class PhysicsViewer {
             this._physicsEnginePlugin = physicEngine.getPhysicsPlugin();
         }
 
-        this._utilityLayer = new UtilityLayerRenderer(this._scene, false);
-        this._utilityLayer.pickUtilitySceneFirst = false;
-        this._utilityLayer.utilityLayerScene.autoClearDepthAndStencil = true;
+        if (utilityLayer) {
+            this._utilityLayer = utilityLayer;
+        } else {
+            this._utilityLayer = new UtilityLayerRenderer(this._scene, false);
+            this._utilityLayer.pickUtilitySceneFirst = false;
+            this._utilityLayer.utilityLayerScene.autoClearDepthAndStencil = true;
+            this._ownUtilityLayer = true;
+        }
+        if (size) {
+            this._constraintAxesSize = 0.4 * size;
+            this._constraintAngularSize = 0.4 * size;
+        }
     }
 
     /**
@@ -211,7 +224,7 @@ export class PhysicsViewer {
             const constraint = this._constraints[i];
             const mesh = this._constraintMeshes[i];
             if (constraint && mesh) {
-                this._updateDebugConstraint(constraint, mesh);
+                this._updateDebugConstraint(constraint, mesh[0]);
             }
         }
     }
@@ -245,7 +258,8 @@ export class PhysicsViewer {
             return;
         }
 
-        parentingMesh.getDescendants(true).forEach((parentConstraintMesh) => {
+        const descendants = parentingMesh.getDescendants(true);
+        for (const parentConstraintMesh of descendants) {
             // Get the parent transform
             const parentCoordSystemNode = parentConstraintMesh.getDescendants(true)[0] as TransformNode;
             const childCoordSystemNode = parentConstraintMesh.getDescendants(true)[1] as TransformNode;
@@ -278,7 +292,7 @@ export class PhysicsViewer {
                 Matrix.FromXYZAxesToRef(axisB, perpAxisB, Vector3.CrossToRef(axisB, perpAxisB, TmpVectors.Vector3[1]), TmpVectors.Matrix[1]),
                 childTransformNode.rotationQuaternion!
             );
-        });
+        }
     }
 
     /**
@@ -413,7 +427,7 @@ export class PhysicsViewer {
             this._numConstraints++;
         }
 
-        return debugMesh;
+        return debugMesh ? debugMesh[0] : null;
     }
 
     /**
@@ -571,14 +585,16 @@ export class PhysicsViewer {
 
         for (let i = 0; i < this._numConstraints; i++) {
             if (this._constraints[i] === constraint) {
-                const mesh = this._constraintMeshes[i];
+                const meshes = this._constraintMeshes[i];
 
-                if (!mesh) {
+                if (!meshes) {
                     continue;
                 }
 
-                utilityLayerScene.removeMesh(mesh);
-                mesh.dispose();
+                for (const mesh of meshes) {
+                    utilityLayerScene.removeMesh(mesh);
+                    mesh.dispose();
+                }
 
                 this._constraints.splice(i, 1);
                 this._constraintMeshes.splice(i, 1);
@@ -624,6 +640,13 @@ export class PhysicsViewer {
         }
 
         return this._debugInertiaMaterial;
+    }
+
+    private _getDebugAxisColoredMaterial(axisNumber: number, scene: Scene): Material {
+        const material = new StandardMaterial("", scene);
+        material.emissiveColor = axisNumber == 0 ? Color3.Red() : axisNumber == 1 ? Color3.Green() : Color3.Blue();
+        material.disableLighting = true;
+        return material;
     }
 
     private _getDebugBoxMesh(scene: Scene): AbstractMesh {
@@ -729,7 +752,7 @@ export class PhysicsViewer {
                     const childMeshes = targetMesh.getChildMeshes().filter((c) => {
                         return c.physicsImpostor ? 1 : 0;
                     });
-                    childMeshes.forEach((m) => {
+                    for (const m of childMeshes) {
                         if (m.physicsImpostor && m.getClassName() === "Mesh") {
                             const boundingInfo = m.getBoundingInfo();
                             const min = boundingInfo.boundingBox.minimum;
@@ -758,7 +781,7 @@ export class PhysicsViewer {
                                 mesh.parent = m;
                             }
                         }
-                    });
+                    }
                 } else {
                     Logger.Warn("No target mesh parameter provided for NoImpostor. Skipping.");
                 }
@@ -873,7 +896,54 @@ export class PhysicsViewer {
         }
     }
 
-    private _getDebugConstraintMesh(constraint: PhysicsConstraint): Nullable<AbstractMesh> {
+    private _createAngularConstraintMesh(minLimit: number, maxLimit: number, axisNumber: number, parent: TransformNode, scene: Scene): AbstractMesh {
+        const arcAngle = (maxLimit - minLimit) / (Math.PI * 2);
+        const mesh = MeshBuilder.CreateCylinder("ConstraintCylinder", { height: 0.0001, diameter: 3 * this._constraintAngularSize, arc: arcAngle }, scene);
+        mesh.material = this._getDebugAxisColoredMaterial(axisNumber, scene);
+        mesh.parent = parent;
+        const parentScaling = parent.absoluteScaling;
+        switch (axisNumber) {
+            case 0:
+                mesh.rotation.z = Math.PI * 0.5;
+                mesh.rotation.x = -minLimit + Math.PI * 0.5;
+                // scaling on y,z
+                mesh.scaling.x = 1 / parentScaling.x;
+                mesh.scaling.y = 1 / parentScaling.z;
+                mesh.scaling.z = 1 / parentScaling.y;
+                break;
+            case 1:
+                mesh.rotation.y = Math.PI * 1.5 + minLimit;
+                // flip x,z
+                mesh.scaling.x = 1 / parentScaling.z;
+                mesh.scaling.y = 1 / parentScaling.y;
+                mesh.scaling.z = 1 / parentScaling.x;
+                break;
+            case 2:
+                mesh.rotation.x = Math.PI * 0.5;
+                // flip z,y
+                mesh.scaling.x = 1 / parentScaling.x;
+                mesh.scaling.y = 1 / parentScaling.z;
+                mesh.scaling.z = 1 / parentScaling.y;
+                break;
+        }
+        return mesh;
+    }
+
+    private _createCage(parent: TransformNode, scene: Scene): AbstractMesh {
+        const cage = MeshBuilder.CreateBox("cage", { size: 1 }, scene);
+        cage.setPivotPoint(new Vector3(-0.5, -0.5, -0.5));
+        const transparentMaterial = new StandardMaterial("cage_material", scene);
+        transparentMaterial.alpha = 0; // Fully transparent
+        cage.material = transparentMaterial;
+
+        cage.enableEdgesRendering();
+        cage.edgesWidth = 4.0;
+        cage.edgesColor = new Color4(1, 1, 1, 1);
+        cage.parent = parent;
+        return cage;
+    }
+
+    private _getDebugConstraintMesh(constraint: PhysicsConstraint): Nullable<Array<AbstractMesh>> {
         if (!this._utilityLayer) {
             return null;
         }
@@ -895,6 +965,9 @@ export class PhysicsViewer {
 
         // First, get a reference to all physic bodies that are using this constraint
         const bodiesUsingConstraint = constraint.getBodiesUsingConstraint();
+
+        const parentedConstraintMeshes = [];
+        parentedConstraintMeshes.push(parentingMesh);
 
         for (const bodyPairInfo of bodiesUsingConstraint) {
             // Create a mesh to keep the pair of constraint axes
@@ -949,9 +1022,76 @@ export class PhysicsViewer {
             childAxes.xAxis.parent = childTransformNode;
             childAxes.yAxis.parent = childTransformNode;
             childAxes.zAxis.parent = childTransformNode;
+
+            // constrain vis
+            const engine = this._physicsEnginePlugin! as IPhysicsEnginePluginV2;
+
+            const constraintAxisAngular = [PhysicsConstraintAxis.ANGULAR_X, PhysicsConstraintAxis.ANGULAR_Y, PhysicsConstraintAxis.ANGULAR_Z];
+            const constraintAxisLinear = [PhysicsConstraintAxis.LINEAR_X, PhysicsConstraintAxis.LINEAR_Y, PhysicsConstraintAxis.LINEAR_Z];
+            const constraintAxis = [constraintAxisAngular, constraintAxisLinear];
+
+            // count axis. Angular and Linear
+            const lockCount = [0, 0];
+            for (let angularLinear = 0; angularLinear < 2; angularLinear++) {
+                for (let axis = 0; axis < 3; axis++) {
+                    const constraintAxisValue = constraintAxis[angularLinear][axis];
+                    const axisMode = engine.getAxisMode(constraint, constraintAxisValue);
+                    if (axisMode == PhysicsConstraintAxisLimitMode.LOCKED) {
+                        lockCount[angularLinear]++;
+                    }
+                }
+            }
+
+            // Any free/limited Linear axis
+            if (lockCount[1] != 3) {
+                const cage = this._createCage(parentTransformNode, utilityLayerScene);
+
+                const min = TmpVectors.Vector3[0];
+                const max = TmpVectors.Vector3[1];
+                const limited = [false, false, false];
+
+                limited[0] = engine.getAxisMode(constraint, PhysicsConstraintAxis.LINEAR_X) == PhysicsConstraintAxisLimitMode.LIMITED;
+                limited[1] = engine.getAxisMode(constraint, PhysicsConstraintAxis.LINEAR_Y) == PhysicsConstraintAxisLimitMode.LIMITED;
+                limited[2] = engine.getAxisMode(constraint, PhysicsConstraintAxis.LINEAR_Z) == PhysicsConstraintAxisLimitMode.LIMITED;
+
+                min.x = limited[0] ? engine.getAxisMinLimit(constraint, PhysicsConstraintAxis.LINEAR_X)! : 0;
+                max.x = limited[0] ? engine.getAxisMaxLimit(constraint, PhysicsConstraintAxis.LINEAR_X)! : 0;
+                min.y = limited[1] ? engine.getAxisMinLimit(constraint, PhysicsConstraintAxis.LINEAR_Y)! : 0;
+                max.y = limited[1] ? engine.getAxisMaxLimit(constraint, PhysicsConstraintAxis.LINEAR_Y)! : 0;
+                min.z = limited[2] ? engine.getAxisMinLimit(constraint, PhysicsConstraintAxis.LINEAR_Z)! : 0;
+                max.z = limited[2] ? engine.getAxisMaxLimit(constraint, PhysicsConstraintAxis.LINEAR_Z)! : 0;
+
+                cage.position.x = min.x + 0.5;
+                cage.position.y = min.y + 0.5;
+                cage.position.z = min.z + 0.5;
+
+                cage.scaling.x = max.x - min.x + Epsilon;
+                cage.scaling.y = max.y - min.y + Epsilon;
+                cage.scaling.z = max.z - min.z + Epsilon;
+                parentedConstraintMeshes.push(cage);
+            }
+
+            // Angular
+            if (lockCount[0] != 3) {
+                for (let axisIndex = 0; axisIndex < 3; axisIndex++) {
+                    const axis = constraintAxisAngular[axisIndex];
+                    const axisMode = engine.getAxisMode(constraint, axis);
+                    let minLimit = 0;
+                    let maxLimit = Math.PI * 2;
+                    if (axisMode == PhysicsConstraintAxisLimitMode.LIMITED) {
+                        minLimit = engine.getAxisMinLimit(constraint, axis)!;
+                        maxLimit = engine.getAxisMaxLimit(constraint, axis)!;
+                    }
+                    if (axisMode != PhysicsConstraintAxisLimitMode.LOCKED && constraint.options.pivotB) {
+                        const mesh = this._createAngularConstraintMesh(minLimit, maxLimit, axisIndex, childBody.transformNode, utilityLayerScene);
+                        mesh.position.copyFrom(constraint.options.pivotB);
+                        parentedConstraintMeshes.push(mesh);
+                    }
+                }
+            }
         }
 
-        return parentingMesh;
+        return parentedConstraintMeshes;
     }
 
     /**
@@ -988,7 +1128,7 @@ export class PhysicsViewer {
         this._scene = null;
         this._physicsEnginePlugin = null;
 
-        if (this._utilityLayer) {
+        if (this._ownUtilityLayer && this._utilityLayer) {
             this._utilityLayer.dispose();
             this._utilityLayer = null;
         }

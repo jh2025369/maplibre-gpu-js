@@ -11,7 +11,7 @@ const shader = `varying vUV: vec2f;var textureSamplerSampler: sampler;var textur
 #include<imageProcessingFunctions>
 #define CUSTOM_FRAGMENT_DEFINITIONS
 @fragment
-fn main(input: FragmentInputs)->FragmentOutputs {var result: vec4f=textureSample(textureSampler,textureSamplerSampler,input.vUV);
+fn main(input: FragmentInputs)->FragmentOutputs {var result: vec4f=textureSample(textureSampler,textureSamplerSampler,input.vUV);result=vec4f(max(result.rgb,vec3f(0.)),result.a);
 #ifdef IMAGEPROCESSING
 #ifndef FROMLINEARSPACE
 result=vec4f(toLinearSpaceVec3(result.rgb),result.a);

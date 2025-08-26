@@ -6,7 +6,7 @@ import type { IDisposable } from "../scene";
 import type { IPipelineContext } from "../Engines/IPipelineContext";
 import type { DataBuffer } from "../Buffers/dataBuffer";
 import type { IShaderProcessor } from "../Engines/Processors/iShaderProcessor";
-import type { ProcessingOptions, ShaderCustomProcessingFunction, ShaderProcessingContext } from "../Engines/Processors/shaderProcessingOptions";
+import type { _IProcessingOptions, ShaderCustomProcessingFunction, _IShaderProcessingContext } from "../Engines/Processors/shaderProcessingOptions";
 import type { IMatrixLike, IVector2Like, IVector3Like, IVector4Like, IColor3Like, IColor4Like, IQuaternionLike } from "../Maths/math.like";
 import type { AbstractEngine } from "../Engines/abstractEngine";
 import type { IEffectFallbacks } from "./iEffectFallbacks";
@@ -15,7 +15,8 @@ import { ShaderLanguage } from "./shaderLanguage";
 import type { InternalTexture } from "../Materials/Textures/internalTexture";
 import type { ThinTexture } from "../Materials/Textures/thinTexture";
 import type { IPipelineGenerationOptions } from "./effect.functions";
-import { _processShaderCode, getCachedPipeline, createAndPreparePipelineContext, resetCachedPipeline, _retryWithInterval } from "./effect.functions";
+import { _ProcessShaderCode, getCachedPipeline, createAndPreparePipelineContext, resetCachedPipeline } from "./effect.functions";
+import { _RetryWithInterval } from "core/Misc/timingTools";
 import { WebGPUShaderProcessorCustom } from "core/Engines/WebGPU/webgpuShaderProcessorsCustom";
 import { WebGPUShaderProcessingContext } from "core/Engines/WebGPU/webgpuShaderProcessingContext";
 
@@ -26,7 +27,9 @@ import { WebGPUShaderProcessingContext } from "core/Engines/WebGPU/webgpuShaderP
  *  * object: `{ vertex: "custom", fragment: "custom" }`, used with `Effect.ShadersStore["customVertexShader"]` and `Effect.ShadersStore["customFragmentShader"]`
  *  * string: `"./COMMON_NAME"`, used with external files COMMON_NAME.vertex.fx and COMMON_NAME.fragment.fx in index.html folder.
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export type IShaderPath = {
+    // Should not have `I` prefix as it is a type and not an interface
     /**
      * Directly pass the shader code
      */
@@ -74,7 +77,7 @@ export interface IEffectCreationOptions {
     /**
      * Uniform buffer variable names that will be set in the shader.
      */
-    uniformBuffersNames: string[];
+    uniformBuffersNames?: string[];
     /**
      * Sampler texture variable names that will be set in the shader.
      */
@@ -134,6 +137,11 @@ export interface IEffectCreationOptions {
     extraInitializationsAsync?: () => Promise<void>;
 
     /**
+     * If set to true the shader will not be compiles asynchronously, even if the engine allows it.
+     */
+    disableParallelShaderCompilation?: boolean;
+
+    /**
      * Shader processor to use when creating the effect
      */
     shaderProcessor?: Nullable<IShaderProcessor>;
@@ -156,6 +164,12 @@ export class Effect implements IDisposable {
      * Enable logging of the shader code when a compilation error occurs
      */
     public static LogShaderCodeOnCompilationError = true;
+
+    /**
+     * Gets or sets a boolean indicating that effect ref counting is disabled
+     * If true, the effect will persist in memory until engine is disposed
+     */
+    public static PersistentMode: boolean = false;
 
     /**
      * Use this with caution
@@ -258,6 +272,7 @@ export class Effect implements IDisposable {
     private _fragmentSourceCodeOverride: string = "";
     private _transformFeedbackVaryings: Nullable<string[]> = null;
     private _shaderLanguage: ShaderLanguage;
+    private _disableParallelShaderCompilation: boolean = false;
     /**
      * Compiled shader to webGL program.
      * @internal
@@ -279,7 +294,7 @@ export class Effect implements IDisposable {
     public _rawFragmentSourceCode: string = "";
 
     private static _BaseCache: { [key: number]: DataBuffer } = {};
-    private _processingContext: Nullable<ShaderProcessingContext>;
+    private _processingContext: Nullable<_IShaderProcessingContext>;
 
     private _processCodeAfterIncludes: ShaderCustomProcessingFunction | undefined = undefined;
     private _processFinalCode: Nullable<ShaderCustomProcessingFunction> = null;
@@ -345,6 +360,7 @@ export class Effect implements IDisposable {
             this._transformFeedbackVaryings = options.transformFeedbackVaryings || null;
             this._multiTarget = !!options.multiTarget;
             this._shaderLanguage = options.shaderLanguage ?? ShaderLanguage.GLSL;
+            this._disableParallelShaderCompilation = !!options.disableParallelShaderCompilation;
 
             this.shaderProcessorCustom = options.shaderProcessor || null;
 
@@ -357,13 +373,14 @@ export class Effect implements IDisposable {
 
             this._processFinalCode = options.processFinalCode ?? null;
             this._processCodeAfterIncludes = options.processCodeAfterIncludes ?? undefined;
+            extraInitializationsAsync = options.extraInitializationsAsync;
 
             cachedPipeline = options.existingPipelineContext;
         } else {
             this._engine = <AbstractEngine>engine;
             this.defines = defines == null ? "" : defines;
             this._uniformsNames = (<string[]>uniformsNamesOrEngine).concat(<string[]>samplers);
-            this._samplerList = samplers ? <string[]>samplers.slice() : [];
+            this._samplerList = samplers ? samplers.slice() : [];
             this._attributesNames = <string[]>attributesNamesOrOptions;
             this._uniformBuffersNamesList = [];
             this._shaderLanguage = shaderLanguage;
@@ -384,6 +401,8 @@ export class Effect implements IDisposable {
 
         this.uniqueId = Effect._UniqueIdSeed++;
         if (!cachedPipeline) {
+            // Floating promise - should be checked here.
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises
             this._processShaderCodeAsync(this.shaderProcessorCustom, false, null, extraInitializationsAsync);
         } else {
             this._pipelineContext = cachedPipeline;
@@ -394,13 +413,21 @@ export class Effect implements IDisposable {
                 (this._pipelineContext as any).program.__SPECTOR_rebuildProgram = this._rebuildProgram.bind(this);
             }
         }
+
+        this._engine.onReleaseEffectsObservable.addOnce(() => {
+            if (this.isDisposed) {
+                return;
+            }
+
+            this.dispose(true);
+        });
     }
 
     /** @internal */
     public async _processShaderCodeAsync(
         shaderProcessor: Nullable<IShaderProcessor> = null,
         keepExistingPipelineContext = false,
-        shaderProcessingContext: Nullable<ShaderProcessingContext> = null,
+        shaderProcessingContext: Nullable<_IShaderProcessingContext> = null,
         extraInitializationsAsync?: () => Promise<void>
     ) {
         if (extraInitializationsAsync) {
@@ -417,7 +444,15 @@ export class Effect implements IDisposable {
             }
         }
 
-        const processorOptions: ProcessingOptions = {
+        if (shaderProcessor instanceof WebGPUShaderProcessorCustom) {
+            for (let i = 0; i < this._attributesNames.length; i++) {
+                const name = this._attributesNames[i];
+                (this._processingContext as WebGPUShaderProcessingContext).availableAttributes[name] = i;
+                (this._processingContext as WebGPUShaderProcessingContext).orderedAttributes[i] = name;
+            }
+        }
+
+        const processorOptions: _IProcessingOptions = {
             defines: this.defines.split("\n"),
             indexParameters: this._indexParameters,
             isFragment: false,
@@ -434,7 +469,7 @@ export class Effect implements IDisposable {
             processCodeAfterIncludes: this._processCodeAfterIncludes,
         };
 
-        _processShaderCode(
+        _ProcessShaderCode(
             processorOptions,
             this.name,
             this._processFinalCode,
@@ -599,6 +634,16 @@ export class Effect implements IDisposable {
     }
 
     /**
+     * Wait until compilation before fulfilling.
+     * @returns a promise to wait for completion.
+     */
+    public async whenCompiledAsync(): Promise<Effect> {
+        return await new Promise((resolve) => {
+            this.executeWhenCompiled(resolve);
+        });
+    }
+
+    /**
      * Adds a callback to the onCompiled observable and call the callback immediately if already ready.
      * @param func The callback to be used.
      */
@@ -618,7 +663,7 @@ export class Effect implements IDisposable {
     }
 
     private _checkIsReady(previousPipelineContext: Nullable<IPipelineContext>) {
-        _retryWithInterval(
+        _RetryWithInterval(
             () => {
                 return this._isReadyInternal() || this._isDisposed;
             },
@@ -627,7 +672,11 @@ export class Effect implements IDisposable {
             },
             (e) => {
                 this._processCompilationErrors(e, previousPipelineContext);
-            }
+            },
+            16,
+            120000,
+            true,
+            ` - Effect: ${typeof this.name === "string" ? this.name : this.key}`
         );
     }
 
@@ -740,7 +789,7 @@ export class Effect implements IDisposable {
         this._pipelineContext = pipelineContext;
         this._pipelineContext.setEngine(this._engine);
         this._attributes = [];
-        this._pipelineContext!._fillEffectInformation(
+        this._pipelineContext._fillEffectInformation(
             this,
             this._uniformBuffersNames,
             this._uniformsNames,
@@ -799,7 +848,7 @@ export class Effect implements IDisposable {
                     existingPipelineContext: keepExistingPipelineContext ? previousPipelineContext : null,
                     vertex,
                     fragment,
-                    context: engine.shaderPlatformName === "WEBGL2" ? (engine as any)._gl : undefined,
+                    context: engine.shaderPlatformName === "WEBGL2" || engine.shaderPlatformName === "WEBGL1" ? (engine as any)._gl : undefined,
                     rebuildRebind: (
                         vertexSourceCode: string,
                         fragmentSourceCode: string,
@@ -810,7 +859,7 @@ export class Effect implements IDisposable {
                     transformFeedbackVaryings: this._transformFeedbackVaryings,
                     name: this._key.replace(/\r/g, "").replace(/\n/g, "|"),
                     createAsRaw: overrides,
-                    parallelShaderCompile: engine._caps.parallelShaderCompile,
+                    disableParallelCompilation: this._disableParallelShaderCompilation,
                     shaderProcessingContext: this._processingContext,
                     onRenderingStateCompiled: (pipelineContext) => {
                         if (previousPipelineContext && !keepExistingPipelineContext) {
@@ -822,7 +871,7 @@ export class Effect implements IDisposable {
                     },
                 },
                 this._engine.createPipelineContext.bind(this._engine),
-                this._engine._preparePipelineContext.bind(this._engine),
+                this._engine._preparePipelineContextAsync.bind(this._engine),
                 this._engine._executeWhenRenderingStateIsCompiled.bind(this._engine)
             );
 
@@ -860,18 +909,8 @@ export class Effect implements IDisposable {
 
         // Let's go through fallbacks then
         Logger.Error("Unable to compile effect:");
-        Logger.Error(
-            "Uniforms: " +
-                this._uniformsNames.map(function (uniform) {
-                    return " " + uniform;
-                })
-        );
-        Logger.Error(
-            "Attributes: " +
-                attributesNames.map(function (attribute) {
-                    return " " + attribute;
-                })
-        );
+        Logger.Error(`Uniforms: ${this._uniformsNames.join(" ")}`);
+        Logger.Error(`Attributes: ${attributesNames.join(" ")}`);
         Logger.Error("Defines:\n" + this.defines);
         if (Effect.LogShaderCodeOnCompilationError) {
             let lineErrorVertex = null,
@@ -905,6 +944,7 @@ export class Effect implements IDisposable {
                 this.onError(this, this._compilationError);
             }
             this.onErrorObservable.notifyObservers(this);
+            this._engine.onEffectErrorObservable.notifyObservers({ effect: this, errors: this._compilationError });
         };
 
         // In case a previous compilation was successful, we need to restore the previous pipeline context
@@ -1498,6 +1538,9 @@ export class Effect implements IDisposable {
         if (force) {
             this._refCount = 0;
         } else {
+            if (Effect.PersistentMode) {
+                return;
+            }
             this._refCount--;
         }
 

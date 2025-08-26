@@ -1,5 +1,4 @@
-// eslint-disable-next-line import/no-internal-modules
-import type { SmartArray, Nullable, Immutable, Camera, Scene, AbstractMesh, SubMesh, Material, IParticleSystem } from "core/index";
+import type { SmartArray, Nullable, Immutable, Camera, Scene, AbstractMesh, SubMesh, Material, IParticleSystem, InstancedMesh } from "core/index";
 import { Observable } from "../Misc/observable";
 import { RenderingManager } from "../Rendering/renderingManager";
 import { Constants } from "../Engines/constants";
@@ -8,6 +7,7 @@ import { _ObserveArray } from "../Misc/arrayTools";
 /**
  * Defines the options of the object renderer
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export interface ObjectRendererOptions {
     /** The number of passes the renderer will support (1 by default) */
     numPasses?: number;
@@ -67,12 +67,12 @@ export class ObjectRenderer {
         this._renderList = value;
     }
 
-    private _renderListHasChanged = (_functionName: String, previousLength: number) => {
+    private _renderListHasChanged = (_functionName: string, previousLength: number) => {
         const newLength = this._renderList ? this._renderList.length : 0;
         if ((previousLength === 0 && newLength > 0) || newLength === 0) {
-            this._scene.meshes.forEach((mesh) => {
+            for (const mesh of this._scene.meshes) {
                 mesh._markSubMeshesAsLightDirty();
-            });
+            }
         }
     };
 
@@ -113,6 +113,30 @@ export class ObjectRenderer {
      * Define the camera used to render the objects.
      */
     public activeCamera: Nullable<Camera>;
+
+    /**
+     * Define the camera used to calculate the LOD of the objects.
+     * If not defined, activeCamera will be used. If not defined nor activeCamera, scene's active camera will be used.
+     */
+    public cameraForLOD: Nullable<Camera>;
+
+    private _disableImageProcessing = false;
+    /**
+     * If true, the object renderer will render all objects without any image processing applied.
+     * If false (default value), the renderer will use the current setting of the scene's image processing configuration.
+     */
+    public get disableImageProcessing() {
+        return this._disableImageProcessing;
+    }
+
+    public set disableImageProcessing(value: boolean) {
+        if (value === this._disableImageProcessing) {
+            return;
+        }
+
+        this._disableImageProcessing = value;
+        this._scene.markAllMaterialsAsDirty(Constants.MATERIAL_ImageProcessingDirtyFlag);
+    }
 
     /**
      * Override the mesh isReady function with your own one.
@@ -156,28 +180,51 @@ export class ObjectRenderer {
     public readonly onFastPathRenderObservable = new Observable<number>();
 
     protected _scene: Scene;
-    protected _renderingManager: RenderingManager;
+    /** @internal */
+    public _renderingManager: RenderingManager;
     /** @internal */
     public _waitingRenderList?: string[];
     protected _currentRefreshId = -1;
     protected _refreshRate = 1;
-    protected _doNotChangeAspectRatio: boolean;
+    protected _currentApplyByPostProcessSetting = false;
 
     /**
      * The options used by the object renderer
      */
     public options: Required<ObjectRendererOptions>;
 
+    private _name: string;
     /**
      * Friendly name of the object renderer
      */
-    public name: string;
+    public get name() {
+        return this._name;
+    }
+
+    public set name(value: string) {
+        if (this._name === value) {
+            return;
+        }
+
+        this._name = value;
+
+        if (!this._scene) {
+            return;
+        }
+
+        const engine = this._scene.getEngine();
+
+        for (let i = 0; i < this._renderPassIds.length; ++i) {
+            const renderPassId = this._renderPassIds[i];
+            engine._renderPassNames[renderPassId] = `${this._name}#${i}`;
+        }
+    }
 
     /**
      * Current render pass id. Note it can change over the rendering as there's a separate id for each face of a cube / each layer of an array layer!
      */
     public renderPassId: number;
-    private _renderPassIds: number[];
+    private readonly _renderPassIds: number[];
     /**
      * Gets the render pass ids used by the object renderer.
      */
@@ -206,7 +253,11 @@ export class ObjectRenderer {
         }
         for (let j = 0; j < meshes.length; ++j) {
             for (let i = 0; i < this.options.numPasses; ++i) {
-                meshes[j].setMaterialForRenderPass(this._renderPassIds[i], material !== undefined ? (Array.isArray(material) ? material[i] : material) : undefined);
+                let mesh = meshes[j];
+                if (meshes[j].isAnInstance) {
+                    mesh = (meshes[j] as InstancedMesh).sourceMesh;
+                }
+                mesh.setMaterialForRenderPass(this._renderPassIds[i], material !== undefined ? (Array.isArray(material) ? material[i] : material) : undefined);
             }
         }
     }
@@ -253,7 +304,7 @@ export class ObjectRenderer {
         const engine = this._scene.getEngine();
 
         for (let i = 0; i < this.options.numPasses; ++i) {
-            this._renderPassIds[i] = engine.createRenderPassId(`ObjectRenderer - ${this.name}#${i}`);
+            this._renderPassIds[i] = engine.createRenderPassId(`${this.name}#${i}`);
         }
     }
 
@@ -353,6 +404,12 @@ export class ObjectRenderer {
                 }
             }
         }
+
+        this._currentApplyByPostProcessSetting = this._scene.imageProcessingConfiguration.applyByPostProcess;
+        if (this._disableImageProcessing) {
+            // we do not use the applyByPostProcess setter to avoid flagging all the materials as "image processing dirty"!
+            this._scene.imageProcessingConfiguration._applyByPostProcess = this._disableImageProcessing;
+        }
     }
 
     private _defaultRenderListPrepared: boolean;
@@ -385,6 +442,10 @@ export class ObjectRenderer {
      */
     public finishRender() {
         const scene = this._scene;
+
+        if (this._disableImageProcessing) {
+            scene.imageProcessingConfiguration._applyByPostProcess = this._currentApplyByPostProcessSetting;
+        }
 
         scene.activeCamera = this._currentSceneCamera;
         if (this._currentSceneCamera) {
@@ -484,7 +545,7 @@ export class ObjectRenderer {
                 currentRenderList = defaultRenderList;
             }
 
-            if (!this._doNotChangeAspectRatio) {
+            if (!this.options.doNotChangeAspectRatio) {
                 scene.updateTransformMatrix(true);
             }
 
@@ -528,11 +589,13 @@ export class ObjectRenderer {
 
     private _prepareRenderingManager(currentRenderList: Array<AbstractMesh>, currentRenderListLength: number, checkLayerMask: boolean): void {
         const scene = this._scene;
-        const camera = scene.activeCamera;
+        const camera = scene.activeCamera; // note that at this point, scene.activeCamera == this.activeCamera if defined, because initRender() has been called before
+        const cameraForLOD = this.cameraForLOD ?? camera;
 
         this._renderingManager.reset();
 
         const sceneRenderId = scene.getRenderId();
+        const currentFrameId = scene.getFrameId();
         for (let meshIndex = 0; meshIndex < currentRenderListLength; meshIndex++) {
             const mesh = currentRenderList[meshIndex];
 
@@ -547,15 +610,28 @@ export class ObjectRenderer {
                     continue;
                 }
 
-                if (!mesh._internalAbstractMeshDataInfo._currentLODIsUpToDate && camera) {
-                    mesh._internalAbstractMeshDataInfo._currentLOD = scene.customLODSelector ? scene.customLODSelector(mesh, camera) : mesh.getLOD(camera);
-                    mesh._internalAbstractMeshDataInfo._currentLODIsUpToDate = true;
-                }
-                if (!mesh._internalAbstractMeshDataInfo._currentLOD) {
-                    continue;
+                let meshToRender: Nullable<AbstractMesh> = null;
+
+                if (cameraForLOD) {
+                    const meshToRenderAndFrameId = mesh._internalAbstractMeshDataInfo._currentLOD.get(cameraForLOD);
+                    if (!meshToRenderAndFrameId || meshToRenderAndFrameId[1] !== currentFrameId) {
+                        meshToRender = scene.customLODSelector ? scene.customLODSelector(mesh, cameraForLOD) : mesh.getLOD(cameraForLOD);
+                        if (!meshToRenderAndFrameId) {
+                            mesh._internalAbstractMeshDataInfo._currentLOD.set(cameraForLOD, [meshToRender, currentFrameId]);
+                        } else {
+                            meshToRenderAndFrameId[0] = meshToRender;
+                            meshToRenderAndFrameId[1] = currentFrameId;
+                        }
+                    } else {
+                        meshToRender = meshToRenderAndFrameId[0];
+                    }
+                } else {
+                    meshToRender = mesh;
                 }
 
-                let meshToRender = mesh._internalAbstractMeshDataInfo._currentLOD;
+                if (!meshToRender) {
+                    continue;
+                }
 
                 if (meshToRender !== mesh && meshToRender.billboardMode !== 0) {
                     meshToRender.computeWorldMatrix(); // Compute world matrix if LOD is billboard
@@ -634,9 +710,11 @@ export class ObjectRenderer {
      *
      * @param renderingGroupId The rendering group id corresponding to its index
      * @param autoClearDepthStencil Automatically clears depth and stencil between groups if true.
+     * @param depth Automatically clears depth between groups if true and autoClear is true.
+     * @param stencil Automatically clears stencil between groups if true and autoClear is true.
      */
-    public setRenderingAutoClearDepthStencil(renderingGroupId: number, autoClearDepthStencil: boolean): void {
-        this._renderingManager.setRenderingAutoClearDepthStencil(renderingGroupId, autoClearDepthStencil);
+    public setRenderingAutoClearDepthStencil(renderingGroupId: number, autoClearDepthStencil: boolean, depth = true, stencil = true): void {
+        this._renderingManager.setRenderingAutoClearDepthStencil(renderingGroupId, autoClearDepthStencil, depth, stencil);
         this._renderingManager._useSceneAutoClearSetup = false;
     }
 
@@ -658,6 +736,15 @@ export class ObjectRenderer {
      * Dispose the renderer and release its associated resources.
      */
     public dispose(): void {
+        const renderList = this.renderList ? this.renderList : this._scene.getActiveMeshes().data;
+        const renderListLength = this.renderList ? this.renderList.length : this._scene.getActiveMeshes().length;
+        for (let i = 0; i < renderListLength; i++) {
+            const mesh = renderList[i];
+            if (mesh && mesh.getMaterialForRenderPass(this.renderPassId) !== undefined) {
+                mesh.setMaterialForRenderPass(this.renderPassId, undefined);
+            }
+        }
+
         this.onBeforeRenderObservable.clear();
         this.onAfterRenderObservable.clear();
         this.onBeforeRenderingManagerRenderObservable.clear();

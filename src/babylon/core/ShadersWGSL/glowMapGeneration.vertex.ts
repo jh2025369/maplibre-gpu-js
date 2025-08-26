@@ -46,6 +46,9 @@ fn main(input : VertexInputs)->FragmentInputs {var positionUpdated: vec3f=input.
 #ifdef UV1
 var uvUpdated: vec2f=input.uv;
 #endif
+#ifdef UV2
+var uv2Updated: vec2f=input.uv2;
+#endif
 #include<morphTargetsVertexGlobal>
 #include<morphTargetsVertex>[0..maxSimultaneousMorphTargets]
 #include<instancesVertex>
@@ -62,7 +65,7 @@ vertexOutputs.vPosition=uniforms.viewProjection*worldPos;vertexOutputs.position=
 vertexOutputs.vUVDiffuse= (uniforms.diffuseMatrix* vec4f(uvUpdated,1.0,0.0)).xy;
 #endif
 #ifdef DIFFUSEUV2
-vertexOutputs.vUVDiffuse= (uniforms.diffuseMatrix* vec4f(input.uv2,1.0,0.0)).xy;
+vertexOutputs.vUVDiffuse= (uniforms.diffuseMatrix* vec4f(uv2Updated,1.0,0.0)).xy;
 #endif
 #endif
 #ifdef OPACITY
@@ -70,7 +73,7 @@ vertexOutputs.vUVDiffuse= (uniforms.diffuseMatrix* vec4f(input.uv2,1.0,0.0)).xy;
 vertexOutputs.vUVOpacity= (uniforms.opacityMatrix* vec4f(uvUpdated,1.0,0.0)).xy;
 #endif
 #ifdef OPACITYUV2
-vertexOutputs.vUVOpacity= (uniforms.opacityMatrix* vec4f(input.uv2,1.0,0.0)).xy;
+vertexOutputs.vUVOpacity= (uniforms.opacityMatrix* vec4f(uv2Updated,1.0,0.0)).xy;
 #endif
 #endif
 #ifdef EMISSIVE
@@ -78,7 +81,7 @@ vertexOutputs.vUVOpacity= (uniforms.opacityMatrix* vec4f(input.uv2,1.0,0.0)).xy;
 vertexOutputs.vUVEmissive= (uniforms.emissiveMatrix* vec4f(uvUpdated,1.0,0.0)).xy;
 #endif
 #ifdef EMISSIVEUV2
-vertexOutputs.vUVEmissive= (uniforms.emissiveMatrix* vec4f(input.uv2,1.0,0.0)).xy;
+vertexOutputs.vUVEmissive= (uniforms.emissiveMatrix* vec4f(uv2Updated,1.0,0.0)).xy;
 #endif
 #endif
 #ifdef VERTEXALPHA

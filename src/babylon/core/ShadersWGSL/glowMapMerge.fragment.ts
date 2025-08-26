@@ -21,11 +21,12 @@ var alpha: f32=smoothstep(.0,.1,baseColor.a);baseColor=vec4f(baseColor.rgb*alpha
 #endif
 #endif
 #if LDR
-baseColor=clamp(baseColor,0.,1.0);
+baseColor=clamp(baseColor,vec4f(0.),vec4f(1.0));
 #endif
 fragmentOutputs.color=baseColor;
 #define CUSTOM_FRAGMENT_MAIN_END
-}`;
+}
+`;
 // Sideeffect
 ShaderStore.ShadersStoreWGSL[name] = shader;
 /** @internal */

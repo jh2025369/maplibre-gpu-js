@@ -3,8 +3,24 @@ import { ShaderStore } from "../../Engines/shaderStore";
 
 const name = "pbrBRDFFunctions";
 const shader = `#define FRESNEL_MAXIMUM_ON_ROUGH 0.25
+#define BRDF_DIFFUSE_MODEL_EON 0
+#define BRDF_DIFFUSE_MODEL_BURLEY 1
+#define BRDF_DIFFUSE_MODEL_LAMBERT 2
+#define BRDF_DIFFUSE_MODEL_LEGACY 3
+#define DIELECTRIC_SPECULAR_MODEL_GLTF 0
+#define DIELECTRIC_SPECULAR_MODEL_OPENPBR 1
+#define CONDUCTOR_SPECULAR_MODEL_GLTF 0
+#define CONDUCTOR_SPECULAR_MODEL_OPENPBR 1
+#ifndef PBR_VERTEX_SHADER
 #ifdef MS_BRDF_ENERGY_CONSERVATION
 vec3 getEnergyConservationFactor(const vec3 specularEnvironmentR0,const vec3 environmentBrdf) {return 1.0+specularEnvironmentR0*(1.0/environmentBrdf.y-1.0);}
+#endif
+#if CONDUCTOR_SPECULAR_MODEL==CONDUCTOR_SPECULAR_MODEL_OPENPBR 
+vec3 getF82Specular(float NdotV,vec3 F0,vec3 edgeTint,float roughness) {const float cos_theta_max=0.142857143; 
+const float one_minus_cos_theta_max_to_the_fifth=0.462664366; 
+const float one_minus_cos_theta_max_to_the_sixth=0.396569457; 
+vec3 white_minus_F0=vec3(1.0)-F0;vec3 b_numerator=(F0+white_minus_F0*one_minus_cos_theta_max_to_the_fifth)*(vec3(1.0)-edgeTint);const float b_denominator=cos_theta_max*one_minus_cos_theta_max_to_the_sixth;const float b_denominator_reciprocal=1.0/b_denominator;vec3 b=b_numerator*b_denominator_reciprocal; 
+float cos_theta=max(roughness,NdotV);float one_minus_cos_theta=1.0-cos_theta;vec3 offset_from_F0=(white_minus_F0-b*cos_theta*one_minus_cos_theta)*pow(one_minus_cos_theta,5.0);return clamp(F0+offset_from_F0,0.0,1.0);}
 #endif
 #ifdef ENVIRONMENTBRDF
 vec3 getBRDFLookup(float NdotV,float perceptualRoughness) {vec2 UV=vec2(NdotV,perceptualRoughness);vec4 brdfLookup=texture2D(environmentBrdfSampler,UV);
@@ -128,10 +144,29 @@ float visibility_CharlieSheen(float NdotL,float NdotV,float alphaG)
 float diffuseBRDF_Burley(float NdotL,float NdotV,float VdotH,float roughness) {float diffuseFresnelNV=pow5(saturateEps(1.0-NdotL));float diffuseFresnelNL=pow5(saturateEps(1.0-NdotV));float diffuseFresnel90=0.5+2.0*VdotH*VdotH*roughness;float fresnel =
 (1.0+(diffuseFresnel90-1.0)*diffuseFresnelNL) *
 (1.0+(diffuseFresnel90-1.0)*diffuseFresnelNV);return fresnel/PI;}
+const float constant1_FON=0.5-2.0/(3.0*PI);const float constant2_FON=2.0/3.0-28.0/(15.0*PI);float E_FON_approx(float mu,float roughness)
+{float sigma=roughness; 
+float mucomp=1.0-mu;float mucomp2=mucomp*mucomp;const mat2 Gcoeffs=mat2(0.0571085289,-0.332181442,
+0.491881867,0.0714429953);float GoverPi=dot(Gcoeffs*vec2(mucomp,mucomp2),vec2(1.0,mucomp2));return (1.0+sigma*GoverPi)/(1.0+constant1_FON*sigma);}
+vec3 diffuseBRDF_EON(vec3 albedo,float roughness,float NdotL,float NdotV,float LdotV)
+{vec3 rho=albedo;float sigma=roughness; 
+float mu_i=NdotL; 
+float mu_o=NdotV; 
+float s=LdotV-mu_i*mu_o; 
+float sovertF=s>0.0 ? s/max(mu_i,mu_o) : s; 
+float AF=1.0/(1.0+constant1_FON*sigma); 
+vec3 f_ss=(rho*RECIPROCAL_PI)*AF*(1.0+sigma*sovertF); 
+float EFo=E_FON_approx(mu_o,sigma); 
+float EFi=E_FON_approx(mu_i,sigma); 
+float avgEF=AF*(1.0+constant2_FON*sigma); 
+vec3 rho_ms=(rho*rho)*avgEF/(vec3(1.0)-rho*(1.0-avgEF));const float eps=1.0e-7;vec3 f_ms=(rho_ms*RECIPROCAL_PI)*max(eps,1.0-EFo) 
+* max(eps,1.0-EFi)
+/ max(eps,1.0-avgEF);return (f_ss+f_ms);}
 #ifdef SS_TRANSLUCENCY
 vec3 transmittanceBRDF_Burley(const vec3 tintColor,const vec3 diffusionDistance,float thickness) {vec3 S=1./maxEps(diffusionDistance);vec3 temp=exp((-0.333333333*thickness)*S);return tintColor.rgb*0.25*(temp*temp*temp+3.0*temp);}
 float computeWrappedDiffuseNdotL(float NdotL,float w) {float t=1.0+w;float invt2=1.0/square(t);return saturate((NdotL+w)*invt2);}
 #endif
+#endif 
 `;
 // Sideeffect
 ShaderStore.IncludesShadersStore[name] = shader;

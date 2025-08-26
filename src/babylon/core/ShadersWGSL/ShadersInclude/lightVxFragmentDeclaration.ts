@@ -25,6 +25,9 @@ uniform vLightFalloff{X}: vec4f;
 #elif defined(HEMILIGHT{X})
 uniform vLightGround{X}: vec3f;
 #endif
+#if defined(AREALIGHT{X})
+uniform vLightWidth{X}: vec4f;uniform vLightHeight{X}: vec4f;
+#endif
 #endif
 `;
 // Sideeffect

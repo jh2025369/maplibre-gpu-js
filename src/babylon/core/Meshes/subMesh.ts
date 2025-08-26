@@ -301,7 +301,7 @@ export class SubMesh implements ICullable {
         const rootMaterial = this._renderingMesh.getMaterialForRenderPass(this._engine.currentRenderPassId) ?? this._renderingMesh.material;
 
         if (!rootMaterial) {
-            return getDefaultMaterial ? this._mesh.getScene().defaultMaterial : null;
+            return getDefaultMaterial && this._mesh.getScene()._hasDefaultMaterial ? this._mesh.getScene().defaultMaterial : null;
         } else if (this._isMultiMaterial(rootMaterial)) {
             const effectiveMaterial = rootMaterial.getSubMaterial(this.materialIndex);
 
@@ -386,7 +386,7 @@ export class SubMesh implements ICullable {
             boundingInfo = this.getBoundingInfo();
         }
         if (boundingInfo) {
-            (<BoundingInfo>boundingInfo).update(world);
+            boundingInfo.update(world);
         }
         return this;
     }
@@ -434,10 +434,30 @@ export class SubMesh implements ICullable {
      */
     public _getLinesIndexBuffer(indices: IndicesArray, engine: AbstractEngine): DataBuffer {
         if (!this._linesIndexBuffer) {
-            const linesIndices = [];
+            const adjustedIndexCount = Math.floor(this.indexCount / 3) * 6;
+            const shouldUseUint32 = this.verticesStart + this.verticesCount > 65535;
+            const linesIndices = shouldUseUint32 ? new Uint32Array(adjustedIndexCount) : new Uint16Array(adjustedIndexCount);
 
-            for (let index = this.indexStart; index < this.indexStart + this.indexCount; index += 3) {
-                linesIndices.push(indices[index], indices[index + 1], indices[index + 1], indices[index + 2], indices[index + 2], indices[index]);
+            let offset = 0;
+            if (indices.length === 0) {
+                // Unindexed mesh
+                for (let index = this.indexStart; index < this.indexStart + this.indexCount; index += 3) {
+                    linesIndices[offset++] = index;
+                    linesIndices[offset++] = index + 1;
+                    linesIndices[offset++] = index + 1;
+                    linesIndices[offset++] = index + 2;
+                    linesIndices[offset++] = index + 2;
+                    linesIndices[offset++] = index;
+                }
+            } else {
+                for (let index = this.indexStart; index < this.indexStart + this.indexCount; index += 3) {
+                    linesIndices[offset++] = indices[index];
+                    linesIndices[offset++] = indices[index + 1];
+                    linesIndices[offset++] = indices[index + 1];
+                    linesIndices[offset++] = indices[index + 2];
+                    linesIndices[offset++] = indices[index + 2];
+                    linesIndices[offset++] = indices[index];
+                }
             }
 
             this._linesIndexBuffer = engine.createIndexBuffer(linesIndices);
@@ -744,7 +764,7 @@ export class SubMesh implements ICullable {
         let maxVertexIndex = -Number.MAX_VALUE;
 
         const whatWillRender = renderingMesh || mesh;
-        const indices = whatWillRender!.getIndices()!;
+        const indices = whatWillRender.getIndices()!;
 
         for (let index = startIndex; index < startIndex + indexCount; index++) {
             const vertexIndex = indices[index];

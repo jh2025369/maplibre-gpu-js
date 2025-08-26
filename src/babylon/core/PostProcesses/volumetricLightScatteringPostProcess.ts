@@ -27,7 +27,7 @@ import { Viewport } from "../Maths/math.viewport";
 import { RegisterClass } from "../Misc/typeStore";
 import type { Nullable } from "../types";
 
-import { BindBonesParameters, BindMorphTargetParameters, PrepareAttributesForMorphTargetsInfluencers, PushAttributesForInstances } from "../Materials/materialHelper.functions";
+import { BindBonesParameters, BindMorphTargetParameters, PrepareDefinesAndAttributesForMorphTargets, PushAttributesForInstances } from "../Materials/materialHelper.functions";
 import type { AbstractEngine } from "../Engines/abstractEngine";
 import { EffectFallbacks } from "core/Materials/effectFallbacks";
 
@@ -173,7 +173,7 @@ export class VolumetricLightScatteringPostProcess extends PostProcess {
         };
 
         this.onApplyObservable.add((effect: Effect) => {
-            this._updateMeshScreenCoordinates(<Scene>scene);
+            this._updateMeshScreenCoordinates(scene);
 
             effect.setTexture("lightScatteringSampler", this._volumetricLightScatteringRTT);
             effect.setFloat("exposure", this.exposure);
@@ -210,19 +210,26 @@ export class VolumetricLightScatteringPostProcess extends PostProcess {
         const attribs = [VertexBuffer.PositionKind];
         const material = subMesh.getMaterial();
 
+        let uv1 = false;
+        let uv2 = false;
+        const color = false;
+
         // Alpha test
         if (material) {
-            if (material.needAlphaTesting()) {
+            const needAlphaTesting = material.needAlphaTestingForMesh(mesh);
+            if (needAlphaTesting) {
                 defines.push("#define ALPHATEST");
             }
 
             if (mesh.isVerticesDataPresent(VertexBuffer.UVKind)) {
                 attribs.push(VertexBuffer.UVKind);
                 defines.push("#define UV1");
+                uv1 = needAlphaTesting;
             }
             if (mesh.isVerticesDataPresent(VertexBuffer.UV2Kind)) {
                 attribs.push(VertexBuffer.UV2Kind);
                 defines.push("#define UV2");
+                uv2 = needAlphaTesting;
             }
         }
 
@@ -251,21 +258,20 @@ export class VolumetricLightScatteringPostProcess extends PostProcess {
         }
 
         // Morph targets
-        const morphTargetManager = (mesh as Mesh).morphTargetManager;
-        let numMorphInfluencers = 0;
-        if (morphTargetManager) {
-            numMorphInfluencers = morphTargetManager.numMaxInfluencers || morphTargetManager.numInfluencers;
-            if (numMorphInfluencers > 0) {
-                defines.push("#define MORPHTARGETS");
-                defines.push("#define NUM_MORPH_INFLUENCERS " + numMorphInfluencers);
-
-                if (morphTargetManager.isUsingTextureForTargets) {
-                    defines.push("#define MORPHTARGETS_TEXTURE");
-                }
-
-                PrepareAttributesForMorphTargetsInfluencers(attribs, mesh, numMorphInfluencers);
-            }
-        }
+        const numMorphInfluencers = mesh.morphTargetManager
+            ? PrepareDefinesAndAttributesForMorphTargets(
+                  mesh.morphTargetManager,
+                  defines,
+                  attribs,
+                  mesh,
+                  true, // usePositionMorph
+                  false, // useNormalMorph
+                  false, // useTangentMorph
+                  uv1, // useUVMorph
+                  uv2, // useUV2Morph
+                  color // useColorMorph
+              )
+            : 0;
 
         // Instances
         if (useInstances) {
@@ -462,7 +468,7 @@ export class VolumetricLightScatteringPostProcess extends PostProcess {
                     effect.setMatrix("viewProjection", scene.getTransformMatrix());
 
                     // Alpha test
-                    if (material.needAlphaTesting()) {
+                    if (material.needAlphaTestingForMesh(effectiveMesh)) {
                         const alphaTexture = material.getAlphaTestTexture();
 
                         if (alphaTexture) {

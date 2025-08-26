@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-internal-modules
 import type { FrameGraph, FrameGraphTextureHandle, FrameGraphRenderPass } from "core/index";
 import { ThinBloomMergePostProcess } from "core/PostProcesses/thinBloomMergePostProcess";
 import { FrameGraphPostProcessTask } from "./postProcessTask";
@@ -24,7 +23,7 @@ export class FrameGraphBloomMergeTask extends FrameGraphPostProcessTask {
             context.bindTextureHandle(this._postProcessDrawWrapper.effect!, "bloomBlur", this.blurTexture);
         });
 
-        pass.useTexture(this.blurTexture);
+        pass.addDependencies(this.blurTexture);
 
         return pass;
     }

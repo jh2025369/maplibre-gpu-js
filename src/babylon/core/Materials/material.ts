@@ -4,7 +4,7 @@ import type { IAnimatable } from "../Animations/animatable.interface";
 import type { SmartArray } from "../Misc/smartArray";
 import type { Observer } from "../Misc/observable";
 import { Observable } from "../Misc/observable";
-import type { Nullable } from "../types";
+import type { Immutable, Nullable } from "../types";
 import type { Matrix } from "../Maths/math.vector";
 import { EngineStore } from "../Engines/engineStore";
 import { SubMesh } from "../Meshes/subMesh";
@@ -132,6 +132,11 @@ export class Material implements IAnimatable, IClipPlanesHolder {
     public static readonly CounterClockWiseSideOrientation = Constants.MATERIAL_CounterClockWiseSideOrientation;
 
     /**
+     * The dirty image processing flag value
+     */
+    public static readonly ImageProcessingDirtyFlag = Constants.MATERIAL_ImageProcessingDirtyFlag;
+
+    /**
      * The dirty texture flag value
      */
     public static readonly TextureDirtyFlag = Constants.MATERIAL_TextureDirtyFlag;
@@ -233,6 +238,16 @@ export class Material implements IAnimatable, IClipPlanesHolder {
     protected _shaderLanguage = ShaderLanguage.GLSL;
 
     protected _forceGLSL = false;
+
+    /** @internal */
+    public get _supportGlowLayer() {
+        return false;
+    }
+
+    /** @internal */
+    public set _glowModeEnabled(value: boolean) {
+        // Do nothing here
+    }
 
     /**
      * Gets the shader language used in this material.
@@ -545,32 +560,41 @@ export class Material implements IAnimatable, IClipPlanesHolder {
     /**
      * Stores the value of the alpha mode
      */
-    @serialize("alphaMode")
-    private _alphaMode: number = Constants.ALPHA_COMBINE;
+    private _alphaMode: number[] = [Constants.ALPHA_COMBINE];
 
     /**
      * Sets the value of the alpha mode.
      *
      * | Value | Type | Description |
      * | --- | --- | --- |
-     * | 0 | ALPHA_DISABLE |   |
-     * | 1 | ALPHA_ADD |   |
-     * | 2 | ALPHA_COMBINE |   |
-     * | 3 | ALPHA_SUBTRACT |   |
-     * | 4 | ALPHA_MULTIPLY |   |
-     * | 5 | ALPHA_MAXIMIZED |   |
-     * | 6 | ALPHA_ONEONE |   |
-     * | 7 | ALPHA_PREMULTIPLIED |   |
-     * | 8 | ALPHA_PREMULTIPLIED_PORTERDUFF |   |
-     * | 9 | ALPHA_INTERPOLATE |   |
-     * | 10 | ALPHA_SCREENMODE |   |
+     * | 0 | ALPHA_DISABLE |  |
+     * | 1 | ALPHA_ADD | Defines that alpha blending is COLOR=SRC_ALPHA * SRC + DEST, ALPHA=DEST_ALPHA |
+     * | 2 | ALPHA_COMBINE | Defines that alpha blending is COLOR=SRC_ALPHA * SRC + (1 - SRC_ALPHA) * DEST, ALPHA=SRC_ALPHA + DEST_ALPHA |
+     * | 3 | ALPHA_SUBTRACT | Defines that alpha blending is COLOR=(1 - SRC) * DEST, ALPHA=SRC_ALPHA - DEST_ALPHA |
+     * | 4 | ALPHA_MULTIPLY | Defines that alpha blending is COLOR=DEST * SRC, ALPHA=SRC_ALPHA + DEST_ALPHA |
+     * | 5 | ALPHA_MAXIMIZED | Defines that alpha blending is COLOR=SRC_ALPHA * SRC + (1 - SRC) * DEST, ALPHA=SRC_ALPHA + DEST_ALPHA |
+     * | 6 | ALPHA_ONEONE | Defines that alpha blending is COLOR=SRC + DEST, ALPHA=DEST_ALPHA |
+     * | 7 | ALPHA_PREMULTIPLIED | Defines that alpha blending is COLOR=SRC + (1 - SRC_ALPHA) * DEST, ALPHA=SRC_ALPHA + DEST_ALPHA |
+     * | 8 | ALPHA_PREMULTIPLIED_PORTERDUFF | Defines that alpha blending is COLOR=SRC + (1 - SRC_ALPHA) * DEST, ALPHA=SRC_ALPHA + (1 - SRC_ALPHA) * DEST_ALPHA |
+     * | 9 | ALPHA_INTERPOLATE | Defines that alpha blending is COLOR=CST * SRC + (1 - CST) * DEST, ALPHA=CST_ALPHA * SRC + (1 - CST_ALPHA) * DEST_ALPHA |
+     * | 10 | ALPHA_SCREENMODE | Defines that alpha blending is COLOR=SRC + (1 - SRC) * DEST, ALPHA=SRC_ALPHA + (1 - SRC_ALPHA) * DEST_ALPHA |
+     * | 11 | ALPHA_ONEONE_ONEONE | Defines that alpha blending is COLOR=SRC + DST, ALPHA=SRC_ALPHA + DEST_ALPHA |
+     * | 12 | ALPHA_ALPHATOCOLOR | Defines that alpha blending is COLOR=DEST_ALPHA * SRC + DST, ALPHA=0 |
+     * | 13 | ALPHA_REVERSEONEMINUS | Defines that alpha blending is COLOR=(1 - DEST) * SRC + (1 - SRC) * DEST, ALPHA=(1 - DEST_ALPHA) * SRC_ALPHA + (1 - SRC_ALPHA) * DEST_ALPHA |
+     * | 14 | ALPHA_SRC_DSTONEMINUSSRCALPHA | Defines that alpha blending is ALPHA=SRC + (1 - SRC ALPHA) * DEST, ALPHA=SRC_ALPHA + (1 - SRC ALPHA) * DEST_ALPHA |
+     * | 15 | ALPHA_ONEONE_ONEZERO | Defines that alpha blending is COLOR=SRC + DST, ALPHA=SRC_ALPHA |
+     * | 16 | ALPHA_EXCLUSION | Defines that alpha blending is COLOR=(1 - DEST) * SRC + (1 - SRC) * DEST, ALPHA=DEST_ALPHA |
+     * | 17 | ALPHA_LAYER_ACCUMULATE | Defines that alpha blending is COLOR=SRC_ALPHA * SRC + (1 - SRC ALPHA) * DEST, ALPHA=SRC_ALPHA + (1 - SRC_ALPHA) * DEST_ALPHA |
+     * | 18 | ALPHA_MIN | Defines that alpha blending is COLOR=MIN(SRC, DEST), ALPHA=MIN(SRC_ALPHA, DEST_ALPHA) |
+     * | 19 | ALPHA_MAX | Defines that alpha blending is COLOR=MAX(SRC, DEST), ALPHA=MAX(SRC_ALPHA, DEST_ALPHA) |
+     * | 20 | ALPHA_DUAL_SRC0_ADD_SRC1xDST | Defines that alpha blending uses dual source blending and is COLOR=SRC + SRC1 * DEST, ALPHA=DST_ALPHA |
      *
      */
     public set alphaMode(value: number) {
-        if (this._alphaMode === value) {
+        if (this._alphaMode[0] === value) {
             return;
         }
-        this._alphaMode = value;
+        this._alphaMode[0] = value;
         this.markAsDirty(Material.TextureDirtyFlag);
     }
 
@@ -578,7 +602,27 @@ export class Material implements IAnimatable, IClipPlanesHolder {
      * Gets the value of the alpha mode
      */
     public get alphaMode(): number {
+        return this._alphaMode[0];
+    }
+
+    /**
+     * Gets the list of alpha modes (length greater than 1 for multi-targets)
+     */
+    public get alphaModes(): Immutable<number[]> {
         return this._alphaMode;
+    }
+
+    /**
+     * Sets the value of the alpha mode for a specific target index.
+     * @param value The alpha mode value to set.
+     * @param targetIndex The index of the target to set the alpha mode for. Defaults to 0.
+     */
+    public setAlphaMode(value: number, targetIndex: number = 0): void {
+        if (this._alphaMode[targetIndex] === value) {
+            return;
+        }
+        this._alphaMode[targetIndex] = value;
+        this.markAsDirty(Material.TextureDirtyFlag);
     }
 
     /**
@@ -1082,11 +1126,6 @@ export class Material implements IAnimatable, IClipPlanesHolder {
     }
 
     /**
-     * Enforces alpha test in opaque or blend mode in order to improve the performances of some situations.
-     */
-    protected _forceAlphaTest = false;
-
-    /**
      * The transparency mode of the material.
      */
     protected _transparencyMode: Nullable<number> = null;
@@ -1117,9 +1156,19 @@ export class Material implements IAnimatable, IClipPlanesHolder {
 
         this._transparencyMode = value;
 
-        this._forceAlphaTest = value === Material.MATERIAL_ALPHATESTANDBLEND;
-
         this._markAllSubMeshesAsTexturesAndMiscDirty();
+    }
+
+    protected get _hasTransparencyMode(): boolean {
+        return this._transparencyMode != null;
+    }
+
+    protected get _transparencyModeIsBlend(): boolean {
+        return this._transparencyMode === Material.MATERIAL_ALPHABLEND || this._transparencyMode === Material.MATERIAL_ALPHATESTANDBLEND;
+    }
+
+    protected get _transparencyModeIsTest(): boolean {
+        return this._transparencyMode === Material.MATERIAL_ALPHATEST || this._transparencyMode === Material.MATERIAL_ALPHATESTANDBLEND;
     }
 
     /**
@@ -1132,8 +1181,13 @@ export class Material implements IAnimatable, IClipPlanesHolder {
     /**
      * Specifies whether or not this material should be rendered in alpha blend mode.
      * @returns a boolean specifying if alpha blending is needed
+     * @deprecated Please use needAlphaBlendingForMesh instead
      */
     public needAlphaBlending(): boolean {
+        if (this._hasTransparencyMode) {
+            return this._transparencyModeIsBlend;
+        }
+
         if (this._disableAlphaBlending) {
             return false;
         }
@@ -1147,6 +1201,10 @@ export class Material implements IAnimatable, IClipPlanesHolder {
      * @returns a boolean specifying if alpha blending is needed for the mesh
      */
     public needAlphaBlendingForMesh(mesh: AbstractMesh): boolean {
+        if (this._hasTransparencyMode) {
+            return this._transparencyModeIsBlend;
+        }
+
         if (mesh.visibility < 1.0) {
             return true;
         }
@@ -1161,10 +1219,11 @@ export class Material implements IAnimatable, IClipPlanesHolder {
     /**
      * Specifies whether or not this material should be rendered in alpha test mode.
      * @returns a boolean specifying if an alpha test is needed.
+     * @deprecated Please use needAlphaTestingForMesh instead
      */
     public needAlphaTesting(): boolean {
-        if (this._forceAlphaTest) {
-            return true;
+        if (this._hasTransparencyMode) {
+            return this._transparencyModeIsTest;
         }
 
         return false;
@@ -1175,7 +1234,11 @@ export class Material implements IAnimatable, IClipPlanesHolder {
      * @param mesh defines the mesh to check
      * @returns a boolean specifying if alpha testing should be turned on for the mesh
      */
-    protected _shouldTurnAlphaTestOn(mesh: AbstractMesh): boolean {
+    public needAlphaTestingForMesh(mesh: AbstractMesh): boolean {
+        if (this._hasTransparencyMode) {
+            return this._transparencyModeIsTest;
+        }
+
         return !this.needAlphaBlendingForMesh(mesh) && this.needAlphaTesting();
     }
 
@@ -1372,6 +1435,8 @@ export class Material implements IAnimatable, IClipPlanesHolder {
      * Unbinds the material from the mesh
      */
     public unbind(): void {
+        this._scene.getSceneUniformBuffer().unbindEffect();
+
         if (this._onUnBindObservable) {
             this._onUnBindObservable.notifyObservers(this);
         }
@@ -1560,8 +1625,8 @@ export class Material implements IAnimatable, IClipPlanesHolder {
      * @param options defines additional options for compiling the shaders
      * @returns a promise that resolves when the compilation completes
      */
-    public forceCompilationAsync(mesh: AbstractMesh, options?: Partial<IMaterialCompilationOptions>): Promise<void> {
-        return new Promise((resolve, reject) => {
+    public async forceCompilationAsync(mesh: AbstractMesh, options?: Partial<IMaterialCompilationOptions>): Promise<void> {
+        return await new Promise((resolve, reject) => {
             this.forceCompilation(
                 mesh,
                 () => {
@@ -1569,6 +1634,7 @@ export class Material implements IAnimatable, IClipPlanesHolder {
                 },
                 options,
                 (reason) => {
+                    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
                     reject(reason);
                 }
             );
@@ -1611,6 +1677,10 @@ export class Material implements IAnimatable, IClipPlanesHolder {
         }
 
         Material._DirtyCallbackArray.length = 0;
+
+        if (flag & Material.ImageProcessingDirtyFlag) {
+            Material._DirtyCallbackArray.push(Material._ImageProcessingDirtyCallBack);
+        }
 
         if (flag & Material.TextureDirtyFlag) {
             Material._DirtyCallbackArray.push(Material._TextureDirtyCallBack);
@@ -1667,18 +1737,20 @@ export class Material implements IAnimatable, IClipPlanesHolder {
      * @param func defines a function which checks material defines against the submeshes
      */
     protected _markAllSubMeshesAsDirty(func: (defines: MaterialDefines) => void) {
-        if (this.getScene().blockMaterialDirtyMechanism || this._blockDirtyMechanism) {
+        const scene = this.getScene();
+        if (scene.blockMaterialDirtyMechanism || this._blockDirtyMechanism) {
             return;
         }
 
-        const meshes = this.getScene().meshes;
+        const meshes = scene.meshes;
         for (const mesh of meshes) {
             if (!mesh.subMeshes) {
                 continue;
             }
             for (const subMesh of mesh.subMeshes) {
                 // We want to skip the submeshes which are not using this material or which have not yet rendered at least once
-                if (subMesh.getMaterial(false) !== this) {
+                const material = subMesh.getMaterial() || (scene._hasDefaultMaterial ? scene.defaultMaterial : null);
+                if (material !== this) {
                     continue;
                 }
 
@@ -1768,7 +1840,7 @@ export class Material implements IAnimatable, IClipPlanesHolder {
      * Indicates that prepass needs to be re-calculated for all submeshes
      */
     protected _markAllSubMeshesAsPrePassDirty() {
-        this._markAllSubMeshesAsDirty(Material._MiscDirtyCallBack);
+        this._markAllSubMeshesAsDirty(Material._PrePassDirtyCallBack);
     }
 
     /**
@@ -1834,18 +1906,12 @@ export class Material implements IAnimatable, IClipPlanesHolder {
             if (this.meshMap) {
                 for (const meshId in this.meshMap) {
                     const mesh = this.meshMap[meshId];
-                    if (mesh) {
-                        this.releaseVertexArrayObject(mesh, true);
-                        mesh.material = null; // will set the entry in the map to undefined
-                    }
+                    this._disposeMeshResources(mesh);
                 }
             } else {
                 const meshes = scene.meshes;
                 for (const mesh of meshes) {
-                    if (mesh.material === this && !(mesh as InstancedMesh).sourceMesh) {
-                        this.releaseVertexArrayObject(mesh, true);
-                        mesh.material = null;
-                    }
+                    this._disposeMeshResources(mesh);
                 }
             }
         }
@@ -1884,25 +1950,36 @@ export class Material implements IAnimatable, IClipPlanesHolder {
         }
     }
 
-    /**
-     * @internal
-     */
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    private releaseVertexArrayObject(mesh: AbstractMesh, forceDisposeEffect?: boolean) {
+    private _disposeMeshResources(mesh: AbstractMesh | undefined) {
+        if (!mesh) {
+            return;
+        }
+
         const geometry = (<Mesh>mesh).geometry;
-        if (geometry) {
-            if (this._storeEffectOnSubMeshes) {
-                if (mesh.subMeshes) {
-                    for (const subMesh of mesh.subMeshes) {
-                        geometry._releaseVertexArrayObject(subMesh.effect);
-                        if (forceDisposeEffect && subMesh.effect) {
-                            subMesh.effect.dispose();
+        const materialForRenderPass = mesh._internalAbstractMeshDataInfo._materialForRenderPass;
+        if (this._storeEffectOnSubMeshes) {
+            if (mesh.subMeshes && materialForRenderPass) {
+                for (const subMesh of mesh.subMeshes) {
+                    const drawWrappers = subMesh._drawWrappers;
+                    for (let renderPassIndex = 0; renderPassIndex < drawWrappers.length; renderPassIndex++) {
+                        const effect = drawWrappers[renderPassIndex]?.effect;
+                        if (!effect) {
+                            continue;
+                        }
+                        const material = materialForRenderPass[renderPassIndex];
+                        if (material === this) {
+                            geometry?._releaseVertexArrayObject(effect);
+                            subMesh._removeDrawWrapper(renderPassIndex, true, true);
                         }
                     }
                 }
-            } else {
-                geometry._releaseVertexArrayObject(this._drawWrapper.effect);
             }
+        } else {
+            geometry?._releaseVertexArrayObject(this._drawWrapper.effect);
+        }
+
+        if (mesh.material === this && !(mesh as InstancedMesh).sourceMesh) {
+            mesh.material = null;
         }
     }
 
@@ -1912,6 +1989,8 @@ export class Material implements IAnimatable, IClipPlanesHolder {
      */
     public serialize(): any {
         const serializationObject = SerializationHelper.Serialize(this);
+
+        serializationObject.alphaMode = this._alphaMode;
 
         serializationObject.stencil = this.stencil.serialize();
         serializationObject.uniqueId = this.uniqueId;
@@ -1926,7 +2005,9 @@ export class Material implements IAnimatable, IClipPlanesHolder {
 
         if (this.pluginManager) {
             for (const plugin of this.pluginManager._plugins) {
-                serializationObject.plugins[plugin.getClassName()] = plugin.serialize();
+                if (!plugin.doNotSerialize) {
+                    serializationObject.plugins[plugin.getClassName()] = plugin.serialize();
+                }
             }
         }
     }
@@ -1952,6 +2033,11 @@ export class Material implements IAnimatable, IClipPlanesHolder {
         const materialType = Tools.Instantiate(parsedMaterial.customType);
         const material = materialType.Parse(parsedMaterial, scene, rootUrl);
         material._loadedUniqueId = parsedMaterial.uniqueId;
+        if (!Array.isArray(parsedMaterial.alphaMode)) {
+            material._alphaMode = [parsedMaterial.alphaMode ?? Constants.ALPHA_COMBINE];
+        } else {
+            material._alphaMode = parsedMaterial.alphaMode;
+        }
 
         return material;
     }

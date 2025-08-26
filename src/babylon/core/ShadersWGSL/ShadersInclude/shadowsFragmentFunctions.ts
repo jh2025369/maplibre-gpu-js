@@ -16,7 +16,7 @@ var shadow: f32=unpack(textureSample(shadowTexture,shadowSampler,directionToLigh
 #else
 var shadow: f32=textureSample(shadowTexture,shadowSampler,directionToLight).x;
 #endif
-return select(darkness,1.0,depth>shadow);}
+return select(1.0,darkness,depth>shadow);}
 fn computeShadowWithPoissonSamplingCube(worldPos: vec3f,lightPosition: vec3f,shadowTexture: texture_cube<f32>,shadowSampler: sampler,mapSize: f32,darkness: f32,depthValues: vec2f)->f32
 {var directionToLight: vec3f=worldPos-lightPosition;var depth: f32=length(directionToLight);depth=(depth+depthValues.x)/(depthValues.y);depth=clamp(depth,0.,1.0);directionToLight=normalize(directionToLight);directionToLight.y=-directionToLight.y;var visibility: f32=1.;var poissonDisk: array<vec3f,4>;poissonDisk[0]= vec3f(-1.0,1.0,-1.0);poissonDisk[1]= vec3f(1.0,-1.0,-1.0);poissonDisk[2]= vec3f(-1.0,-1.0,-1.0);poissonDisk[3]= vec3f(1.0,-1.0,1.0);
 #ifndef SHADOWFLOAT

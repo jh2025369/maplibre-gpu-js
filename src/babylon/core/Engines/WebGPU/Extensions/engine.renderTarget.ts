@@ -1,14 +1,16 @@
-import { GetTypeForDepthTexture, InternalTexture, InternalTextureSource } from "../../../Materials/Textures/internalTexture";
+import { InternalTexture, InternalTextureSource } from "../../../Materials/Textures/internalTexture";
 import type { RenderTargetCreationOptions, DepthTextureCreationOptions, TextureSize } from "../../../Materials/Textures/textureCreationOptions";
 import type { Nullable } from "../../../types";
 import { Constants } from "../../constants";
 import type { RenderTargetWrapper } from "../../renderTargetWrapper";
 import { WebGPURenderTargetWrapper } from "../webgpuRenderTargetWrapper";
+import { GetTypeForDepthTexture, HasStencilAspect } from "core/Materials/Textures/textureHelper.functions";
 
 import "../../AbstractEngine/abstractEngine.texture";
 import { ThinWebGPUEngine } from "core/Engines/thinWebGPUEngine";
 
 declare module "../../abstractEngine" {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     export interface AbstractEngine {
         /**
          * Creates a new render target texture
@@ -62,7 +64,7 @@ ThinWebGPUEngine.prototype.createRenderTargetTexture = function (size: TextureSi
         fullOptions.format = options.format;
         fullOptions.type = options.type;
     } else {
-        fullOptions.generateMipMaps = <boolean>options;
+        fullOptions.generateMipMaps = options as boolean;
         fullOptions.generateDepthBuffer = true;
         fullOptions.generateStencilBuffer = false;
         fullOptions.samplingMode = Constants.TEXTURE_TRILINEAR_SAMPLINGMODE;
@@ -116,10 +118,7 @@ ThinWebGPUEngine.prototype._createDepthStencilTexture = function (size: TextureS
         ...options,
     };
 
-    const hasStencil =
-        internalOptions.depthTextureFormat === Constants.TEXTUREFORMAT_DEPTH24UNORM_STENCIL8 ||
-        internalOptions.depthTextureFormat === Constants.TEXTUREFORMAT_DEPTH24_STENCIL8 ||
-        internalOptions.depthTextureFormat === Constants.TEXTUREFORMAT_DEPTH32FLOAT_STENCIL8;
+    const hasStencil = HasStencilAspect(internalOptions.depthTextureFormat);
 
     wrapper._depthStencilTextureWithStencil = hasStencil;
 

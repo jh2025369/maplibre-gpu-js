@@ -28,13 +28,13 @@ import { Constants } from "../constants";
 import type { Nullable } from "../../types";
 import type { InternalTexture } from "../../Materials/Textures/internalTexture";
 import { InternalTextureSource } from "../../Materials/Textures/internalTexture";
-import type { HardwareTextureWrapper } from "../../Materials/Textures/hardwareTextureWrapper";
+import type { IHardwareTextureWrapper } from "../../Materials/Textures/hardwareTextureWrapper";
 import type { BaseTexture } from "../../Materials/Textures/baseTexture";
 import { WebGPUHardwareTexture } from "./webgpuHardwareTexture";
 import type { ExternalTexture } from "../../Materials/Textures/externalTexture";
 import type { WebGPUEngine } from "../webgpuEngine";
 import { WebGPUTextureHelper } from "./webgpuTextureHelper";
-import type { ProcessingOptions } from "../Processors/shaderProcessingOptions";
+import type { _IProcessingOptions } from "../Processors/shaderProcessingOptions";
 import { ShaderLanguage } from "core/Materials";
 import { Finalize, Initialize, Process } from "../Processors/shaderProcessor";
 import type { WebGPUShaderProcessorWGSL } from "./webgpuShaderProcessorsWGSL";
@@ -311,7 +311,7 @@ export class WebGPUTextureManager {
     private _compiledShaders: GPUShaderModule[][] = [];
     private _videoPipelines: { [format: string]: Array<[GPURenderPipeline, GPUBindGroupLayout]> } = {};
     private _videoCompiledShaders: GPUShaderModule[][] = [];
-    private _deferredReleaseTextures: Array<[Nullable<HardwareTextureWrapper | GPUTexture>, Nullable<BaseTexture>]> = [];
+    private _deferredReleaseTextures: Array<[Nullable<IHardwareTextureWrapper | GPUTexture>, Nullable<BaseTexture>]> = [];
     private _commandEncoderForCreation: GPUCommandEncoder;
 
     //------------------------------------------------------------------------------
@@ -373,7 +373,7 @@ export class WebGPUTextureManager {
                 let vertexCode = shadersForPipelineType[type].vertex;
                 let fragmentCode = shadersForPipelineType[type].fragment;
 
-                const processorOptions: ProcessingOptions = {
+                const processorOptions: _IProcessingOptions = {
                     defines: defines.split("\n"),
                     indexParameters: null,
                     isFragment: false,
@@ -420,15 +420,18 @@ export class WebGPUTextureManager {
                 (processorOptions.processor as WebGPUShaderProcessorWGSL).pureMode = false;
 
                 const vertexModule = this._device.createShaderModule({
+                    label: `BabylonWebGPUDevice${this._engine.uniqueId}_InternalVertexShader_${index}`,
                     code: final.vertexCode,
                 });
                 const fragmentModule = this._device.createShaderModule({
+                    label: `BabylonWebGPUDevice${this._engine.uniqueId}_InternalFragmentShader_${index}`,
                     code: final.fragmentCode,
                 });
                 modules = this._compiledShaders[index] = [vertexModule, fragmentModule];
             }
 
             const pipeline = this._device.createRenderPipeline({
+                label: `BabylonWebGPUDevice${this._engine.uniqueId}_InternalPipeline_${format}_${index}`,
                 layout: WebGPUConstants.AutoLayoutMode.Auto,
                 vertex: {
                     module: modules[0],
@@ -468,15 +471,17 @@ export class WebGPUTextureManager {
             if (!modules) {
                 const vertexModule = this._device.createShaderModule({
                     code: copyVideoToTextureVertexSource,
+                    label: `BabylonWebGPUDevice${this._engine.uniqueId}_CopyVideoToTexture_VertexShader`,
                 });
                 const fragmentModule = this._device.createShaderModule({
                     code: index === 0 ? copyVideoToTextureFragmentSource : copyVideoToTextureInvertYFragmentSource,
+                    label: `BabylonWebGPUDevice${this._engine.uniqueId}_CopyVideoToTexture_FragmentShader_${index === 0 ? "DontInvertY" : "InvertY"}`,
                 });
                 modules = this._videoCompiledShaders[index] = [vertexModule, fragmentModule];
             }
 
             const pipeline = this._device.createRenderPipeline({
-                label: `BabylonWebGPUDevice${this._engine.uniqueId}_CopyVideoToTexture_${format}_${index === 0 ? "DontInvertY" : "InvertY"}`,
+                label: `BabylonWebGPUDevice${this._engine.uniqueId}_InternalVideoPipeline_${format}_${index === 0 ? "DontInvertY" : "InvertY"}`,
                 layout: WebGPUConstants.AutoLayoutMode.Auto,
                 vertex: {
                     module: modules[0],
@@ -710,8 +715,8 @@ export class WebGPUTextureManager {
                 },
             },
             {
-                width,
-                height,
+                width: rectWidth || width,
+                height: rectHeight || height,
                 depthOrArrayLayers: 1,
             }
         );
@@ -727,41 +732,6 @@ export class WebGPUTextureManager {
         } else {
             this._deferredReleaseTextures.push([outputTexture, null]);
         }
-
-        commandEncoder!.popDebugGroup?.();
-
-        if (useOwnCommandEncoder) {
-            this._device.queue.submit([commandEncoder!.finish()]);
-            commandEncoder = null as any;
-        }
-    }
-
-    public copyWithInvertY(srcTextureView: GPUTextureView, format: GPUTextureFormat, renderPassDescriptor: GPURenderPassDescriptor, commandEncoder?: GPUCommandEncoder): void {
-        const useOwnCommandEncoder = commandEncoder === undefined;
-        const [pipeline, bindGroupLayout] = this._getPipeline(format, PipelineType.InvertYPremultiplyAlpha, { invertY: true, premultiplyAlpha: false });
-
-        if (useOwnCommandEncoder) {
-            commandEncoder = this._device.createCommandEncoder({});
-        }
-
-        commandEncoder!.pushDebugGroup?.(`internal copy texture with invertY`);
-
-        const passEncoder = commandEncoder!.beginRenderPass(renderPassDescriptor);
-
-        const bindGroup = this._device.createBindGroup({
-            layout: bindGroupLayout,
-            entries: [
-                {
-                    binding: 0,
-                    resource: srcTextureView,
-                },
-            ],
-        });
-
-        passEncoder.setPipeline(pipeline);
-        passEncoder.setBindGroup(0, bindGroup);
-        passEncoder.draw(4, 1, 0, 0);
-        passEncoder.end();
 
         commandEncoder!.popDebugGroup?.();
 
@@ -1051,7 +1021,7 @@ export class WebGPUTextureManager {
         if (texture._maxLodLevel !== null) {
             mipmapCount = texture._maxLodLevel;
         } else {
-            mipmapCount = hasMipMaps ? WebGPUTextureHelper.ComputeNumMipmapLevels(width!, height!) : 1;
+            mipmapCount = hasMipMaps ? WebGPUTextureHelper.ComputeNumMipmapLevels(width, height) : 1;
         }
 
         if (texture.isCube) {
@@ -1260,7 +1230,7 @@ export class WebGPUTextureManager {
 
                 buffer.unmap();
 
-                commandEncoder!.copyBufferToTexture(
+                commandEncoder.copyBufferToTexture(
                     {
                         buffer: buffer,
                         offset: 0,
@@ -1271,7 +1241,7 @@ export class WebGPUTextureManager {
                     textureExtent
                 );
 
-                this._device.queue.submit([commandEncoder!.finish()]);
+                this._device.queue.submit([commandEncoder.finish()]);
 
                 this._bufferManager.releaseBuffer(buffer);
             } else {
@@ -1315,90 +1285,11 @@ export class WebGPUTextureManager {
             }
         } else {
             imageBitmap = imageBitmap as ImageBitmap | ImageData | HTMLImageElement | HTMLVideoElement | VideoFrame | HTMLCanvasElement | OffscreenCanvas;
-
-            if (invertY) {
-                textureCopyView.premultipliedAlpha = false; // we are going to handle premultiplyAlpha ourselves
-
-                // we must preprocess the image
-                if (WebGPUTextureHelper.IsInternalTexture(texture) && offsetX === 0 && offsetY === 0 && width === texture.width && height === texture.height) {
-                    // optimization when the source image is the same size than the destination texture and offsets X/Y == 0:
-                    // we simply copy the source to the destination and we apply the preprocessing on the destination
-                    this._device.queue.copyExternalImageToTexture({ source: imageBitmap }, textureCopyView, textureExtent);
-
-                    this.invertYPreMultiplyAlpha(
-                        gpuOrHdwTexture,
-                        width,
-                        height,
-                        format,
-                        invertY,
-                        premultiplyAlpha,
-                        faceIndex,
-                        mipLevel,
-                        layers || 1,
-                        0,
-                        0,
-                        0,
-                        0,
-                        undefined,
-                        allowGPUOptimization
-                    );
-                } else {
-                    // we must apply the preprocessing on the source image before copying it into the destination texture
-                    const commandEncoder = this._device.createCommandEncoder({});
-
-                    // create a temp texture and copy the image to it
-                    const srcTexture = this.createTexture(
-                        { width, height, layers: 1 },
-                        false,
-                        false,
-                        false,
-                        false,
-                        false,
-                        format,
-                        1,
-                        commandEncoder,
-                        WebGPUConstants.TextureUsage.CopySrc | WebGPUConstants.TextureUsage.TextureBinding,
-                        undefined,
-                        "TempTextureForUpdateTexture"
-                    );
-
-                    this._deferredReleaseTextures.push([srcTexture, null]);
-
-                    textureExtent.depthOrArrayLayers = 1;
-                    this._device.queue.copyExternalImageToTexture({ source: imageBitmap }, { texture: srcTexture }, textureExtent);
-                    textureExtent.depthOrArrayLayers = layers || 1;
-
-                    // apply the preprocessing to this temp texture
-                    this.invertYPreMultiplyAlpha(
-                        srcTexture,
-                        width,
-                        height,
-                        format,
-                        invertY,
-                        premultiplyAlpha,
-                        faceIndex,
-                        mipLevel,
-                        layers || 1,
-                        0,
-                        0,
-                        0,
-                        0,
-                        commandEncoder,
-                        allowGPUOptimization
-                    );
-
-                    // copy the temp texture to the destination texture
-                    commandEncoder.copyTextureToTexture({ texture: srcTexture }, textureCopyView, textureExtent);
-
-                    this._device.queue.submit([commandEncoder!.finish()]);
-                }
-            } else {
-                // no preprocessing: direct copy to destination texture
-                this._device.queue.copyExternalImageToTexture({ source: imageBitmap }, textureCopyView, textureExtent);
-            }
+            this._device.queue.copyExternalImageToTexture({ source: imageBitmap, flipY: invertY }, textureCopyView, textureExtent);
         }
     }
 
+    // eslint-disable-next-line @typescript-eslint/promise-function-async
     public readPixels(
         texture: GPUTexture,
         x: number,
@@ -1450,7 +1341,7 @@ export class WebGPUTextureManager {
             }
         );
 
-        this._device.queue.submit([commandEncoder!.finish()]);
+        this._device.queue.submit([commandEncoder.finish()]);
 
         return this._bufferManager.readDataFromBuffer(
             gpuBuffer,

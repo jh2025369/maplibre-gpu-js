@@ -331,14 +331,14 @@ export class Painter {
             const numOverdrawSteps = 8;
             const a = 1 / numOverdrawSteps;
 
-            engine._cacheRenderPipeline.setAlphaBlendEnabled(true);
+            engine._cacheRenderPipeline.setAlphaBlendEnabled([true], 1);
             engine.setAlphaEquation(Constants.ALPHA_EQUATION_ADD);
             engine.setAlphaMode(Constants.ALPHA_INTERPOLATE, true);
             engine._alphaState.setAlphaBlendConstants(a, a, a, 0);
         } else if (this.renderPass === 'opaque') {
-            engine._cacheRenderPipeline.setAlphaBlendEnabled(false);
+            engine._cacheRenderPipeline.setAlphaBlendEnabled([false], 1);
         } else {
-            engine._cacheRenderPipeline.setAlphaBlendEnabled(true);
+            engine._cacheRenderPipeline.setAlphaBlendEnabled([true], 1);
             engine.setAlphaEquation(Constants.ALPHA_EQUATION_ADD);
             engine.setAlphaMode(Constants.ALPHA_PREMULTIPLIED_PORTERDUFF, true);
         }
@@ -629,7 +629,7 @@ export class Painter {
         this.engine._cacheRenderPipeline.resetDepthCullingState();
         this.engine._alphaState.reset();
         this.engine._alphaState.setAlphaEquationParameters(Constants.GL_ALPHA_EQUATION_ADD, Constants.GL_ALPHA_EQUATION_ADD);
-        this.engine._cacheRenderPipeline.setAlphaBlendEnabled(false);
+        this.engine._cacheRenderPipeline.setAlphaBlendEnabled([false], 1);
         this.engine._cacheRenderPipeline.setAlphaBlendFactors([null, null, null, null], [null, null]);
         this.engine._cacheRenderPipeline.setWriteMask(0xf);
         this.engine._cacheRenderPipeline.resetStencilState();

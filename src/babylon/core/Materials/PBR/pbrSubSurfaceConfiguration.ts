@@ -43,6 +43,7 @@ export class MaterialSubSurfaceDefines extends MaterialDefines {
     public SS_TRANSLUCENCYINTENSITY_TEXTUREDIRECTUV = 0;
     public SS_TRANSLUCENCYCOLOR_TEXTURE = false;
     public SS_TRANSLUCENCYCOLOR_TEXTUREDIRECTUV = 0;
+    public SS_TRANSLUCENCYCOLOR_TEXTURE_GAMMA = false;
 
     public SS_REFRACTIONMAP_3D = false;
     public SS_REFRACTIONMAP_OPPOSITEZ = false;
@@ -57,12 +58,31 @@ export class MaterialSubSurfaceDefines extends MaterialDefines {
     public SS_USE_THICKNESS_AS_DEPTH = false;
 
     public SS_USE_GLTF_TEXTURES = false;
+    public SS_APPLY_ALBEDO_AFTER_SUBSURFACE = false;
+    public SS_TRANSLUCENCY_LEGACY = false;
 }
 
 /**
  * Plugin that implements the sub surface component of the PBR material
  */
 export class PBRSubSurfaceConfiguration extends MaterialPluginBase {
+    /**
+     * Default value used for applyAlbedoAfterSubSurface.
+     *
+     * This property only exists for backward compatibility reasons.
+     * Set it to true if your rendering in 8.0+ is different from that in 7 when you use sub-surface properties (transmission, refraction, etc.). Default is false.
+     * Note however that the PBR calculation is wrong when this property is set to true, so only use it if you want to mimic the 7.0 behavior.
+     */
+    public static DEFAULT_APPLY_ALBEDO_AFTERSUBSURFACE = false;
+
+    /**
+     * Default value used for legacyTranslucency.
+     *
+     * This property only exists for backward compatibility reasons.
+     * Set it to true if your rendering in 8.0+ is different from that in 7 when you use sub-surface translucency. Default is false.
+     */
+    public static DEFAULT_LEGACY_TRANSLUCENCY = false;
+
     protected override _material: PBRBaseMaterial;
 
     private _isRefractionEnabled = false;
@@ -332,6 +352,33 @@ export class PBRSubSurfaceConfiguration extends MaterialPluginBase {
     @expandToProperty("_markAllSubMeshesAsTexturesDirty")
     public useGltfStyleTextures: boolean = true;
 
+    /**
+     * This property only exists for backward compatibility reasons.
+     * Set it to true if your rendering in 8.0+ is different from that in 7 when you use sub-surface properties (transmission, refraction, etc.). Default is false.
+     * Note however that the PBR calculation is wrong when this property is set to true, so only use it if you want to mimic the 7.0 behavior.
+     */
+    @serialize()
+    public applyAlbedoAfterSubSurface = PBRSubSurfaceConfiguration.DEFAULT_APPLY_ALBEDO_AFTERSUBSURFACE;
+
+    /**
+     * This property only exists for backward compatibility reasons.
+     * Set it to true if your rendering in 8.0+ is different from that in 7 when you use sub-surface translucency. Default is false.
+     */
+    @serialize()
+    public legacyTranslucency = PBRSubSurfaceConfiguration.DEFAULT_LEGACY_TRANSLUCENCY;
+
+    /**
+     * Keeping for backward compatibility... Should not be used anymore. It has been replaced by
+     * the property with the correct spelling.
+     * @see legacyTranslucency
+     */
+    public get legacyTransluceny(): boolean {
+        return this.legacyTranslucency;
+    }
+    public set legacyTransluceny(value: boolean) {
+        this.legacyTranslucency = value;
+    }
+
     private _scene: Scene;
 
     /** @internal */
@@ -435,6 +482,8 @@ export class PBRSubSurfaceConfiguration extends MaterialPluginBase {
             defines.SS_USE_GLTF_TEXTURES = false;
             defines.SS_TRANSLUCENCYCOLOR_TEXTURE = false;
             defines.SS_TRANSLUCENCYCOLOR_TEXTUREDIRECTUV = 0;
+            defines.SS_TRANSLUCENCYCOLOR_TEXTURE_GAMMA = false;
+            defines.SS_APPLY_ALBEDO_AFTER_SUBSURFACE = false;
             return;
         }
 
@@ -444,6 +493,7 @@ export class PBRSubSurfaceConfiguration extends MaterialPluginBase {
             defines.SS_DISPERSION = this._isDispersionEnabled;
             defines.SS_TRANSLUCENCY = this._isTranslucencyEnabled;
             defines.SS_TRANSLUCENCY_USE_INTENSITY_FROM_THICKNESS = false;
+            defines.SS_TRANSLUCENCY_LEGACY = this.legacyTranslucency;
             defines.SS_SCATTERING = this._isScatteringEnabled;
             defines.SS_THICKNESSANDMASK_TEXTURE = false;
             defines.SS_REFRACTIONINTENSITY_TEXTURE = false;
@@ -464,6 +514,7 @@ export class PBRSubSurfaceConfiguration extends MaterialPluginBase {
             defines.SS_USE_LOCAL_REFRACTIONMAP_CUBIC = false;
             defines.SS_USE_THICKNESS_AS_DEPTH = false;
             defines.SS_TRANSLUCENCYCOLOR_TEXTURE = false;
+            defines.SS_APPLY_ALBEDO_AFTER_SUBSURFACE = this.applyAlbedoAfterSubSurface;
 
             if (defines._areTexturesDirty) {
                 if (scene.texturesEnabled) {
@@ -481,6 +532,7 @@ export class PBRSubSurfaceConfiguration extends MaterialPluginBase {
 
                     if (this._translucencyColorTexture && MaterialFlags.TranslucencyColorTextureEnabled) {
                         PrepareDefinesForMergedUV(this._translucencyColorTexture, defines, "SS_TRANSLUCENCYCOLOR_TEXTURE");
+                        defines.SS_TRANSLUCENCYCOLOR_TEXTURE_GAMMA = this._translucencyColorTexture.gammaSpace;
                     }
                 }
             }
@@ -542,7 +594,7 @@ export class PBRSubSurfaceConfiguration extends MaterialPluginBase {
             return;
         }
 
-        const defines = subMesh!.materialDefines as unknown as MaterialSubSurfaceDefines;
+        const defines = subMesh.materialDefines as unknown as MaterialSubSurfaceDefines;
 
         const isFrozen = this._material.isFrozen;
         const realTimeFiltering = this._material.realTimeFiltering;

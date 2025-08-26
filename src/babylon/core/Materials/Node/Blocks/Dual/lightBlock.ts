@@ -164,6 +164,7 @@ export class LightBlock extends NodeMaterialBlock {
     }
 
     public override initialize(state: NodeMaterialBuildState) {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         this._initShaderSourceAsync(state.shaderLanguage);
     }
 
@@ -210,8 +211,8 @@ export class LightBlock extends NodeMaterialBlock {
         }
     }
 
-    public override prepareDefines(mesh: AbstractMesh, nodeMaterial: NodeMaterial, defines: NodeMaterialDefines) {
-        if (!defines._areLightsDirty) {
+    public override prepareDefines(defines: NodeMaterialDefines, nodeMaterial: NodeMaterial, mesh?: AbstractMesh) {
+        if (!mesh || !defines._areLightsDirty) {
             return;
         }
 
@@ -237,12 +238,22 @@ export class LightBlock extends NodeMaterialBlock {
     }
 
     public override updateUniformsAndSamples(state: NodeMaterialBuildState, nodeMaterial: NodeMaterial, defines: NodeMaterialDefines, uniformBuffers: string[]) {
+        state.samplers.push("areaLightsLTC1Sampler");
+        state.samplers.push("areaLightsLTC2Sampler");
         for (let lightIndex = 0; lightIndex < nodeMaterial.maxSimultaneousLights; lightIndex++) {
             if (!defines["LIGHT" + lightIndex]) {
                 break;
             }
             const onlyUpdateBuffersList = state.uniforms.indexOf("vLightData" + lightIndex) >= 0;
-            PrepareUniformsAndSamplersForLight(lightIndex, state.uniforms, state.samplers, defines["PROJECTEDLIGHTTEXTURE" + lightIndex], uniformBuffers, onlyUpdateBuffersList);
+            PrepareUniformsAndSamplersForLight(
+                lightIndex,
+                state.uniforms,
+                state.samplers,
+                defines["PROJECTEDLIGHTTEXTURE" + lightIndex],
+                uniformBuffers,
+                onlyUpdateBuffersList,
+                defines["IESLIGHTTEXTURE" + lightIndex]
+            );
         }
     }
 
@@ -406,14 +417,17 @@ export class LightBlock extends NodeMaterialBlock {
         }
 
         if (this.light) {
-            let replaceString = { search: /vPositionW/g, replace: worldPosVariableName + ".xyz" };
+            let replaceString = [{ search: /vPositionW/g, replace: worldPosVariableName + ".xyz" }];
 
             if (isWGSL) {
-                replaceString = { search: /fragmentInputs\.vPositionW/g, replace: worldPosVariableName + ".xyz" };
+                replaceString = [
+                    { search: /fragmentInputs\.vPositionW/g, replace: worldPosVariableName + ".xyz" },
+                    { search: /uniforms\.vReflectivityColor/g, replace: "vReflectivityColor" },
+                ];
             }
 
             state.compilationString += state._emitCodeFromInclude("lightFragment", comments, {
-                replaceStrings: [{ search: /{X}/g, replace: this._lightId.toString() }, replaceString],
+                replaceStrings: [{ search: /{X}/g, replace: this._lightId.toString() }, ...replaceString],
             });
         } else {
             let substitutionVars = `vPositionW,${worldPosVariableName}.xyz`;

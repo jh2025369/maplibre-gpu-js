@@ -6,7 +6,7 @@ import { Buffer } from "../../Buffers/buffer";
 import type { Vector3 } from "../../Maths/math.vector";
 import { VertexData } from "../mesh.vertexData";
 import { DeepCopier } from "../../Misc/deepCopier";
-import { GreasedLineSimpleMaterial } from "../../Materials/GreasedLine/greasedLineSimpleMaterial";
+import { GreasedLineSimpleMaterial, GreasedLineUseOffsetsSimpleMaterialDefine } from "../../Materials/GreasedLine/greasedLineSimpleMaterial";
 import type { AbstractEngine } from "../../Engines/abstractEngine";
 import type { FloatArray, IndicesArray } from "../../types";
 import { GreasedLineTools } from "../../Misc/greasedLineTools";
@@ -89,6 +89,7 @@ export type GreasedLinePoints = Vector3[] | Vector3[][] | Float32Array | Float32
 /**
  * Options for converting the points to the internal number[][] format used by GreasedLine
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export interface GreasedLinePointsOptions {
     /**
      * If defined and a Float32Array is used for the points parameter,
@@ -102,6 +103,7 @@ export interface GreasedLinePointsOptions {
 /**
  * Options for creating a GreasedLineMesh
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export interface GreasedLineMeshOptions {
     /**
      * Points of the line.
@@ -286,6 +288,9 @@ export abstract class GreasedLineBaseMesh extends Mesh {
      * @param offsets offset table [x,y,z, x,y,z, ....]
      */
     set offsets(offsets: number[]) {
+        if (this.material instanceof GreasedLineSimpleMaterial) {
+            this.material.setDefine(GreasedLineUseOffsetsSimpleMaterialDefine, offsets?.length > 0);
+        }
         this._offsets = offsets;
         if (!this._offsetsBuffer) {
             this._createOffsetsBuffer(offsets);

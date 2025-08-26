@@ -1,7 +1,7 @@
-// eslint-disable-next-line import/no-internal-modules
 import type { FrameGraph, FrameGraphTextureHandle, DrawWrapper, FrameGraphRenderPass, FrameGraphRenderContext, EffectWrapper } from "core/index";
 import { Constants } from "core/Engines/constants";
 import { FrameGraphTask } from "../../frameGraphTask";
+import { textureSizeIsObject } from "../../../Materials/Textures/textureCreationOptions";
 
 /**
  * Task which applies a post process.
@@ -18,10 +18,10 @@ export class FrameGraphPostProcessTask extends FrameGraphTask {
     public sourceSamplingMode = Constants.TEXTURE_BILINEAR_SAMPLINGMODE;
 
     /**
-     * The destination texture to render the post process to.
+     * The target texture to render the post process to.
      * If not supplied, a texture with the same configuration as the source texture will be created.
      */
-    public destinationTexture?: FrameGraphTextureHandle;
+    public targetTexture?: FrameGraphTextureHandle;
 
     /**
      * The output texture of the post process.
@@ -33,7 +33,16 @@ export class FrameGraphPostProcessTask extends FrameGraphTask {
      */
     public readonly postProcess: EffectWrapper;
 
+    /**
+     * The draw wrapper used by the post process
+     */
+    public get drawWrapper() {
+        return this._postProcessDrawWrapper;
+    }
+
     protected readonly _postProcessDrawWrapper: DrawWrapper;
+    protected _sourceWidth: number;
+    protected _sourceHeight: number;
     protected _outputWidth: number;
     protected _outputHeight: number;
 
@@ -50,6 +59,10 @@ export class FrameGraphPostProcessTask extends FrameGraphTask {
         this._postProcessDrawWrapper = this.postProcess.drawWrapper;
 
         this.outputTexture = this._frameGraph.textureManager.createDanglingHandle();
+
+        this.onTexturesAllocatedObservable.add((context) => {
+            context.setTextureSamplingMode(this.sourceTexture, this.sourceSamplingMode);
+        });
     }
 
     public override isReady() {
@@ -68,7 +81,16 @@ export class FrameGraphPostProcessTask extends FrameGraphTask {
         const sourceTextureCreationOptions = this._frameGraph.textureManager.getTextureCreationOptions(this.sourceTexture);
         sourceTextureCreationOptions.options.samples = 1;
 
-        this._frameGraph.textureManager.resolveDanglingHandle(this.outputTexture, this.destinationTexture, this.name, sourceTextureCreationOptions);
+        this._frameGraph.textureManager.resolveDanglingHandle(this.outputTexture, this.targetTexture, this.name, sourceTextureCreationOptions);
+
+        const sourceSize = !sourceTextureCreationOptions.sizeIsPercentage
+            ? textureSizeIsObject(sourceTextureCreationOptions.size)
+                ? sourceTextureCreationOptions.size
+                : { width: sourceTextureCreationOptions.size, height: sourceTextureCreationOptions.size }
+            : this._frameGraph.textureManager.getAbsoluteDimensions(sourceTextureCreationOptions.size);
+
+        this._sourceWidth = sourceSize.width;
+        this._sourceHeight = sourceSize.height;
 
         const outputTextureDescription = this._frameGraph.textureManager.getTextureDescription(this.outputTexture);
 
@@ -77,10 +99,10 @@ export class FrameGraphPostProcessTask extends FrameGraphTask {
 
         const pass = this._frameGraph.addRenderPass(this.name);
 
-        pass.useTexture(this.sourceTexture);
+        pass.addDependencies(this.sourceTexture);
+
         pass.setRenderTarget(this.outputTexture);
         pass.setExecuteFunc((context) => {
-            context.setTextureSamplingMode(this.sourceTexture, this.sourceSamplingMode);
             additionalExecute?.(context);
             context.applyFullScreenEffect(this._postProcessDrawWrapper, () => {
                 context.bindTextureHandle(this._postProcessDrawWrapper.effect!, "textureSampler", this.sourceTexture);
@@ -91,6 +113,8 @@ export class FrameGraphPostProcessTask extends FrameGraphTask {
 
         if (!skipCreationOfDisabledPasses) {
             const passDisabled = this._frameGraph.addRenderPass(this.name + "_disabled", true);
+
+            passDisabled.addDependencies(this.sourceTexture);
 
             passDisabled.setRenderTarget(this.outputTexture);
             passDisabled.setExecuteFunc((context) => {

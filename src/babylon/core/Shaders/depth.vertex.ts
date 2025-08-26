@@ -44,6 +44,9 @@ void main(void)
 #ifdef UV1
 vec2 uvUpdated=uv;
 #endif
+#ifdef UV2
+vec2 uv2Updated=uv2;
+#endif
 #include<morphTargetsVertexGlobal>
 #include<morphTargetsVertex>[0..maxSimultaneousMorphTargets]
 #include<instancesVertex>
@@ -66,7 +69,7 @@ vDepthMetric=((gl_Position.z+depthValues.x)/(depthValues.y));
 vUV=vec2(diffuseMatrix*vec4(uvUpdated,1.0,0.0));
 #endif
 #ifdef UV2
-vUV=vec2(diffuseMatrix*vec4(uv2,1.0,0.0));
+vUV=vec2(diffuseMatrix*vec4(uv2Updated,1.0,0.0));
 #endif
 #endif
 #include<pointCloudVertex>

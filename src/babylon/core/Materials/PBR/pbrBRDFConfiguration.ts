@@ -13,6 +13,11 @@ export class MaterialBRDFDefines extends MaterialDefines {
     MS_BRDF_ENERGY_CONSERVATION = false;
     SPHERICAL_HARMONICS = false;
     SPECULAR_GLOSSINESS_ENERGY_CONSERVATION = false;
+    MIX_IBL_RADIANCE_WITH_IRRADIANCE = true;
+    LEGACY_SPECULAR_ENERGY_CONSERVATION = false;
+    BASE_DIFFUSE_MODEL = 0;
+    DIELECTRIC_SPECULAR_MODEL = 0;
+    CONDUCTOR_SPECULAR_MODEL = 0;
 }
 
 /**
@@ -44,6 +49,33 @@ export class PBRBRDFConfiguration extends MaterialPluginBase {
      * If deactivated, a material is only physically plausible, when (albedo color + specular color) < 1.
      */
     public static DEFAULT_USE_SPECULAR_GLOSSINESS_INPUT_ENERGY_CONSERVATION = true;
+
+    /**
+     * Default value for whether IBL irradiance is used to augment rough radiance.
+     * If activated, irradiance is blended into the radiance contribution when the material is rough.
+     * This better approximates raytracing results for rough surfaces.
+     */
+    public static DEFAULT_MIX_IBL_RADIANCE_WITH_IRRADIANCE = true;
+
+    /**
+     * Default value for whether the legacy specular energy conservation is used.
+     */
+    public static DEFAULT_USE_LEGACY_SPECULAR_ENERGY_CONSERVATION = true;
+
+    /**
+     * Defines the default diffuse model used by the material.
+     */
+    public static DEFAULT_DIFFUSE_MODEL = Constants.MATERIAL_DIFFUSE_MODEL_E_OREN_NAYAR;
+
+    /**
+     * Defines the default dielectric specular model used by the material.
+     */
+    public static DEFAULT_DIELECTRIC_SPECULAR_MODEL: number = Constants.MATERIAL_DIELECTRIC_SPECULAR_MODEL_GLTF;
+
+    /**
+     * Defines the default conductor specular model used by the material.
+     */
+    public static DEFAULT_CONDUCTOR_SPECULAR_MODEL: number = Constants.MATERIAL_CONDUCTOR_SPECULAR_MODEL_GLTF;
 
     private _useEnergyConservation = PBRBRDFConfiguration.DEFAULT_USE_ENERGY_CONSERVATION;
     /**
@@ -89,6 +121,49 @@ export class PBRBRDFConfiguration extends MaterialPluginBase {
     @expandToProperty("_markAllSubMeshesAsMiscDirty")
     public useSpecularGlossinessInputEnergyConservation = PBRBRDFConfiguration.DEFAULT_USE_SPECULAR_GLOSSINESS_INPUT_ENERGY_CONSERVATION;
 
+    private _mixIblRadianceWithIrradiance = PBRBRDFConfiguration.DEFAULT_MIX_IBL_RADIANCE_WITH_IRRADIANCE;
+    /**
+     * Defines if IBL irradiance is used to augment rough radiance.
+     * If activated, irradiance is blended into the radiance contribution when the material is rough.
+     * This better approximates raytracing results for rough surfaces.
+     */
+    @serialize()
+    @expandToProperty("_markAllSubMeshesAsMiscDirty")
+    public mixIblRadianceWithIrradiance = PBRBRDFConfiguration.DEFAULT_MIX_IBL_RADIANCE_WITH_IRRADIANCE;
+
+    private _useLegacySpecularEnergyConservation = PBRBRDFConfiguration.DEFAULT_USE_LEGACY_SPECULAR_ENERGY_CONSERVATION;
+    /**
+     * Defines if the legacy specular energy conservation is used.
+     * If activated, the specular color is multiplied with (1. - maxChannel(albedo color)).
+     */
+    @serialize()
+    @expandToProperty("_markAllSubMeshesAsMiscDirty")
+    public useLegacySpecularEnergyConservation = PBRBRDFConfiguration.DEFAULT_USE_LEGACY_SPECULAR_ENERGY_CONSERVATION;
+
+    private _baseDiffuseModel: number = PBRBRDFConfiguration.DEFAULT_DIFFUSE_MODEL;
+    /**
+     * Defines the base diffuse roughness model of the material.
+     */
+    @serialize("baseDiffuseModel")
+    @expandToProperty("_markAllSubMeshesAsMiscDirty")
+    public baseDiffuseModel: number = PBRBRDFConfiguration.DEFAULT_DIFFUSE_MODEL;
+
+    private _dielectricSpecularModel: number = PBRBRDFConfiguration.DEFAULT_DIELECTRIC_SPECULAR_MODEL;
+    /**
+     * The material model to use for specular lighting of dielectric materials.
+     */
+    @serialize("dielectricSpecularModel")
+    @expandToProperty("_markAllSubMeshesAsMiscDirty")
+    public dielectricSpecularModel: number = PBRBRDFConfiguration.DEFAULT_DIELECTRIC_SPECULAR_MODEL;
+
+    private _conductorSpecularModel: number = PBRBRDFConfiguration.DEFAULT_CONDUCTOR_SPECULAR_MODEL;
+    /**
+     * The material model to use for specular lighting.
+     */
+    @serialize("conductorSpecularModel")
+    @expandToProperty("_markAllSubMeshesAsMiscDirty")
+    public conductorSpecularModel: number = PBRBRDFConfiguration.DEFAULT_CONDUCTOR_SPECULAR_MODEL;
+
     /** @internal */
     private _internalMarkAllSubMeshesAsMiscDirty: () => void;
 
@@ -117,6 +192,11 @@ export class PBRBRDFConfiguration extends MaterialPluginBase {
         defines.MS_BRDF_ENERGY_CONSERVATION = this._useEnergyConservation && this._useSmithVisibilityHeightCorrelated;
         defines.SPHERICAL_HARMONICS = this._useSphericalHarmonics;
         defines.SPECULAR_GLOSSINESS_ENERGY_CONSERVATION = this._useSpecularGlossinessInputEnergyConservation;
+        defines.MIX_IBL_RADIANCE_WITH_IRRADIANCE = this._mixIblRadianceWithIrradiance;
+        defines.LEGACY_SPECULAR_ENERGY_CONSERVATION = this._useLegacySpecularEnergyConservation;
+        defines.BASE_DIFFUSE_MODEL = this._baseDiffuseModel;
+        defines.DIELECTRIC_SPECULAR_MODEL = this._dielectricSpecularModel;
+        defines.CONDUCTOR_SPECULAR_MODEL = this._conductorSpecularModel;
     }
 
     public override getClassName(): string {

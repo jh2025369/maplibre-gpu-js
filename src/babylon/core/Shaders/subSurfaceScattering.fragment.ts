@@ -1,13 +1,13 @@
 // Do not edit.
 import { ShaderStore } from "../Engines/shaderStore";
-import "./ShadersInclude/fibonacci";
 import "./ShadersInclude/helperFunctions";
+import "./ShadersInclude/fibonacci";
 import "./ShadersInclude/subSurfaceScatteringFunctions";
 import "./ShadersInclude/diffusionProfile";
 
 const name = "subSurfaceScatteringPixelShader";
-const shader = `#include<fibonacci>
-#include<helperFunctions>
+const shader = `#include<helperFunctions>
+#include<fibonacci>
 #include<subSurfaceScatteringFunctions>
 #include<diffusionProfile>
 varying vec2 vUV;uniform vec2 texelSize;uniform sampler2D textureSampler;uniform sampler2D irradianceSampler;uniform sampler2D depthSampler;uniform sampler2D albedoSampler;uniform vec2 viewportSize;uniform float metersPerUnit;const float LOG2_E=1.4426950408889634;const float SSS_PIXELS_PER_SAMPLE=4.;const int _SssSampleBudget=40;
@@ -17,7 +17,7 @@ varying vec2 vUV;uniform vec2 texelSize;uniform sampler2D textureSampler;uniform
 vec3 EvalBurleyDiffusionProfile(float r,vec3 S)
 {vec3 exp_13=exp2(((LOG2_E*(-1.0/3.0))*r)*S); 
 vec3 expSum=exp_13*(1.+exp_13*exp_13); 
-return (S*rcp(8.*PI))*expSum; }
+return (S*rcp((8.*PI)))*expSum; }
 vec2 SampleBurleyDiffusionProfile(float u,float rcpS)
 {u=1.-u; 
 float g=1.+(4.*u)*(2.*u+sqrt(1.+(4.*u)*u));float n=exp2(log2(g)*(-1.0/3.0)); 
@@ -25,7 +25,7 @@ float p=(g*n)*n;
 float c=1.+p+n; 
 float d=(3./LOG2_E*2.)+(3./LOG2_E)*log2(u); 
 float x=(3./LOG2_E)*log2(c)-d; 
-float rcpExp=((c*c)*c)*rcp((4.*u)*((c*c)+(4.*u)*(4.*u)));float r=x*rcpS;float rcpPdf=(8.*PI*rcpS)*rcpExp; 
+float rcpExp=((c*c)*c)*rcp(((4.*u)*((c*c)+(4.*u)*(4.*u))));float r=x*rcpS;float rcpPdf=(8.*PI*rcpS)*rcpExp; 
 return vec2(r,rcpPdf);}
 vec3 ComputeBilateralWeight(float xy2,float z,float mmPerUnit,vec3 S,float rcpPdf)
 {

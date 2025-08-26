@@ -28,6 +28,7 @@ fn computeAttenuationForIntersection(ihitPixel: vec2f,hitUV: vec2f,vsRayOrigin: 
 var dCoords: vec2f=smoothstep(vec2f(0.2),vec2f(0.6),abs( vec2f(0.5,0.5)-hitUV.xy));attenuation*=clamp(1.0-(dCoords.x+dCoords.y),0.0,1.0);
 #endif
 #ifdef SSR_ATTENUATE_INTERSECTION_DISTANCE
+attenuation*=1.0-clamp(distance(vsRayOrigin,vsHitPoint)/maxRayDistance,0.0,1.0);
 #endif
 #ifdef SSR_ATTENUATE_INTERSECTION_NUMITERATIONS
 attenuation*=1.0-(numIterations/uniforms.maxSteps);
@@ -40,7 +41,7 @@ return attenuation;}
 @fragment
 fn main(input: FragmentInputs)->FragmentOutputs {
 #ifdef SSR_SUPPORTED
-var colorFull: vec4f=textureSampleLevel(textureSampler,textureSamplerSampler,input.vUV,0.0);var color: vec3f=colorFull.rgb;var reflectivity: vec4f=textureSampleLevel(reflectivitySampler,reflectivitySamplerSampler,input.vUV,0.0);
+var colorFull: vec4f=textureSampleLevel(textureSampler,textureSamplerSampler,input.vUV,0.0);var color: vec3f=colorFull.rgb;var reflectivity: vec4f=max(textureSampleLevel(reflectivitySampler,reflectivitySamplerSampler,input.vUV,0.0),vec4f(0.0));
 #ifndef SSR_DISABLE_REFLECTIVITY_TEST
 if (max(reflectivity.r,max(reflectivity.g,reflectivity.b))<=uniforms.reflectivityThreshold) {
 #ifdef SSR_USE_BLUR

@@ -10,9 +10,7 @@ surfaceAlbedo: vec3f,
 #ifdef SS_LINKREFRACTIONTOTRANSPARENCY
 alpha: f32,
 #endif
-#ifdef REFLECTION
-refractionFactorForIrradiance: f32,
-#endif
+refractionOpacity: f32,
 #endif
 #ifdef SS_TRANSLUCENCY
 transmittance: vec3f,
@@ -156,6 +154,10 @@ vSubSurfaceIntensity: vec3f
 ,reflectionSampler: texture_cube<f32>
 ,reflectionSamplerSampler: sampler
 ,vReflectionFilteringInfo: vec2f
+#ifdef IBL_CDF_FILTERING
+,icdfSampler: texture_2d<f32>
+,icdfSamplerSampler: sampler
+#endif
 #endif
 #endif
 #ifdef USEIRRADIANCEMAP
@@ -356,18 +358,18 @@ var volumeAlbedo: vec3f=computeColorAtDistanceInMedia(vTintColor.rgb,vTintColor.
 #ifdef SS_ALBEDOFORREFRACTIONTINT
 environmentRefraction=vec4f(environmentRefraction.rgb*surfaceAlbedo.rgb,environmentRefraction.a);
 #endif
-outParams.surfaceAlbedo=surfaceAlbedo*(1.-refractionIntensity);
-#ifdef REFLECTION
-outParams.refractionFactorForIrradiance=(1.-refractionIntensity);
+#ifdef LEGACY_SPECULAR_ENERGY_CONSERVATION
+outParams.surfaceAlbedo=surfaceAlbedo*(1.-refractionIntensity);outParams.refractionOpacity=1.0;
+#else
+outParams.surfaceAlbedo=surfaceAlbedo;outParams.refractionOpacity=(1.-refractionIntensity);
 #endif
 #ifdef UNUSED_MULTIPLEBOUNCES
 var bounceSpecularEnvironmentReflectance: vec3f=(2.0*specularEnvironmentReflectance)/(1.0+specularEnvironmentReflectance);outParams.specularEnvironmentReflectance=mix(bounceSpecularEnvironmentReflectance,specularEnvironmentReflectance,refractionIntensity);
 #endif
-refractionTransmittance*=1.0-outParams.specularEnvironmentReflectance;
 #if DEBUGMODE>0
 outParams.refractionTransmittance=refractionTransmittance;
 #endif
-outParams.finalRefraction=environmentRefraction.rgb*refractionTransmittance*vLightingIntensity.z;
+outParams.finalRefraction=environmentRefraction.rgb*refractionTransmittance*vLightingIntensity.z;outParams.finalRefraction*=vec3f(1.0)-specularEnvironmentReflectance;
 #if DEBUGMODE>0
 outParams.environmentRefraction=environmentRefraction;
 #endif
@@ -386,7 +388,12 @@ var irradianceVector: vec3f=irradianceVector_;
 #endif
 #if defined(USESPHERICALFROMREFLECTIONMAP)
 #if defined(REALTIME_FILTERING)
-var refractionIrradiance: vec3f=irradiance(reflectionSampler,reflectionSamplerSampler,-irradianceVector,vReflectionFilteringInfo);
+var refractionIrradiance: vec3f=irradiance(reflectionSampler,reflectionSamplerSampler,-irradianceVector,vReflectionFilteringInfo,0.0,surfaceAlbedo,irradianceVector
+#ifdef IBL_CDF_FILTERING
+,icdfSampler
+,icdfSamplerSampler
+#endif
+);
 #else
 var refractionIrradiance: vec3f=computeEnvironmentIrradiance(-irradianceVector);
 #endif

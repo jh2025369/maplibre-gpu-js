@@ -1,5 +1,5 @@
+import type { AbstractMesh, PickingInfo } from "core/index";
 import { Vector3, TmpVectors, Matrix } from "../Maths/math.vector";
-import type { AbstractMesh } from "./abstractMesh";
 import { VertexBuffer } from "../Buffers/buffer";
 import { Constants } from "core/Engines/constants";
 
@@ -16,6 +16,22 @@ export type HotSpotQuery = {
      */
     barycentric: [number, number, number];
 };
+
+/**
+ * Create a HotSpotQuery from a picking info
+ * @remarks If there is no pickedMesh or the pickedMesh has no indices, the faceId is used as the base index
+ * @param pickingInfo picking info to use
+ * @returns the created HotSpotQuery
+ */
+export function CreateHotSpotQueryForPickingInfo(pickingInfo: PickingInfo): HotSpotQuery {
+    const indices = pickingInfo.pickedMesh?.getIndices();
+    const base = pickingInfo.faceId * 3;
+
+    return {
+        pointIndex: indices ? [indices[base], indices[base + 1], indices[base + 2]] : [base, base + 1, base + 2],
+        barycentric: [pickingInfo.bu, pickingInfo.bv, 1 - pickingInfo.bu - pickingInfo.bv],
+    };
+}
 
 /**
  * Return a transformed local position from a mesh and vertex index

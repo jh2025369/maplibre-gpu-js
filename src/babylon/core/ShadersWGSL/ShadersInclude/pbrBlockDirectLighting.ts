@@ -3,6 +3,9 @@ import { ShaderStore } from "../../Engines/shaderStore";
 
 const name = "pbrBlockDirectLighting";
 const shader = `var diffuseBase: vec3f=vec3f(0.,0.,0.);
+#ifdef SS_TRANSLUCENCY
+var diffuseTransmissionBase: vec3f=vec3f(0.,0.,0.);
+#endif
 #ifdef SPECULARTERM
 var specularBase: vec3f=vec3f(0.,0.,0.);
 #endif
@@ -11,6 +14,9 @@ var clearCoatBase: vec3f=vec3f(0.,0.,0.);
 #endif
 #ifdef SHEEN
 var sheenBase: vec3f=vec3f(0.,0.,0.);
+#endif
+#if defined(SPECULARTERM) && defined(LIGHT0)
+var coloredFresnel: vec3f=vec3f(0.,0.,0.);
 #endif
 var preInfo: preLightingInfo;var info: lightingInfo;var shadow: f32=1.; 
 var aggShadow: f32=0.;var numLights: f32=0.;

@@ -1,4 +1,6 @@
-﻿#include<__decl__defaultFragment>
+﻿#define CUSTOM_FRAGMENT_EXTENSION
+
+#include<__decl__defaultFragment>
 
 #if defined(BUMP) || !defined(NORMAL)
 #extension GL_OES_standard_derivatives : enable
@@ -460,6 +462,10 @@ color.rgb = max(color.rgb, 0.);
 
 	#ifdef PREPASS_SCREENSPACE_DEPTH
 		gl_FragData[PREPASS_SCREENSPACE_DEPTH_INDEX] = vec4(gl_FragCoord.z, 0.0, 0.0, writeGeometryInfo);
+	#endif
+
+	#ifdef PREPASS_NORMALIZED_VIEW_DEPTH
+		gl_FragData[PREPASS_NORMALIZED_VIEW_DEPTH_INDEX] = vec4(vNormViewDepth, 0.0, 0.0, writeGeometryInfo);
 	#endif
 
 	#ifdef PREPASS_NORMAL

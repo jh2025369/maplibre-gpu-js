@@ -1,5 +1,4 @@
 import { AbstractMesh } from "core/Meshes/abstractMesh";
-import type { PerfCounter } from "../../Misc/perfCounter";
 import type { Nullable } from "../../types";
 import { AbstractEngine } from "../abstractEngine";
 
@@ -32,18 +31,8 @@ export class _OcclusionDataStorage {
 }
 
 declare module "../../Engines/abstractEngine" {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     export interface AbstractEngine {
-        /**
-         * Get the performance counter associated with the frame time computation
-         * @returns the perf counter
-         */
-        getGPUFrameTimeCounter(): Nullable<PerfCounter>;
-
-        /**
-         * Enable or disable the GPU frame time capture
-         * @param value True to enable, false to disable
-         */
-        captureGPUFrameTime(value: boolean): void;
         /**
          * Create a new webGL query (you must be sure that queries are supported by checking getCaps() function)
          * @returns the new query
@@ -83,13 +72,6 @@ declare module "../../Engines/abstractEngine" {
         endOcclusionQuery(algorithmType: number): AbstractEngine;
     }
 }
-AbstractEngine.prototype.getGPUFrameTimeCounter = function (): Nullable<PerfCounter> {
-    return null;
-};
-
-AbstractEngine.prototype.captureGPUFrameTime = function (value: boolean): void {
-    // Do nothing. Must be implemented by child classes
-};
 
 AbstractEngine.prototype.createQuery = function (): Nullable<OcclusionQuery> {
     return null;
@@ -121,6 +103,7 @@ AbstractEngine.prototype.endOcclusionQuery = function (algorithmType: number): A
 };
 
 declare module "../../Meshes/abstractMesh" {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     export interface AbstractMesh {
         /**
          * Backing filed

@@ -7,7 +7,7 @@ if (uniforms.v_INFONAME_==0.)
 {vertexOutputs.v_VARYINGNAME_UV= (uniforms._MATRIXNAME_Matrix* vec4f(uvUpdated,1.0,0.0)).xy;}
 #ifdef UV2
 else if (uniforms.v_INFONAME_==1.)
-{vertexOutputs.v_VARYINGNAME_UV= (uniforms._MATRIXNAME_Matrix* vec4f(vertexInputs.uv2,1.0,0.0)).xy;}
+{vertexOutputs.v_VARYINGNAME_UV= (uniforms._MATRIXNAME_Matrix* vec4f(uv2Updated,1.0,0.0)).xy;}
 #endif
 #ifdef UV3
 else if (uniforms.v_INFONAME_==2.)

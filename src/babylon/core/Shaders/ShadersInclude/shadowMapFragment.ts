@@ -13,6 +13,7 @@ depthSM=(-zSM+depthValuesSM.x)/depthValuesSM.y+biasAndScaleSM.x;
 depthSM=(zSM+depthValuesSM.x)/depthValuesSM.y+biasAndScaleSM.x;
 #endif
 #endif
+depthSM=clamp(depthSM,0.0,1.0);
 #ifdef USE_REVERSE_DEPTHBUFFER
 gl_FragDepth=clamp(1.0-depthSM,0.0,1.0);
 #else

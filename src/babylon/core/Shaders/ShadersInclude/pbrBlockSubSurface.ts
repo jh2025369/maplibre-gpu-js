@@ -9,9 +9,7 @@ vec3 finalRefraction;vec3 surfaceAlbedo;
 #ifdef SS_LINKREFRACTIONTOTRANSPARENCY
 float alpha;
 #endif
-#ifdef REFLECTION
-float refractionFactorForIrradiance;
-#endif
+float refractionOpacity;
 #endif
 #ifdef SS_TRANSLUCENCY
 vec3 transmittance;float translucencyIntensity;
@@ -127,7 +125,7 @@ in vec3 vSubSurfaceIntensity
 ,in vec2 vThicknessParam
 ,in vec4 vTintColor
 ,in vec3 normalW
-,in vec3 specularEnvironmentReflectance
+,in vec3 vSpecularEnvironmentReflectance
 #ifdef SS_THICKNESSANDMASK_TEXTURE
 ,in vec4 thicknessMap
 #endif
@@ -147,6 +145,9 @@ in vec3 vSubSurfaceIntensity
 #if defined(REALTIME_FILTERING)
 ,in samplerCube reflectionSampler
 ,in vec2 vReflectionFilteringInfo
+#ifdef IBL_CDF_FILTERING
+,in sampler2D icdfSampler
+#endif
 #endif
 #endif
 #ifdef USEIRRADIANCEMAP
@@ -214,7 +215,7 @@ in vec3 vSubSurfaceIntensity
 #endif
 #endif
 )
-{subSurfaceOutParams outParams;outParams.specularEnvironmentReflectance=specularEnvironmentReflectance;
+{subSurfaceOutParams outParams;outParams.specularEnvironmentReflectance=vSpecularEnvironmentReflectance;
 #ifdef SS_REFRACTION
 float refractionIntensity=vSubSurfaceIntensity.x;
 #ifdef SS_LINKREFRACTIONTOTRANSPARENCY
@@ -333,18 +334,18 @@ vec3 volumeAlbedo=computeColorAtDistanceInMedia(vTintColor.rgb,vTintColor.w);ref
 #ifdef SS_ALBEDOFORREFRACTIONTINT
 environmentRefraction.rgb*=surfaceAlbedo.rgb;
 #endif
-outParams.surfaceAlbedo=surfaceAlbedo*(1.-refractionIntensity);
-#ifdef REFLECTION
-outParams.refractionFactorForIrradiance=(1.-refractionIntensity);
+#ifdef LEGACY_SPECULAR_ENERGY_CONSERVATION
+outParams.surfaceAlbedo=surfaceAlbedo*(1.-refractionIntensity);outParams.refractionOpacity=1.0;
+#else
+outParams.surfaceAlbedo=surfaceAlbedo;outParams.refractionOpacity=(1.-refractionIntensity);
 #endif
 #ifdef UNUSED_MULTIPLEBOUNCES
-vec3 bounceSpecularEnvironmentReflectance=(2.0*specularEnvironmentReflectance)/(1.0+specularEnvironmentReflectance);outParams.specularEnvironmentReflectance=mix(bounceSpecularEnvironmentReflectance,specularEnvironmentReflectance,refractionIntensity);
+vec3 bounceSpecularEnvironmentReflectance=(2.0*vSpecularEnvironmentReflectance)/(1.0+vSpecularEnvironmentReflectance);outParams.specularEnvironmentReflectance=mix(bounceSpecularEnvironmentReflectance,vSpecularEnvironmentReflectance,refractionIntensity);
 #endif
-refractionTransmittance*=1.0-outParams.specularEnvironmentReflectance;
 #if DEBUGMODE>0
 outParams.refractionTransmittance=refractionTransmittance;
 #endif
-outParams.finalRefraction=environmentRefraction.rgb*refractionTransmittance*vLightingIntensity.z;
+outParams.finalRefraction=environmentRefraction.rgb*refractionTransmittance*vLightingIntensity.z;outParams.finalRefraction*=vec3(1.0)-vSpecularEnvironmentReflectance;
 #if DEBUGMODE>0
 outParams.environmentRefraction=environmentRefraction;
 #endif
@@ -363,7 +364,11 @@ vec3 irradianceVector=irradianceVector_;
 #endif
 #if defined(USESPHERICALFROMREFLECTIONMAP)
 #if defined(REALTIME_FILTERING)
-vec3 refractionIrradiance=irradiance(reflectionSampler,-irradianceVector,vReflectionFilteringInfo);
+vec3 refractionIrradiance=irradiance(reflectionSampler,-irradianceVector,vReflectionFilteringInfo,0.0,surfaceAlbedo,irradianceVector
+#ifdef IBL_CDF_FILTERING
+,icdfSampler
+#endif
+);
 #else
 vec3 refractionIrradiance=computeEnvironmentIrradiance(-irradianceVector);
 #endif

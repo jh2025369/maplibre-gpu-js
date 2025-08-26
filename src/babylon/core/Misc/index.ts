@@ -1,4 +1,4 @@
-/* eslint-disable import/no-internal-modules */
+/* eslint-disable @typescript-eslint/no-restricted-imports */
 export * from "./andOrNotEvaluator";
 export * from "./assetsManager";
 export * from "./basis";
@@ -33,6 +33,7 @@ export * from "./logger";
 export * from "./typeStore";
 export * from "./filesInputStore";
 export * from "./deepCopier";
+export * from "./deepMerger";
 export * from "./pivotTools";
 export * from "./precisionDate";
 export * from "./screenshotTools";
@@ -75,6 +76,8 @@ export * from "./greasedLineTools";
 export * from "./equirectangularCapture";
 export * from "./decorators.serialization";
 export * from "./asyncLock";
+export * from "./bitArray";
+export * from "./urlTools";
 
 // RGBDTextureTools
 export * from "../Shaders/rgbdDecode.fragment";

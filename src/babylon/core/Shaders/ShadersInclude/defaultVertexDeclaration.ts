@@ -38,6 +38,7 @@ uniform float pointSize;
 #ifdef DETAIL
 uniform vec4 vDetailInfos;uniform mat4 detailMatrix;
 #endif
+uniform vec4 cameraInfo;
 #include<decalVertexDeclaration>
 #define ADDITIONAL_VERTEX_DECLARATION
 `;

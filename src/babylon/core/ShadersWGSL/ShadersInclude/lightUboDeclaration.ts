@@ -15,8 +15,15 @@ vLightFalloff: vec4f,
 #elif defined(HEMILIGHT{X})
 vLightGround: vec3f,
 #endif
+#if defined(AREALIGHT{X})
+vLightWidth: vec4f,
+vLightHeight: vec4f,
+#endif
 shadowsInfo: vec4f,
 depthValues: vec2f} ;var<uniform> light{X} : Light{X};
+#ifdef IESLIGHTTEXTURE{X}
+var iesLightTexture{X}Sampler: sampler;var iesLightTexture{X}: texture_2d<f32>;
+#endif
 #ifdef PROJECTEDLIGHTTEXTURE{X}
 uniform textureProjectionMatrix{X}: mat4x4f;var projectionLightTexture{X}Sampler: sampler;var projectionLightTexture{X}: texture_2d<f32>;
 #endif

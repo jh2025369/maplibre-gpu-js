@@ -1,10 +1,10 @@
 import type { Nullable } from "../types";
-import type { ShaderProcessingContext } from "../Engines/Processors/shaderProcessingOptions";
+import type { _IShaderProcessingContext } from "../Engines/Processors/shaderProcessingOptions";
 import type { Effect } from "../Materials/effect";
 import type { WebGPUShaderProcessorCustom } from "core/Engines/WebGPU/webgpuShaderProcessorsCustom";
 import { VertexBuffer } from "../Meshes/buffer";
 
-const vertexBufferKindForNonFloatProcessing: { [kind: string]: boolean } = {
+const VertexBufferKindForNonFloatProcessing: { [kind: string]: boolean } = {
     [VertexBuffer.PositionKind]: true,
     [VertexBuffer.NormalKind]: true,
     [VertexBuffer.TangentKind]: true,
@@ -27,7 +27,7 @@ const vertexBufferKindForNonFloatProcessing: { [kind: string]: boolean } = {
  * @param type Type to check
  * @returns True if it is a signed type
  */
-function isSignedType(type: number): boolean {
+function IsSignedType(type: number): boolean {
     switch (type) {
         case VertexBuffer.BYTE:
         case VertexBuffer.SHORT:
@@ -49,6 +49,7 @@ function isSignedType(type: number): boolean {
  * @param vertexBuffers List of vertex buffers to check
  * @param effect The effect (shaders) that should be recompiled if needed
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export function checkNonFloatVertexBuffers(vertexBuffers: { [key: string]: Nullable<VertexBuffer> }, effect: Effect): void {
     const engine = effect.getEngine();
     const pipelineContext = effect._pipelineContext;
@@ -57,12 +58,12 @@ export function checkNonFloatVertexBuffers(vertexBuffers: { [key: string]: Nulla
         return;
     }
 
-    let shaderProcessingContext: Nullable<ShaderProcessingContext> = null;
+    let shaderProcessingContext: Nullable<_IShaderProcessingContext> = null;
 
     for (const kind in vertexBuffers) {
         const currentVertexBuffer = vertexBuffers[kind];
 
-        if (!currentVertexBuffer || !vertexBufferKindForNonFloatProcessing[kind]) {
+        if (!currentVertexBuffer || !VertexBufferKindForNonFloatProcessing[kind]) {
             continue;
         }
 
@@ -74,7 +75,7 @@ export function checkNonFloatVertexBuffers(vertexBuffers: { [key: string]: Nulla
             (vertexBufferType !== undefined && vertexBufferType !== currentVertexBufferType)
         ) {
             if (effect.shaderProcessorCustom) {
-                shaderProcessingContext = (effect.shaderProcessorCustom as WebGPUShaderProcessorCustom)._webgpuProcessingContext as ShaderProcessingContext;
+                shaderProcessingContext = (effect.shaderProcessorCustom as WebGPUShaderProcessorCustom)._webgpuProcessingContext as _IShaderProcessingContext;
             }
             if (!shaderProcessingContext) {
                 shaderProcessingContext = engine._getShaderProcessingContext(effect.shaderLanguage, false)!;
@@ -82,7 +83,7 @@ export function checkNonFloatVertexBuffers(vertexBuffers: { [key: string]: Nulla
             pipelineContext.vertexBufferKindToType[kind] = currentVertexBufferType;
             if (currentVertexBufferType !== VertexBuffer.FLOAT) {
                 shaderProcessingContext.vertexBufferKindToNumberOfComponents![kind] = VertexBuffer.DeduceStride(kind);
-                if (isSignedType(currentVertexBufferType)) {
+                if (IsSignedType(currentVertexBufferType)) {
                     shaderProcessingContext.vertexBufferKindToNumberOfComponents![kind] *= -1;
                 }
             }
@@ -95,7 +96,8 @@ export function checkNonFloatVertexBuffers(vertexBuffers: { [key: string]: Nulla
         const parallelShaderCompile = engine._caps.parallelShaderCompile;
         engine._caps.parallelShaderCompile = undefined;
 
-        effect._processShaderCodeAsync(effect.shaderProcessorCustom || null, engine._features._checkNonFloatVertexBuffersDontRecreatePipelineContext, shaderProcessingContext);
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        effect._processShaderCodeAsync(null, engine._features._checkNonFloatVertexBuffersDontRecreatePipelineContext, shaderProcessingContext);
 
         engine._caps.parallelShaderCompile = parallelShaderCompile;
     }

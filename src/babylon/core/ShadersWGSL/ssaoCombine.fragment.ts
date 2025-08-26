@@ -7,7 +7,7 @@ const shader = `varying vUV: vec2f;var textureSamplerSampler: sampler;var textur
 @fragment
 fn main(input: FragmentInputs)->FragmentOutputs {
 #define CUSTOM_FRAGMENT_MAIN_BEGIN
-var ssaoColor: vec4f=textureSample(textureSampler,textureSamplerSampler,uniforms.viewport.xy+input.vUV*uniforms.viewport.zw);var sceneColor: vec4f=textureSample(originalColor,originalColorSampler,input.vUV);fragmentOutputs.color=sceneColor*ssaoColor;
+var uv: vec2f=uniforms.viewport.xy+input.vUV*uniforms.viewport.zw;var ssaoColor: vec4f=textureSample(textureSampler,textureSamplerSampler,uv);var sceneColor: vec4f=textureSample(originalColor,originalColorSampler,uv);fragmentOutputs.color=sceneColor*ssaoColor;
 #define CUSTOM_FRAGMENT_MAIN_END
 }
 `;

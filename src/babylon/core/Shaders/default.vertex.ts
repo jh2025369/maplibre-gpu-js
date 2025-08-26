@@ -35,7 +35,8 @@ import "./ShadersInclude/pointCloudVertex";
 import "./ShadersInclude/logDepthVertex";
 
 const name = "defaultVertexShader";
-const shader = `#include<__decl__defaultVertex>
+const shader = `#define CUSTOM_VERTEX_EXTENSION
+#include<__decl__defaultVertex>
 #define CUSTOM_VERTEX_BEGIN
 attribute vec3 position;
 #ifdef NORMAL
@@ -101,6 +102,12 @@ vec4 tangentUpdated=tangent;
 #ifdef UV1
 vec2 uvUpdated=uv;
 #endif
+#ifdef UV2
+vec2 uv2Updated=uv2;
+#endif
+#ifdef VERTEXCOLOR
+vec4 colorUpdated=color;
+#endif
 #include<morphTargetsVertexGlobal>
 #include<morphTargetsVertex>[0..maxSimultaneousMorphTargets]
 #ifdef REFLECTIONMAP_SKYBOX
@@ -142,10 +149,16 @@ vDirectionW=normalize(vec3(finalWorld*vec4(positionUpdated,0.0)));
 #ifndef UV1
 vec2 uvUpdated=vec2(0.,0.);
 #endif
+#ifndef UV2
+vec2 uv2Updated=vec2(0.,0.);
+#endif
 #ifdef MAINUV1
 vMainUV1=uvUpdated;
 #endif
-#include<uvVariableDeclaration>[2..7]
+#ifdef MAINUV2
+vMainUV2=uv2Updated;
+#endif
+#include<uvVariableDeclaration>[3..7]
 #include<samplerVertexImplementation>(_DEFINENAME_,DIFFUSE,_VARYINGNAME_,Diffuse,_MATRIXNAME_,diffuse,_INFONAME_,DiffuseInfos.x)
 #include<samplerVertexImplementation>(_DEFINENAME_,DETAIL,_VARYINGNAME_,Detail,_MATRIXNAME_,detail,_INFONAME_,DetailInfos.x)
 #include<samplerVertexImplementation>(_DEFINENAME_,AMBIENT,_VARYINGNAME_,Ambient,_MATRIXNAME_,ambient,_INFONAME_,AmbientInfos.x)

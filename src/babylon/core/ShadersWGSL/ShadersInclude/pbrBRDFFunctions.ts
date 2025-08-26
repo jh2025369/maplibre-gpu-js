@@ -3,8 +3,24 @@ import { ShaderStore } from "../../Engines/shaderStore";
 
 const name = "pbrBRDFFunctions";
 const shader = `#define FRESNEL_MAXIMUM_ON_ROUGH 0.25
+#define BRDF_DIFFUSE_MODEL_EON 0
+#define BRDF_DIFFUSE_MODEL_BURLEY 1
+#define BRDF_DIFFUSE_MODEL_LAMBERT 2
+#define BRDF_DIFFUSE_MODEL_LEGACY 3
+#define DIELECTRIC_SPECULAR_MODEL_GLTF 0
+#define DIELECTRIC_SPECULAR_MODEL_OPENPBR 1
+#define CONDUCTOR_SPECULAR_MODEL_GLTF 0
+#define CONDUCTOR_SPECULAR_MODEL_OPENPBR 1
+#ifndef PBR_VERTEX_SHADER
 #ifdef MS_BRDF_ENERGY_CONSERVATION
 fn getEnergyConservationFactor(specularEnvironmentR0: vec3f,environmentBrdf: vec3f)->vec3f {return 1.0+specularEnvironmentR0*(1.0/environmentBrdf.y-1.0);}
+#endif
+#if CONDUCTOR_SPECULAR_MODEL==CONDUCTOR_SPECULAR_MODEL_OPENPBR 
+fn getF82Specular(NdotV: f32,F0: vec3f,edgeTint: vec3f,roughness: f32)->vec3f {const cos_theta_max: f32=0.142857143; 
+const one_minus_cos_theta_max_to_the_fifth: f32=0.462664366; 
+const one_minus_cos_theta_max_to_the_sixth: f32=0.396569457; 
+let white_minus_F0: vec3f=vec3f(1.0f)-F0;let b_numerator: vec3f=(F0+white_minus_F0*one_minus_cos_theta_max_to_the_fifth)*(vec3f(1.0)-edgeTint);const b_denominator: f32=cos_theta_max*one_minus_cos_theta_max_to_the_sixth;const b_denominator_reciprocal: f32=1.0f/b_denominator;let b: vec3f=b_numerator*b_denominator_reciprocal; 
+let cos_theta: f32=max(roughness,NdotV);let one_minus_cos_theta: f32=1.0-cos_theta;let offset_from_F0: vec3f=(white_minus_F0-b*cos_theta*one_minus_cos_theta)*pow(one_minus_cos_theta,5.0f);return clamp(F0+offset_from_F0,vec3f(0.0f),vec3f(1.0f));}
 #endif
 #ifdef ENVIRONMENTBRDF
 fn getBRDFLookup(NdotV: f32,perceptualRoughness: f32)->vec3f {var UV: vec2f= vec2f(NdotV,perceptualRoughness);var brdfLookup: vec4f= textureSample(environmentBrdfSampler,environmentBrdfSamplerSampler,UV);
@@ -129,6 +145,24 @@ fn visibility_CharlieSheen(NdotL: f32,NdotV: f32,alphaG: f32)->f32
 #endif
 */
 #endif
+const constant1_FON: f32=0.5f-2.0f/(3.0f*PI);const constant2_FON: f32=2.0f/3.0f-28.0f/(15.0f*PI);fn E_FON_approx(mu: f32,roughness: f32)->f32
+{var sigma: f32=roughness; 
+var mucomp: f32=1.0f-mu;var mucomp2: f32=mucomp*mucomp;const Gcoeffs: mat2x2f=mat2x2f(0.0571085289f,-0.332181442f,
+0.491881867f,0.0714429953f);var GoverPi: f32=dot(Gcoeffs*vec2f(mucomp,mucomp2),vec2f(1.0f,mucomp2));return (1.0f+sigma*GoverPi)/(1.0f+constant1_FON*sigma);}
+fn diffuseBRDF_EON(albedo: vec3f,roughness: f32,NdotL: f32,NdotV: f32,LdotV: f32)->vec3f
+{var rho: vec3f=albedo;var sigma: f32=roughness; 
+var mu_i: f32=NdotL; 
+var mu_o: f32=NdotV; 
+var s: f32=LdotV-mu_i*mu_o; 
+var sovertF: f32=select(s,s/max(mu_i,mu_o),s>0.0f); 
+var AF: f32=1.0f/(1.0f+constant1_FON*sigma); 
+var f_ss: vec3f=(rho*RECIPROCAL_PI)*AF*(1.0f+sigma*sovertF); 
+var EFo: f32=E_FON_approx(mu_o,sigma); 
+var EFi: f32=E_FON_approx(mu_i,sigma); 
+var avgEF: f32=AF*(1.0f+constant2_FON*sigma); 
+var rho_ms: vec3f=(rho*rho)*avgEF/(vec3f(1.0f)-rho*(1.0f-avgEF));const eps: f32=1.0e-7f;var f_ms: vec3f=(rho_ms*RECIPROCAL_PI)*max(eps,1.0f-EFo) 
+* max(eps,1.0f-EFi)
+/ max(eps,1.0f-avgEF);return (f_ss+f_ms);}
 fn diffuseBRDF_Burley(NdotL: f32,NdotV: f32,VdotH: f32,roughness: f32)->f32 {var diffuseFresnelNV: f32=pow5(saturateEps(1.0-NdotL));var diffuseFresnelNL: f32=pow5(saturateEps(1.0-NdotV));var diffuseFresnel90: f32=0.5+2.0*VdotH*VdotH*roughness;var fresnel: f32 =
 (1.0+(diffuseFresnel90-1.0)*diffuseFresnelNL) *
 (1.0+(diffuseFresnel90-1.0)*diffuseFresnelNV);return fresnel/PI;}
@@ -136,6 +170,7 @@ fn diffuseBRDF_Burley(NdotL: f32,NdotV: f32,VdotH: f32,roughness: f32)->f32 {var
 fn transmittanceBRDF_Burley(tintColor: vec3f,diffusionDistance: vec3f,thickness: f32)->vec3f {var S: vec3f=1./maxEpsVec3(diffusionDistance);var temp: vec3f=exp((-0.333333333*thickness)*S);return tintColor.rgb*0.25*(temp*temp*temp+3.0*temp);}
 fn computeWrappedDiffuseNdotL(NdotL: f32,w: f32)->f32 {var t: f32=1.0+w;var invt2: f32=1.0/(t*t);return saturate((NdotL+w)*invt2);}
 #endif
+#endif 
 `;
 // Sideeffect
 ShaderStore.IncludesShadersStoreWGSL[name] = shader;

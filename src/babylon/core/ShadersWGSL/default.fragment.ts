@@ -329,6 +329,9 @@ fragData[PREPASS_DEPTH_INDEX]=vec4f(fragmentInputs.vViewPos.z,0.0,0.0,writeGeome
 #ifdef PREPASS_SCREENSPACE_DEPTH
 fragData[PREPASS_SCREENSPACE_DEPTH_INDEX]=vec4f(fragmentInputs.position.z,0.0,0.0,writeGeometryInfo);
 #endif
+#ifdef PREPASS_NORMALIZED_VIEW_DEPTH
+fragData[PREPASS_NORMALIZED_VIEW_DEPTH_INDEX]=vec4f(fragmentInputs.vNormViewDepth,0.0,0.0,writeGeometryInfo);
+#endif
 #ifdef PREPASS_NORMAL
 #ifdef PREPASS_NORMAL_WORLDSPACE
 fragData[PREPASS_NORMAL_INDEX]=vec4f(normalW,writeGeometryInfo);

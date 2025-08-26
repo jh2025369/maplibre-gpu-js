@@ -49,11 +49,13 @@ export class PointerDragBehavior implements Behavior<AbstractMesh> {
      * Get or set the currentDraggingPointerId
      * @deprecated Please use currentDraggingPointerId instead
      */
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     public get currentDraggingPointerID(): number {
         return this.currentDraggingPointerId;
     }
-    public set currentDraggingPointerID(currentDraggingPointerID: number) {
-        this.currentDraggingPointerId = currentDraggingPointerID;
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    public set currentDraggingPointerID(currentDraggingPointerId: number) {
+        this.currentDraggingPointerId = currentDraggingPointerId;
     }
     /**
      * The id of the pointer that is currently interacting with the behavior (-1 when no pointer is active)
@@ -147,6 +149,12 @@ export class PointerDragBehavior implements Behavior<AbstractMesh> {
      * If set, the drag plane/axis will be rotated based on the attached mesh's world rotation (Default: true)
      */
     public useObjectOrientationForDragging = true;
+
+    /**
+     * Normally a drag is canceled when the user presses another button on the same pointer. If this is set to true,
+     * the drag will continue even if another button is pressed on the same pointer.
+     */
+    public allowOtherButtonsDuringDrag = false;
 
     private _options: { dragAxis?: Vector3; dragPlaneNormal?: Vector3 };
 
@@ -259,6 +267,20 @@ export class PointerDragBehavior implements Behavior<AbstractMesh> {
                     this.releaseDrag();
                 }
 
+                return;
+            }
+
+            // If we are dragging and the user presses another button on the same pointer, end the drag. Otherwise,
+            // tracking when the drag should end becomes very complex.
+            // gizmo.ts has similar behavior.
+            if (
+                this.dragging &&
+                this.currentDraggingPointerId == (<IPointerEvent>pointerInfo.event).pointerId &&
+                pointerInfo.event.button !== -1 &&
+                pointerInfo.event.button !== this._activeDragButton &&
+                !this.allowOtherButtonsDuringDrag
+            ) {
+                this.releaseDrag();
                 return;
             }
 
@@ -572,8 +594,11 @@ export class PointerDragBehavior implements Behavior<AbstractMesh> {
             this._pointA.addToRef(this._localAxis, this._lookAt);
             this._dragPlane.lookAt(this._lookAt);
         } else {
+            if (this._scene.activeCamera) {
+                this._scene.activeCamera.getForwardRay().direction.normalizeToRef(this._localAxis);
+            }
             this._dragPlane.position.copyFrom(this._pointA);
-            this._dragPlane.lookAt(ray.origin);
+            this._dragPlane.lookAt(this._pointA.add(this._localAxis));
         }
         // Update the position of the drag plane so it doesn't get out of sync with the node (eg. when moving back and forth quickly)
         this._dragPlane.position.copyFrom(this.attachedNode.getAbsolutePosition());

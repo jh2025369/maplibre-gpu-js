@@ -100,6 +100,12 @@ var tangentUpdated: vec4f=vertexInputs.tangent;
 #ifdef UV1
 var uvUpdated: vec2f=vertexInputs.uv;
 #endif
+#ifdef UV2
+var uv2Updated: vec2f=vertexInputs.uv2;
+#endif
+#ifdef VERTEXCOLOR
+var colorUpdated: vec4f=vertexInputs.color;
+#endif
 #include<morphTargetsVertexGlobal>
 #include<morphTargetsVertex>[0..maxSimultaneousMorphTargets]
 #ifdef REFLECTIONMAP_SKYBOX
@@ -144,7 +150,13 @@ var uvUpdated: vec2f=vec2f(0.,0.);
 #ifdef MAINUV1
 vertexOutputs.vMainUV1=uvUpdated;
 #endif
-#include<uvVariableDeclaration>[2..7]
+#ifndef UV2
+var uv2Updated: vec2f=vec2f(0.,0.);
+#endif
+#ifdef MAINUV2
+vertexOutputs.vMainUV2=uv2Updated;
+#endif
+#include<uvVariableDeclaration>[3..7]
 #include<samplerVertexImplementation>(_DEFINENAME_,DIFFUSE,_VARYINGNAME_,Diffuse,_MATRIXNAME_,diffuse,_INFONAME_,DiffuseInfos.x)
 #include<samplerVertexImplementation>(_DEFINENAME_,DETAIL,_VARYINGNAME_,Detail,_MATRIXNAME_,detail,_INFONAME_,DetailInfos.x)
 #include<samplerVertexImplementation>(_DEFINENAME_,AMBIENT,_VARYINGNAME_,Ambient,_MATRIXNAME_,ambient,_INFONAME_,AmbientInfos.x)

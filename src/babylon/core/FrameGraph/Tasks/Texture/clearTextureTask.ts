@@ -1,6 +1,5 @@
-// eslint-disable-next-line import/no-internal-modules
-import type { FrameGraph, FrameGraphTextureHandle } from "core/index";
-import { Color4 } from "../../../Maths/math.color";
+import type { FrameGraph, FrameGraphTextureHandle, FrameGraphRenderPass } from "core/index";
+import { Color4, TmpColors } from "../../../Maths/math.color";
 import { FrameGraphTask } from "../../frameGraphTask";
 
 /**
@@ -18,6 +17,11 @@ export class FrameGraphClearTextureTask extends FrameGraphTask {
     public clearColor = true;
 
     /**
+     * If the color should be converted to linear space (default: false).
+     */
+    public convertColorToLinearSpace = false;
+
+    /**
      * If the depth should be cleared.
      */
     public clearDepth = false;
@@ -28,9 +32,9 @@ export class FrameGraphClearTextureTask extends FrameGraphTask {
     public clearStencil = false;
 
     /**
-     * The texture to clear.
+     * The color texture to clear.
      */
-    public destinationTexture?: FrameGraphTextureHandle;
+    public targetTexture?: FrameGraphTextureHandle | FrameGraphTextureHandle[];
 
     /**
      * The depth attachment texture to clear.
@@ -38,7 +42,7 @@ export class FrameGraphClearTextureTask extends FrameGraphTask {
     public depthTexture?: FrameGraphTextureHandle;
 
     /**
-     * The output texture (same as destinationTexture, but the handle will be different).
+     * The output texture (same as targetTexture, but the handle will be different).
      */
     public readonly outputTexture: FrameGraphTextureHandle;
 
@@ -59,30 +63,52 @@ export class FrameGraphClearTextureTask extends FrameGraphTask {
         this.outputDepthTexture = this._frameGraph.textureManager.createDanglingHandle();
     }
 
-    public record() {
-        if (this.destinationTexture === undefined && this.depthTexture === undefined) {
-            throw new Error(`FrameGraphClearTextureTask ${this.name}: destinationTexture and depthTexture can't both be undefined.`);
+    public record(): FrameGraphRenderPass {
+        if (this.targetTexture === undefined && this.depthTexture === undefined) {
+            throw new Error(`FrameGraphClearTextureTask ${this.name}: targetTexture and depthTexture can't both be undefined.`);
         }
 
-        if (this.destinationTexture !== undefined) {
-            this._frameGraph.textureManager.resolveDanglingHandle(this.outputTexture, this.destinationTexture);
+        const targetTextures = this.targetTexture !== undefined ? (Array.isArray(this.targetTexture) ? this.targetTexture : [this.targetTexture]) : undefined;
+
+        let textureSamples = 0;
+        let depthSamples = 0;
+
+        if (this.targetTexture !== undefined) {
+            textureSamples = this._frameGraph.textureManager.getTextureDescription(targetTextures![0]).options.samples || 1;
+            this._frameGraph.textureManager.resolveDanglingHandle(this.outputTexture, targetTextures![0]);
         }
         if (this.depthTexture !== undefined) {
+            depthSamples = this._frameGraph.textureManager.getTextureDescription(this.depthTexture).options.samples || 1;
             this._frameGraph.textureManager.resolveDanglingHandle(this.outputDepthTexture, this.depthTexture);
         }
 
+        if (textureSamples !== depthSamples && textureSamples !== 0 && depthSamples !== 0) {
+            throw new Error(`FrameGraphClearTextureTask ${this.name}: the depth texture and the target texture must have the same number of samples.`);
+        }
+
+        const attachments = this._frameGraph.engine.buildTextureLayout(targetTextures ? Array(targetTextures.length).fill(true) : []);
+
+        const color = TmpColors.Color4[0];
+
         const pass = this._frameGraph.addRenderPass(this.name);
 
-        pass.setRenderTarget(this.destinationTexture);
+        pass.setRenderTarget(targetTextures);
         pass.setRenderTargetDepth(this.depthTexture);
         pass.setExecuteFunc((context) => {
-            context.clear(this.color, !!this.clearColor, !!this.clearDepth, !!this.clearStencil);
+            color.copyFrom(this.color);
+            if (this.convertColorToLinearSpace) {
+                color.toLinearSpaceToRef(color);
+            }
+
+            context.clearAttachments(color, attachments, !!this.clearColor, !!this.clearDepth, !!this.clearStencil);
         });
 
         const passDisabled = this._frameGraph.addRenderPass(this.name + "_disabled", true);
 
-        passDisabled.setRenderTarget(this.destinationTexture);
+        passDisabled.setRenderTarget(targetTextures);
         passDisabled.setRenderTargetDepth(this.depthTexture);
         passDisabled.setExecuteFunc((_context) => {});
+
+        return pass;
     }
 }

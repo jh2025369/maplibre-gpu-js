@@ -1,13 +1,12 @@
 import { Observable } from "../../Misc/observable";
 import type { ImageSource, Nullable, int } from "../../types";
 import type { ICanvas, ICanvasRenderingContext } from "../../Engines/ICanvas";
-import type { HardwareTextureWrapper } from "./hardwareTextureWrapper";
+import type { IHardwareTextureWrapper } from "./hardwareTextureWrapper";
 import { TextureSampler } from "./textureSampler";
 
 import type { AbstractEngine } from "../../Engines/abstractEngine";
 import type { BaseTexture } from "../../Materials/Textures/baseTexture";
 import type { SphericalPolynomial } from "../../Maths/sphericalPolynomial";
-import { Constants } from "core/Engines/constants";
 
 /**
  * Defines the source of the internal texture
@@ -73,59 +72,6 @@ export const enum InternalTextureSource {
      * Texture content is a depth texture
      */
     Depth,
-}
-
-/**
- * Checks if a given format is a depth texture format
- * @param format Format to check
- * @returns True if the format is a depth texture format
- */
-export function IsDepthTexture(format: number): boolean {
-    return (
-        format === Constants.TEXTUREFORMAT_DEPTH24_STENCIL8 ||
-        format === Constants.TEXTUREFORMAT_DEPTH32_FLOAT ||
-        format === Constants.TEXTUREFORMAT_DEPTH16 ||
-        format === Constants.TEXTUREFORMAT_DEPTH24 ||
-        format === Constants.TEXTUREFORMAT_DEPTH24UNORM_STENCIL8 ||
-        format === Constants.TEXTUREFORMAT_DEPTH32FLOAT_STENCIL8 ||
-        format === Constants.TEXTUREFORMAT_STENCIL8
-    );
-}
-
-/**
- * Gets the type of a depth texture for a given format
- * @param format Format of the texture
- * @returns The type of the depth texture
- */
-export function GetTypeForDepthTexture(format: number): number {
-    switch (format) {
-        case Constants.TEXTUREFORMAT_DEPTH24_STENCIL8:
-        case Constants.TEXTUREFORMAT_DEPTH24UNORM_STENCIL8:
-        case Constants.TEXTUREFORMAT_DEPTH32FLOAT_STENCIL8:
-        case Constants.TEXTUREFORMAT_DEPTH32_FLOAT:
-        case Constants.TEXTUREFORMAT_DEPTH24:
-            return Constants.TEXTURETYPE_FLOAT;
-        case Constants.TEXTUREFORMAT_DEPTH16:
-            return Constants.TEXTURETYPE_UNSIGNED_SHORT;
-        case Constants.TEXTUREFORMAT_STENCIL8:
-            return Constants.TEXTURETYPE_UNSIGNED_BYTE;
-    }
-
-    return Constants.TEXTURETYPE_UNSIGNED_BYTE;
-}
-
-/**
- * Checks if a given format has a stencil aspect
- * @param format Format to check
- * @returns True if the format has a stencil aspect
- */
-export function HasStencilAspect(format: number): boolean {
-    return (
-        format === Constants.TEXTUREFORMAT_DEPTH24_STENCIL8 ||
-        format === Constants.TEXTUREFORMAT_DEPTH24UNORM_STENCIL8 ||
-        format === Constants.TEXTUREFORMAT_DEPTH32FLOAT_STENCIL8 ||
-        format === Constants.TEXTUREFORMAT_STENCIL8
-    );
 }
 
 /**
@@ -298,7 +244,7 @@ export class InternalTexture extends TextureSampler {
     public _irradianceTexture: Nullable<BaseTexture> = null;
 
     /** @internal */
-    public _hardwareTexture: Nullable<HardwareTextureWrapper> = null;
+    public _hardwareTexture: Nullable<IHardwareTextureWrapper> = null;
 
     /** @internal */
     public _maxLodLevel: Nullable<number> = null;
@@ -409,6 +355,7 @@ export class InternalTexture extends TextureSampler {
                 this.isReady = data.isReady;
             };
             if (data.isAsync) {
+                // eslint-disable-next-line @typescript-eslint/no-floating-promises, github/no-then
                 (data.proxy as Promise<InternalTexture>).then(swapAndSetIsReady);
             } else {
                 swapAndSetIsReady(data.proxy as InternalTexture);
@@ -536,7 +483,7 @@ export class InternalTexture extends TextureSampler {
 
             case InternalTextureSource.CubeRaw:
                 proxy = this._engine.createRawCubeTexture(
-                    this._bufferViewArray!,
+                    this._bufferViewArray,
                     this.width,
                     this._originalFormat ?? this.format,
                     this.type,
@@ -639,9 +586,9 @@ export class InternalTexture extends TextureSampler {
      */
     public dispose(): void {
         this._references--;
-        this.onLoadedObservable.clear();
-        this.onErrorObservable.clear();
         if (this._references === 0) {
+            this.onLoadedObservable.clear();
+            this.onErrorObservable.clear();
             this._engine._releaseTexture(this);
             this._hardwareTexture = null;
             this._dynamicTextureSource = null;

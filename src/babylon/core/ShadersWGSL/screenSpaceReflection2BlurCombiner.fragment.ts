@@ -11,7 +11,11 @@ var mainSamplerSampler: sampler;var mainSampler: texture_2d<f32>;var reflectivit
 #ifdef SSR_BLEND_WITH_FRESNEL
 #include<pbrBRDFFunctions>
 #include<screenSpaceRayTrace>
-uniform projection: mat4x4f;uniform invProjectionMatrix: mat4x4f;var normalSampler: texture_2d<f32>;var depthSampler: texture_2d<f32>;
+uniform projection: mat4x4f;uniform invProjectionMatrix: mat4x4f;
+#ifdef SSR_NORMAL_IS_IN_WORLDSPACE
+uniform view: mat4x4f;
+#endif
+var normalSampler: texture_2d<f32>;var depthSampler: texture_2d<f32>;
 #ifdef SSRAYTRACE_SCREENSPACE_DEPTH
 uniform nearPlaneZ: f32;uniform farPlaneZ: f32;
 #endif
@@ -29,7 +33,14 @@ if (max(reflectivity.r,max(reflectivity.g,reflectivity.b))<=uniforms.reflectivit
 color=toLinearSpaceVec4(color);
 #endif
 #ifdef SSR_BLEND_WITH_FRESNEL
-var texSize: vec2f= vec2f(textureDimensions(depthSampler,0));var csNormal: vec3f=textureLoad(normalSampler,vec2<i32>(input.vUV*texSize),0).xyz;var depth: f32=textureLoad(depthSampler,vec2<i32>(input.vUV*texSize),0).r;
+var texSize: vec2f= vec2f(textureDimensions(depthSampler,0));var csNormal: vec3f=textureLoad(normalSampler,vec2<i32>(input.vUV*texSize),0).xyz;
+#ifdef SSR_DECODE_NORMAL
+csNormal=csNormal*2.0-1.0;
+#endif
+#ifdef SSR_NORMAL_IS_IN_WORLDSPACE
+csNormal=(uniforms.view*vec4f(csNormal,0.0)).xyz;
+#endif
+var depth: f32=textureLoad(depthSampler,vec2<i32>(input.vUV*texSize),0).r;
 #ifdef SSRAYTRACE_SCREENSPACE_DEPTH
 depth=linearizeDepth(depth,uniforms.nearPlaneZ,uniforms.farPlaneZ);
 #endif

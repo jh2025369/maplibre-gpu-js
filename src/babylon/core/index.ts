@@ -1,8 +1,9 @@
-/* eslint-disable import/no-internal-modules */
+/* eslint-disable @typescript-eslint/no-restricted-imports */
 export * from "./Actions/index";
 export * from "./Animations/index";
 export * from "./assetContainer";
 export * from "./Audio/index";
+export * from "./AudioV2/index";
 export * from "./BakedVertexAnimation/index";
 export * from "./Behaviors/index";
 export * from "./Bones/index";
@@ -46,3 +47,5 @@ export * from "./Sprites/index";
 export * from "./States/index";
 export * from "./types";
 export * from "./XR/index";
+
+import "./Shaders/ShadersInclude/sceneFragmentDeclaration";

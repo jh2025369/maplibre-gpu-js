@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 import { Tools } from "../Misc/tools";
 import { Observable } from "../Misc/observable";
-import type { Nullable } from "../types";
+import type { DeepImmutable, Nullable } from "../types";
 import { Scene } from "../scene";
 import { EngineStore } from "../Engines/engineStore";
 import type { AbstractMesh } from "../Meshes/abstractMesh";
@@ -183,6 +184,7 @@ export interface ISceneLoaderPluginBase extends ISceneLoaderPluginMetadata {
      * @param data string containing the data
      * @returns data to pass to the plugin
      */
+    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
     directLoad?(scene: Scene, data: string): unknown | Promise<unknown>;
 
     /**
@@ -338,7 +340,7 @@ interface IRegisteredPlugin {
     mimeType?: string;
 }
 
-function isFactory(pluginOrFactory: IRegisteredPlugin["plugin"]): pluginOrFactory is ISceneLoaderPluginFactory {
+function IsFactory(pluginOrFactory: IRegisteredPlugin["plugin"]): pluginOrFactory is ISceneLoaderPluginFactory {
     return !!(pluginOrFactory as ISceneLoaderPluginFactory).createPlugin;
 }
 
@@ -372,6 +374,7 @@ interface IFileInfo {
 /**
  * Defines options for SceneLoader plugins. This interface is extended by specific plugins.
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/naming-convention
 export interface SceneLoaderPluginOptions extends Record<string, Record<string, unknown> | undefined> {}
 
 /**
@@ -387,14 +390,14 @@ type DefaultPluginOptions<BasePluginOptions> = {
 // This captures the type defined inline for the pluginOptions property, which is just SceneLoaderPluginOptions wrapped with DefaultPluginOptions.
 // We do it this way rather than explicitly defining the type here and then using it in SceneLoaderOptions because we want the full expanded type
 // to show up in the user's intellisense to make it easier to understand what options are available.
-type PluginOptions = SceneLoaderOptions["pluginOptions"];
+type PluginOptions = ISceneLoaderOptions["pluginOptions"];
 
 type SceneSource = string | File | ArrayBufferView;
 
 /**
  * Defines common options for loading operations performed by SceneLoader.
  */
-interface SceneLoaderOptions {
+interface ISceneLoaderOptions {
     /**
      * A string that defines the root url for the scene and resources or the concatenation of rootURL and filename (e.g. http://example.com/test.glb)
      */
@@ -431,7 +434,7 @@ interface SceneLoaderOptions {
 /**
  * Defines options for ImportMeshAsync.
  */
-export interface ImportMeshOptions extends SceneLoaderOptions {
+export interface ImportMeshOptions extends ISceneLoaderOptions {
     /**
      * An array of mesh names, a single mesh name, or empty string for all meshes that filter what meshes are imported
      */
@@ -441,22 +444,22 @@ export interface ImportMeshOptions extends SceneLoaderOptions {
 /**
  * Defines options for LoadAsync.
  */
-export interface LoadOptions extends SceneLoaderOptions {}
+export interface LoadOptions extends ISceneLoaderOptions {}
 
 /**
  * Defines options for AppendAsync.
  */
-export interface AppendOptions extends SceneLoaderOptions {}
+export interface AppendOptions extends ISceneLoaderOptions {}
 
 /**
  * Defines options for LoadAssetContainerAsync.
  */
-export interface LoadAssetContainerOptions extends SceneLoaderOptions {}
+export interface LoadAssetContainerOptions extends ISceneLoaderOptions {}
 
 /**
  * Defines options for ImportAnimationsAsync.
  */
-export interface ImportAnimationsOptions extends SceneLoaderOptions {
+export interface ImportAnimationsOptions extends ISceneLoaderOptions {
     /**
      * When true, animations are cleaned before importing new ones. Animations are appended otherwise
      */
@@ -589,6 +592,7 @@ async function loadDataAsync(
             const response = await _FetchAsync(fileInfo.url, { method: "HEAD", responseHeaders: ["Content-Type"] });
             const mimeType = response.headerValues ? response.headerValues["Content-Type"] : "";
             if (mimeType) {
+                // eslint-disable-next-line require-atomic-updates
                 registeredPlugin = getPluginForMimeType(mimeType);
             }
         }
@@ -615,10 +619,11 @@ async function loadDataAsync(
         // For plugin factories, the plugin is instantiated on each SceneLoader operation. This makes options handling
         // much simpler as we can just pass the options to the factory, rather than passing options through to every possible
         // plugin call. Given this, options are only supported for plugins that provide a factory function.
-        if (isFactory(registeredPlugin!.plugin)) {
-            const pluginFactory = registeredPlugin!.plugin;
+        if (IsFactory(registeredPlugin.plugin)) {
+            const pluginFactory = registeredPlugin.plugin;
             const partialPlugin = pluginFactory.createPlugin((pluginOptions ?? {}) as any);
             if (partialPlugin instanceof Promise) {
+                // eslint-disable-next-line github/no-then
                 partialPlugin.then(callback).catch((error) => {
                     onError("Error instantiating plugin.", error);
                 });
@@ -630,8 +635,8 @@ async function loadDataAsync(
                 return partialPlugin;
             }
         } else {
-            callback(registeredPlugin!.plugin);
-            return registeredPlugin!.plugin;
+            callback(registeredPlugin.plugin);
+            return registeredPlugin.plugin;
         }
     };
 
@@ -650,9 +655,11 @@ async function loadDataAsync(
                 const result = plugin.directLoad(scene, directLoad);
                 if (result instanceof Promise) {
                     result
+                        // eslint-disable-next-line github/no-then
                         .then((data: unknown) => {
                             onSuccess(plugin, data);
                         })
+                        // eslint-disable-next-line github/no-then
                         .catch((error: any) => {
                             onError("Error in directLoad of _loadData: " + error, error);
                         });
@@ -665,7 +672,7 @@ async function loadDataAsync(
             return;
         }
 
-        const useArrayBuffer = registeredPlugin!.isBinary;
+        const useArrayBuffer = registeredPlugin.isBinary;
 
         const dataCallback = (data: unknown, responseURL?: string) => {
             if (scene.isDisposed) {
@@ -732,7 +739,7 @@ async function loadDataAsync(
     });
 }
 
-function _getFileInfo(rootUrl: string, sceneSource: SceneSource): Nullable<IFileInfo> {
+function GetFileInfo(rootUrl: string, sceneSource: SceneSource): Nullable<IFileInfo> {
     let url: string;
     let name: string;
     let file: Nullable<File> = null;
@@ -781,7 +788,7 @@ function _getFileInfo(rootUrl: string, sceneSource: SceneSource): Nullable<IFile
  * Adds a new plugin to the list of registered plugins
  * @param plugin defines the plugin to add
  */
-export function registerSceneLoaderPlugin(plugin: ISceneLoaderPlugin | ISceneLoaderPluginAsync | ISceneLoaderPluginFactory): void {
+export function RegisterSceneLoaderPlugin(plugin: ISceneLoaderPlugin | ISceneLoaderPluginAsync | ISceneLoaderPluginFactory): void {
     if (typeof plugin.extensions === "string") {
         const extension = plugin.extensions;
         registeredPlugins[extension.toLowerCase()] = {
@@ -790,14 +797,67 @@ export function registerSceneLoaderPlugin(plugin: ISceneLoaderPlugin | ISceneLoa
         };
     } else {
         const extensions = plugin.extensions;
-        Object.keys(extensions).forEach((extension) => {
+        const keys = Object.keys(extensions);
+        for (const extension of keys) {
             registeredPlugins[extension.toLowerCase()] = {
                 plugin: plugin,
                 isBinary: extensions[extension].isBinary,
                 mimeType: extensions[extension].mimeType,
             };
-        });
+        }
     }
+}
+
+/**
+ * Adds a new plugin to the list of registered plugins
+ * @deprecated Please use {@link RegisterSceneLoaderPlugin} instead.
+ * @param plugin defines the plugin to add
+ */
+export function registerSceneLoaderPlugin(plugin: ISceneLoaderPlugin | ISceneLoaderPluginAsync | ISceneLoaderPluginFactory): void {
+    RegisterSceneLoaderPlugin(plugin);
+}
+
+/**
+ * Gets metadata for all currently registered scene loader plugins.
+ * @returns An array where each entry has metadata for a single scene loader plugin.
+ */
+export function GetRegisteredSceneLoaderPluginMetadata(): DeepImmutable<
+    Array<
+        Pick<ISceneLoaderPluginMetadata, "name"> & {
+            /**
+             * The extensions supported by the plugin.
+             */
+            extensions: ({
+                /**
+                 * The file extension.
+                 */
+                extension: string;
+            } & ISceneLoaderPluginExtensions[string])[];
+        }
+    >
+> {
+    return Array.from(
+        Object.entries(registeredPlugins).reduce((pluginMap, [extension, extensionRegistration]) => {
+            let pluginMetadata = pluginMap.get(extensionRegistration.plugin.name);
+            if (!pluginMetadata) {
+                pluginMap.set(extensionRegistration.plugin.name, (pluginMetadata = []));
+            }
+            pluginMetadata.push({ extension, isBinary: extensionRegistration.isBinary, mimeType: extensionRegistration.mimeType });
+            return pluginMap;
+        }, new Map<string, ({ extension: string } & ISceneLoaderPluginExtensions[string])[]>())
+    ).map(([name, extensions]) => ({ name, extensions }));
+}
+
+/**
+ * Import meshes into a scene
+ * @param source a string that defines the name of the scene file, or starts with "data:" following by the stringified version of the scene, or a File object, or an ArrayBufferView
+ * @param scene the instance of BABYLON.Scene to append to
+ * @param options an object that configures aspects of how the scene is loaded
+ * @returns The loaded list of imported meshes, particle systems, skeletons, and animation groups
+ */
+export async function ImportMeshAsync(source: SceneSource, scene: Scene, options?: ImportMeshOptions): Promise<ISceneLoaderAsyncResult> {
+    const { meshNames, rootUrl = "", onProgress, pluginExtension, name, pluginOptions } = options ?? {};
+    return await importMeshAsyncCoreAsync(meshNames, rootUrl, source, scene, onProgress, pluginExtension, name, pluginOptions);
 }
 
 async function importMeshAsync(
@@ -817,7 +877,7 @@ async function importMeshAsync(
         return null;
     }
 
-    const fileInfo = _getFileInfo(rootUrl, sceneFilename);
+    const fileInfo = GetFileInfo(rootUrl, sceneFilename);
     if (!fileInfo) {
         return null;
     }
@@ -890,6 +950,7 @@ async function importMeshAsync(
                 const asyncedPlugin = <ISceneLoaderPluginAsync>plugin;
                 asyncedPlugin
                     .importMeshAsync(meshNames, scene, data, fileInfo.rootUrl, progressHandler, fileInfo.name)
+                    // eslint-disable-next-line github/no-then
                     .then((result) => {
                         scene.loadingPluginName = plugin.name;
                         successHandler(
@@ -903,6 +964,7 @@ async function importMeshAsync(
                             result.spriteManagers
                         );
                     })
+                    // eslint-disable-next-line github/no-then
                     .catch((error) => {
                         errorHandler(error.message, error);
                     });
@@ -917,7 +979,7 @@ async function importMeshAsync(
     );
 }
 
-function importMeshAsyncCore(
+async function importMeshAsyncCoreAsync(
     meshNames: string | readonly string[] | null | undefined,
     rootUrl: string,
     sceneFilename?: SceneSource,
@@ -927,36 +989,44 @@ function importMeshAsyncCore(
     name?: string,
     pluginOptions?: PluginOptions
 ): Promise<ISceneLoaderAsyncResult> {
-    return new Promise((resolve, reject) => {
-        importMeshAsync(
-            meshNames,
-            rootUrl,
-            sceneFilename,
-            scene,
-            (meshes, particleSystems, skeletons, animationGroups, transformNodes, geometries, lights, spriteManagers) => {
-                resolve({
-                    meshes: meshes,
-                    particleSystems: particleSystems,
-                    skeletons: skeletons,
-                    animationGroups: animationGroups,
-                    transformNodes: transformNodes,
-                    geometries: geometries,
-                    lights: lights,
-                    spriteManagers: spriteManagers,
-                });
-            },
-            onProgress,
-            (scene, message, exception) => {
-                reject(exception || new Error(message));
-            },
-            pluginExtension,
-            name,
-            pluginOptions
-        );
+    return await new Promise((resolve, reject) => {
+        try {
+            importMeshAsync(
+                meshNames,
+                rootUrl,
+                sceneFilename,
+                scene,
+                (meshes, particleSystems, skeletons, animationGroups, transformNodes, geometries, lights, spriteManagers) => {
+                    resolve({
+                        meshes: meshes,
+                        particleSystems: particleSystems,
+                        skeletons: skeletons,
+                        animationGroups: animationGroups,
+                        transformNodes: transformNodes,
+                        geometries: geometries,
+                        lights: lights,
+                        spriteManagers: spriteManagers,
+                    });
+                },
+                onProgress,
+                (scene, message, exception) => {
+                    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+                    reject(exception || new Error(message));
+                },
+                pluginExtension,
+                name,
+                pluginOptions
+                // eslint-disable-next-line github/no-then
+            ).catch(reject);
+        } catch (error) {
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+            reject(error);
+        }
     });
 }
 
-function loadScene(
+// This is the core implementation of load scene
+async function loadSceneImplAsync(
     rootUrl: string,
     sceneFilename: SceneSource = "",
     engine: Nullable<AbstractEngine> = EngineStore.LastCreatedEngine,
@@ -966,29 +1036,41 @@ function loadScene(
     pluginExtension: Nullable<string> = null,
     name = "",
     pluginOptions: PluginOptions = {}
-): void {
+): Promise<void> {
     if (!engine) {
         Tools.Error("No engine available");
         return;
     }
 
-    appendAsync(rootUrl, sceneFilename, new Scene(engine), onSuccess, onProgress, onError, pluginExtension, name, pluginOptions);
+    await appendSceneImplAsync(rootUrl, sceneFilename, new Scene(engine), onSuccess, onProgress, onError, pluginExtension, name, pluginOptions);
 }
 
 /**
  * Load a scene
- * @experimental
  * @param source a string that defines the name of the scene file, or starts with "data:" following by the stringified version of the scene, or a File object, or an ArrayBufferView
  * @param engine is the instance of BABYLON.Engine to use to create the scene
  * @param options an object that configures aspects of how the scene is loaded
  * @returns The loaded scene
  */
-export function loadSceneAsync(source: SceneSource, engine: AbstractEngine, options?: LoadOptions): Promise<Scene> {
+export async function LoadSceneAsync(source: SceneSource, engine: AbstractEngine, options?: LoadOptions): Promise<Scene> {
     const { rootUrl = "", onProgress, pluginExtension, name, pluginOptions } = options ?? {};
-    return loadSceneAsyncCore(rootUrl, source, engine, onProgress, pluginExtension, name, pluginOptions);
+    return await loadSceneSharedAsync(rootUrl, source, engine, onProgress, pluginExtension, name, pluginOptions);
 }
 
-function loadSceneAsyncCore(
+/**
+ * Load a scene
+ * @deprecated Please use {@link LoadSceneAsync} instead.
+ * @param source a string that defines the name of the scene file, or starts with "data:" following by the stringified version of the scene, or a File object, or an ArrayBufferView
+ * @param engine is the instance of BABYLON.Engine to use to create the scene
+ * @param options an object that configures aspects of how the scene is loaded
+ * @returns The loaded scene
+ */
+export async function loadSceneAsync(source: SceneSource, engine: AbstractEngine, options?: LoadOptions): Promise<Scene> {
+    return await LoadSceneAsync(source, engine, options);
+}
+
+// This function is shared between the new module level loadSceneAsync and the legacy SceneLoader.LoadAsync
+async function loadSceneSharedAsync(
     rootUrl: string,
     sceneFilename?: SceneSource,
     engine?: Nullable<AbstractEngine>,
@@ -997,8 +1079,9 @@ function loadSceneAsyncCore(
     name?: string,
     pluginOptions?: PluginOptions
 ): Promise<Scene> {
-    return new Promise((resolve, reject) => {
-        loadScene(
+    return await new Promise((resolve, reject) => {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        loadSceneImplAsync(
             rootUrl,
             sceneFilename,
             engine,
@@ -1007,6 +1090,7 @@ function loadSceneAsyncCore(
             },
             onProgress,
             (scene, message, exception) => {
+                // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
                 reject(exception || new Error(message));
             },
             pluginExtension,
@@ -1016,7 +1100,8 @@ function loadSceneAsyncCore(
     });
 }
 
-async function appendAsync(
+// This is the core implementation of append scene
+async function appendSceneImplAsync(
     rootUrl: string,
     sceneFilename: SceneSource = "",
     scene: Nullable<Scene> = EngineStore.LastCreatedScene,
@@ -1032,7 +1117,7 @@ async function appendAsync(
         return null;
     }
 
-    const fileInfo = _getFileInfo(rootUrl, sceneFilename);
+    const fileInfo = GetFileInfo(rootUrl, sceneFilename);
     if (!fileInfo) {
         return null;
     }
@@ -1104,10 +1189,12 @@ async function appendAsync(
                 const asyncedPlugin = <ISceneLoaderPluginAsync>plugin;
                 asyncedPlugin
                     .loadAsync(scene, data, fileInfo.rootUrl, progressHandler, fileInfo.name)
+                    // eslint-disable-next-line github/no-then
                     .then(() => {
                         scene.loadingPluginName = plugin.name;
                         successHandler();
                     })
+                    // eslint-disable-next-line github/no-then
                     .catch((error) => {
                         errorHandler(error.message, error);
                     });
@@ -1124,17 +1211,30 @@ async function appendAsync(
 
 /**
  * Append a scene
- * @experimental
  * @param source a string that defines the name of the scene file, or starts with "data:" following by the stringified version of the scene, or a File object, or an ArrayBufferView
  * @param scene is the instance of BABYLON.Scene to append to
  * @param options an object that configures aspects of how the scene is loaded
+ * @returns A promise that resolves when the scene is appended
  */
-export async function appendSceneAsync(source: SceneSource, scene: Scene, options?: LoadAssetContainerOptions): Promise<void> {
+export async function AppendSceneAsync(source: SceneSource, scene: Scene, options?: AppendOptions): Promise<void> {
     const { rootUrl = "", onProgress, pluginExtension, name, pluginOptions } = options ?? {};
-    await appendSceneAsyncCore(rootUrl, source, scene, onProgress, pluginExtension, name, pluginOptions);
+    await appendSceneSharedAsync(rootUrl, source, scene, onProgress, pluginExtension, name, pluginOptions);
 }
 
-function appendSceneAsyncCore(
+/**
+ * Append a scene
+ * @deprecated Please use {@link AppendSceneAsync} instead.
+ * @param source a string that defines the name of the scene file, or starts with "data:" following by the stringified version of the scene, or a File object, or an ArrayBufferView
+ * @param scene is the instance of BABYLON.Scene to append to
+ * @param options an object that configures aspects of how the scene is loaded
+ * @returns A promise that resolves when the scene is appended
+ */
+export async function appendSceneAsync(source: SceneSource, scene: Scene, options?: AppendOptions): Promise<void> {
+    return await AppendSceneAsync(source, scene, options);
+}
+
+// This function is shared between the new module level appendSceneAsync and the legacy SceneLoader.AppendAsync
+async function appendSceneSharedAsync(
     rootUrl: string,
     sceneFilename?: SceneSource,
     scene?: Nullable<Scene>,
@@ -1143,26 +1243,34 @@ function appendSceneAsyncCore(
     name?: string,
     pluginOptions?: PluginOptions
 ): Promise<Scene> {
-    return new Promise((resolve, reject) => {
-        appendAsync(
-            rootUrl,
-            sceneFilename,
-            scene,
-            (scene) => {
-                resolve(scene);
-            },
-            onProgress,
-            (scene, message, exception) => {
-                reject(exception || new Error(message));
-            },
-            pluginExtension,
-            name,
-            pluginOptions
-        );
+    return await new Promise((resolve, reject) => {
+        try {
+            appendSceneImplAsync(
+                rootUrl,
+                sceneFilename,
+                scene,
+                (scene) => {
+                    resolve(scene);
+                },
+                onProgress,
+                (scene, message, exception) => {
+                    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+                    reject(exception || new Error(message));
+                },
+                pluginExtension,
+                name,
+                pluginOptions
+                // eslint-disable-next-line github/no-then
+            ).catch(reject);
+        } catch (error) {
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+            reject(error);
+        }
     });
 }
 
-async function loadAssetContainerCoreAsync(
+// This is the core implementation of load asset container
+async function loadAssetContainerImplAsync(
     rootUrl: string,
     sceneFilename: SceneSource = "",
     scene: Nullable<Scene> = EngineStore.LastCreatedScene,
@@ -1178,7 +1286,7 @@ async function loadAssetContainerCoreAsync(
         return null;
     }
 
-    const fileInfo = _getFileInfo(rootUrl, sceneFilename);
+    const fileInfo = GetFileInfo(rootUrl, sceneFilename);
     if (!fileInfo) {
         return null;
     }
@@ -1242,11 +1350,13 @@ async function loadAssetContainerCoreAsync(
                 const asyncedPlugin = <ISceneLoaderPluginAsync>plugin;
                 asyncedPlugin
                     .loadAssetContainerAsync(scene, data, fileInfo.rootUrl, progressHandler, fileInfo.name)
+                    // eslint-disable-next-line github/no-then
                     .then((assetContainer) => {
                         assetContainer.populateRootNodes();
                         scene.loadingPluginName = plugin.name;
                         successHandler(assetContainer);
                     })
+                    // eslint-disable-next-line github/no-then
                     .catch((error) => {
                         errorHandler(error.message, error);
                     });
@@ -1265,18 +1375,30 @@ async function loadAssetContainerCoreAsync(
 
 /**
  * Load a scene into an asset container
- * @experimental
  * @param source a string that defines the name of the scene file, or starts with "data:" following by the stringified version of the scene, or a File object, or an ArrayBufferView
  * @param scene is the instance of Scene to append to
  * @param options an object that configures aspects of how the scene is loaded
  * @returns The loaded asset container
  */
-export function loadAssetContainerAsync(source: SceneSource, scene: Scene, options?: LoadAssetContainerOptions): Promise<AssetContainer> {
+export async function LoadAssetContainerAsync(source: SceneSource, scene: Scene, options?: LoadAssetContainerOptions): Promise<AssetContainer> {
     const { rootUrl = "", onProgress, pluginExtension, name, pluginOptions } = options ?? {};
-    return internalLoadAssetContainerAsync(rootUrl, source, scene, onProgress, pluginExtension, name, pluginOptions);
+    return await loadAssetContainerSharedAsync(rootUrl, source, scene, onProgress, pluginExtension, name, pluginOptions);
 }
 
-function internalLoadAssetContainerAsync(
+/**
+ * Load a scene into an asset container
+ * @deprecated Please use {@link LoadAssetContainerAsync} instead.
+ * @param source a string that defines the name of the scene file, or starts with "data:" following by the stringified version of the scene, or a File object, or an ArrayBufferView
+ * @param scene is the instance of Scene to append to
+ * @param options an object that configures aspects of how the scene is loaded
+ * @returns The loaded asset container
+ */
+export async function loadAssetContainerAsync(source: SceneSource, scene: Scene, options?: LoadAssetContainerOptions): Promise<AssetContainer> {
+    return await LoadAssetContainerAsync(source, scene, options);
+}
+
+// This function is shared between the new module level loadAssetContainerAsync and the legacy SceneLoader.LoadAssetContainerAsync
+async function loadAssetContainerSharedAsync(
     rootUrl: string,
     sceneFilename?: SceneSource,
     scene?: Nullable<Scene>,
@@ -1285,26 +1407,34 @@ function internalLoadAssetContainerAsync(
     name?: string,
     pluginOptions?: PluginOptions
 ): Promise<AssetContainer> {
-    return new Promise((resolve, reject) => {
-        loadAssetContainerCoreAsync(
-            rootUrl,
-            sceneFilename,
-            scene,
-            (assets) => {
-                resolve(assets);
-            },
-            onProgress,
-            (scene, message, exception) => {
-                reject(exception || new Error(message));
-            },
-            pluginExtension,
-            name,
-            pluginOptions
-        );
+    return await new Promise((resolve, reject) => {
+        try {
+            loadAssetContainerImplAsync(
+                rootUrl,
+                sceneFilename,
+                scene,
+                (assets) => {
+                    resolve(assets);
+                },
+                onProgress,
+                (scene, message, exception) => {
+                    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+                    reject(exception || new Error(message));
+                },
+                pluginExtension,
+                name,
+                pluginOptions
+                // eslint-disable-next-line github/no-then
+            ).catch(reject);
+        } catch (error) {
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+            reject(error);
+        }
     });
 }
 
-function importAnimations(
+// This is the core implementation of import animations
+async function importAnimationsImplAsync(
     rootUrl: string,
     sceneFilename: SceneSource = "",
     scene: Nullable<Scene> = EngineStore.LastCreatedScene,
@@ -1317,7 +1447,7 @@ function importAnimations(
     pluginExtension: Nullable<string> = null,
     name = "",
     pluginOptions: PluginOptions = {}
-): void {
+): Promise<void> {
     if (!scene) {
         Logger.Error("No scene available to load animations to");
         return;
@@ -1329,32 +1459,34 @@ function importAnimations(
             animatable.reset();
         }
         scene.stopAllAnimations();
-        scene.animationGroups.slice().forEach((animationGroup) => {
+        const animationGroups = scene.animationGroups.slice();
+        for (const animationGroup of animationGroups) {
             animationGroup.dispose();
-        });
+        }
         const nodes = scene.getNodes();
-        nodes.forEach((node) => {
+        for (const node of nodes) {
             if (node.animations) {
                 node.animations = [];
             }
-        });
+        }
     } else {
-        switch (animationGroupLoadingMode) {
+        switch (animationGroupLoadingMode as number) {
             case SceneLoaderAnimationGroupLoadingMode.Clean:
-                scene.animationGroups.slice().forEach((animationGroup) => {
+                const animationGroups = scene.animationGroups.slice();
+                for (const animationGroup of animationGroups) {
                     animationGroup.dispose();
-                });
+                }
                 break;
             case SceneLoaderAnimationGroupLoadingMode.Stop:
-                scene.animationGroups.forEach((animationGroup) => {
+                for (const animationGroup of scene.animationGroups) {
                     animationGroup.stop();
-                });
+                }
                 break;
             case SceneLoaderAnimationGroupLoadingMode.Sync:
-                scene.animationGroups.forEach((animationGroup) => {
+                for (const animationGroup of scene.animationGroups) {
                     animationGroup.reset();
                     animationGroup.restart();
-                });
+                }
                 break;
             case SceneLoaderAnimationGroupLoadingMode.NoSync:
                 // nothing to do
@@ -1379,22 +1511,35 @@ function importAnimations(
         }
     };
 
-    loadAssetContainerCoreAsync(rootUrl, sceneFilename, scene, onAssetContainerLoaded, onProgress, onError, pluginExtension, name, pluginOptions);
+    await loadAssetContainerImplAsync(rootUrl, sceneFilename, scene, onAssetContainerLoaded, onProgress, onError, pluginExtension, name, pluginOptions);
 }
 
 /**
  * Import animations from a file into a scene
- * @experimental
  * @param source a string that defines the name of the scene file, or starts with "data:" following by the stringified version of the scene, or a File object, or an ArrayBufferView
  * @param scene is the instance of BABYLON.Scene to append to
  * @param options an object that configures aspects of how the scene is loaded
+ * @returns A promise that resolves when the animations are imported
  */
-export async function importAnimationsAsync(source: SceneSource, scene: Scene, options?: ImportAnimationsOptions): Promise<void> {
+export async function ImportAnimationsAsync(source: SceneSource, scene: Scene, options?: ImportAnimationsOptions): Promise<void> {
     const { rootUrl = "", overwriteAnimations, animationGroupLoadingMode, targetConverter, onProgress, pluginExtension, name, pluginOptions } = options ?? {};
-    await importAnimationsAsyncCore(rootUrl, source, scene, overwriteAnimations, animationGroupLoadingMode, targetConverter, onProgress, pluginExtension, name, pluginOptions);
+    await importAnimationsSharedAsync(rootUrl, source, scene, overwriteAnimations, animationGroupLoadingMode, targetConverter, onProgress, pluginExtension, name, pluginOptions);
 }
 
-function importAnimationsAsyncCore(
+/**
+ * Import animations from a file into a scene
+ * @deprecated Please use {@link ImportAnimationsAsync} instead.
+ * @param source a string that defines the name of the scene file, or starts with "data:" following by the stringified version of the scene, or a File object, or an ArrayBufferView
+ * @param scene is the instance of BABYLON.Scene to append to
+ * @param options an object that configures aspects of how the scene is loaded
+ * @returns A promise that resolves when the animations are imported
+ */
+export async function importAnimationsAsync(source: SceneSource, scene: Scene, options?: ImportAnimationsOptions): Promise<void> {
+    return await ImportAnimationsAsync(source, scene, options);
+}
+
+// This function is shared between the new module level importAnimationsAsync and the legacy SceneLoader.ImportAnimationsAsync
+async function importAnimationsSharedAsync(
     rootUrl: string,
     sceneFilename?: SceneSource,
     scene?: Nullable<Scene>,
@@ -1406,31 +1551,40 @@ function importAnimationsAsyncCore(
     name?: string,
     pluginOptions?: PluginOptions
 ): Promise<Scene> {
-    return new Promise((resolve, reject) => {
-        importAnimations(
-            rootUrl,
-            sceneFilename,
-            scene,
-            overwriteAnimations,
-            animationGroupLoadingMode,
-            targetConverter,
-            (scene) => {
-                resolve(scene);
-            },
-            onProgress,
-            (scene, message, exception) => {
-                reject(exception || new Error(message));
-            },
-            pluginExtension,
-            name,
-            pluginOptions
-        );
+    return await new Promise((resolve, reject) => {
+        try {
+            importAnimationsImplAsync(
+                rootUrl,
+                sceneFilename,
+                scene,
+                overwriteAnimations,
+                animationGroupLoadingMode,
+                targetConverter,
+                (scene) => {
+                    resolve(scene);
+                },
+                onProgress,
+                (scene, message, exception) => {
+                    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+                    reject(exception || new Error(message));
+                },
+                pluginExtension,
+                name,
+                pluginOptions
+                // eslint-disable-next-line github/no-then
+            ).catch(reject);
+        } catch (error) {
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+            reject(error);
+        }
     });
 }
 
 /**
  * Class used to load scene from various file formats using registered plugins
  * @see https://doc.babylonjs.com/features/featuresDeepDive/importers/loadingFileTypes
+ * @deprecated The module level functions are more efficient for bundler tree shaking and allow plugin options to be passed through. Future improvements to scene loading will primarily be in the module level functions. The SceneLoader class will remain available, but it will be beneficial to prefer the module level functions.
+ * @see {@link ImportMeshAsync}, {@link LoadSceneAsync}, {@link AppendSceneAsync}, {@link ImportAnimationsAsync}, {@link LoadAssetContainerAsync}
  */
 export class SceneLoader {
     /**
@@ -1540,7 +1694,7 @@ export class SceneLoader {
      * @param plugin defines the plugin to add
      */
     public static RegisterPlugin(plugin: ISceneLoaderPlugin | ISceneLoaderPluginAsync | ISceneLoaderPluginFactory): void {
-        registerSceneLoaderPlugin(plugin);
+        RegisterSceneLoaderPlugin(plugin);
     }
 
     /**
@@ -1554,7 +1708,7 @@ export class SceneLoader {
      * @param onError a callback with the scene, a message, and possibly an exception when import fails
      * @param pluginExtension the extension used to determine the plugin
      * @param name defines the name of the file, if the data is binary
-     * @deprecated Please use ImportMeshAsync instead
+     * @deprecated Please use the module level {@link ImportMeshAsync} instead
      */
     public static ImportMesh(
         meshNames: string | readonly string[] | null | undefined,
@@ -1567,7 +1721,10 @@ export class SceneLoader {
         pluginExtension?: Nullable<string>,
         name?: string
     ): void {
-        importMeshAsync(meshNames, rootUrl, sceneFilename, scene, onSuccess, onProgress, onError, pluginExtension, name);
+        // eslint-disable-next-line github/no-then
+        importMeshAsync(meshNames, rootUrl, sceneFilename, scene, onSuccess, onProgress, onError, pluginExtension, name).catch((error) =>
+            onError?.(EngineStore.LastCreatedScene!, error?.message, error)
+        );
     }
 
     /**
@@ -1580,8 +1737,9 @@ export class SceneLoader {
      * @param pluginExtension the extension used to determine the plugin
      * @param name defines the name of the file
      * @returns The loaded list of imported meshes, particle systems, skeletons, and animation groups
+     * @deprecated Please use the module level {@link ImportMeshAsync} instead
      */
-    public static ImportMeshAsync(
+    public static async ImportMeshAsync(
         meshNames: string | readonly string[] | null | undefined,
         rootUrl: string,
         sceneFilename?: SceneSource,
@@ -1590,7 +1748,7 @@ export class SceneLoader {
         pluginExtension?: Nullable<string>,
         name?: string
     ): Promise<ISceneLoaderAsyncResult> {
-        return importMeshAsyncCore(meshNames, rootUrl, sceneFilename, scene, onProgress, pluginExtension, name);
+        return await importMeshAsyncCoreAsync(meshNames, rootUrl, sceneFilename, scene, onProgress, pluginExtension, name);
     }
 
     /**
@@ -1603,7 +1761,7 @@ export class SceneLoader {
      * @param onError a callback with the scene, a message, and possibly an exception when import fails
      * @param pluginExtension the extension used to determine the plugin
      * @param name defines the filename, if the data is binary
-     * @deprecated Please use LoadAsync instead
+     * @deprecated Please use the module level {@link LoadSceneAsync} instead
      */
     public static Load(
         rootUrl: string,
@@ -1615,7 +1773,10 @@ export class SceneLoader {
         pluginExtension?: Nullable<string>,
         name?: string
     ) {
-        loadScene(rootUrl, sceneFilename, engine, onSuccess, onProgress, onError, pluginExtension, name);
+        // eslint-disable-next-line github/no-then
+        loadSceneImplAsync(rootUrl, sceneFilename, engine, onSuccess, onProgress, onError, pluginExtension, name).catch((error) =>
+            onError?.(EngineStore.LastCreatedScene!, error?.message, error)
+        );
     }
 
     /**
@@ -1627,8 +1788,9 @@ export class SceneLoader {
      * @param pluginExtension the extension used to determine the plugin
      * @param name defines the filename, if the data is binary
      * @returns The loaded scene
+     * @deprecated Please use the module level {@link LoadSceneAsync} instead
      */
-    public static LoadAsync(
+    public static async LoadAsync(
         rootUrl: string,
         sceneFilename?: SceneSource,
         engine?: Nullable<AbstractEngine>,
@@ -1636,7 +1798,7 @@ export class SceneLoader {
         pluginExtension?: Nullable<string>,
         name?: string
     ): Promise<Scene> {
-        return loadSceneAsyncCore(rootUrl, sceneFilename, engine, onProgress, pluginExtension, name);
+        return await loadSceneSharedAsync(rootUrl, sceneFilename, engine, onProgress, pluginExtension, name);
     }
 
     /**
@@ -1649,7 +1811,7 @@ export class SceneLoader {
      * @param onError a callback with the scene, a message, and possibly an exception when import fails
      * @param pluginExtension the extension used to determine the plugin
      * @param name defines the name of the file, if the data is binary
-     * @deprecated Please use AppendAsync instead
+     * @deprecated Please use the module level {@link AppendSceneAsync} instead
      */
     public static Append(
         rootUrl: string,
@@ -1661,7 +1823,10 @@ export class SceneLoader {
         pluginExtension?: Nullable<string>,
         name?: string
     ) {
-        appendAsync(rootUrl, sceneFilename, scene, onSuccess, onProgress, onError, pluginExtension, name);
+        // eslint-disable-next-line github/no-then
+        appendSceneImplAsync(rootUrl, sceneFilename, scene, onSuccess, onProgress, onError, pluginExtension, name).catch((error) =>
+            onError?.((scene ?? EngineStore.LastCreatedScene)!, error?.message, error)
+        );
     }
 
     /**
@@ -1673,8 +1838,9 @@ export class SceneLoader {
      * @param pluginExtension the extension used to determine the plugin
      * @param name defines the name of the file, if the data is binary
      * @returns The given scene
+     * @deprecated Please use the module level {@link AppendSceneAsync} instead
      */
-    public static AppendAsync(
+    public static async AppendAsync(
         rootUrl: string,
         sceneFilename?: SceneSource,
         scene?: Nullable<Scene>,
@@ -1682,7 +1848,7 @@ export class SceneLoader {
         pluginExtension?: Nullable<string>,
         name?: string
     ): Promise<Scene> {
-        return appendSceneAsyncCore(rootUrl, sceneFilename, scene, onProgress, pluginExtension, name);
+        return await appendSceneSharedAsync(rootUrl, sceneFilename, scene, onProgress, pluginExtension, name);
     }
 
     /**
@@ -1695,7 +1861,7 @@ export class SceneLoader {
      * @param onError a callback with the scene, a message, and possibly an exception when import fails
      * @param pluginExtension the extension used to determine the plugin
      * @param name defines the filename, if the data is binary
-     * @deprecated Please use LoadAssetContainerAsync instead
+     * @deprecated Please use the module level {@link LoadAssetContainerAsync} instead
      */
     public static LoadAssetContainer(
         rootUrl: string,
@@ -1707,7 +1873,10 @@ export class SceneLoader {
         pluginExtension?: Nullable<string>,
         name?: string
     ) {
-        loadAssetContainerCoreAsync(rootUrl, sceneFilename, scene, onSuccess, onProgress, onError, pluginExtension, name);
+        // eslint-disable-next-line github/no-then
+        loadAssetContainerImplAsync(rootUrl, sceneFilename, scene, onSuccess, onProgress, onError, pluginExtension, name).catch((error) =>
+            onError?.((scene ?? EngineStore.LastCreatedScene)!, error?.message, error)
+        );
     }
 
     /**
@@ -1719,8 +1888,9 @@ export class SceneLoader {
      * @param pluginExtension the extension used to determine the plugin
      * @param name defines the filename, if the data is binary
      * @returns The loaded asset container
+     * @deprecated Please use the module level {@link LoadAssetContainerAsync} instead
      */
-    public static LoadAssetContainerAsync(
+    public static async LoadAssetContainerAsync(
         rootUrl: string,
         sceneFilename?: SceneSource,
         scene?: Nullable<Scene>,
@@ -1728,7 +1898,7 @@ export class SceneLoader {
         pluginExtension?: Nullable<string>,
         name?: string
     ): Promise<AssetContainer> {
-        return internalLoadAssetContainerAsync(rootUrl, sceneFilename, scene, onProgress, pluginExtension, name);
+        return await loadAssetContainerSharedAsync(rootUrl, sceneFilename, scene, onProgress, pluginExtension, name);
     }
 
     /**
@@ -1744,7 +1914,7 @@ export class SceneLoader {
      * @param onError a callback with the scene, a message, and possibly an exception when import fails
      * @param pluginExtension the extension used to determine the plugin
      * @param name defines the filename, if the data is binary
-     * @deprecated Please use ImportAnimationsAsync instead
+     * @deprecated Please use the module level {@link ImportAnimationsAsync} instead
      */
     public static ImportAnimations(
         rootUrl: string,
@@ -1759,7 +1929,20 @@ export class SceneLoader {
         pluginExtension?: Nullable<string>,
         name?: string
     ): void {
-        importAnimations(rootUrl, sceneFilename, scene, overwriteAnimations, animationGroupLoadingMode, targetConverter, onSuccess, onProgress, onError, pluginExtension, name);
+        importAnimationsImplAsync(
+            rootUrl,
+            sceneFilename,
+            scene,
+            overwriteAnimations,
+            animationGroupLoadingMode,
+            targetConverter,
+            onSuccess,
+            onProgress,
+            onError,
+            pluginExtension,
+            name
+            // eslint-disable-next-line github/no-then
+        ).catch((error) => onError?.((scene ?? EngineStore.LastCreatedScene)!, error?.message, error));
     }
 
     /**
@@ -1776,8 +1959,9 @@ export class SceneLoader {
      * @param pluginExtension the extension used to determine the plugin
      * @param name defines the filename, if the data is binary
      * @returns the updated scene with imported animations
+     * @deprecated Please use the module level {@link ImportAnimationsAsync} instead
      */
-    public static ImportAnimationsAsync(
+    public static async ImportAnimationsAsync(
         rootUrl: string,
         sceneFilename?: SceneSource,
         scene?: Nullable<Scene>,
@@ -1792,6 +1976,6 @@ export class SceneLoader {
         pluginExtension?: Nullable<string>,
         name?: string
     ): Promise<Scene> {
-        return importAnimationsAsyncCore(rootUrl, sceneFilename, scene, overwriteAnimations, animationGroupLoadingMode, targetConverter, onProgress, pluginExtension, name);
+        return await importAnimationsSharedAsync(rootUrl, sceneFilename, scene, overwriteAnimations, animationGroupLoadingMode, targetConverter, onProgress, pluginExtension, name);
     }
 }

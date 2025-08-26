@@ -12,6 +12,9 @@ vec4 vLightFalloff;
 #elif defined(HEMILIGHT{X})
 vec3 vLightGround;
 #endif
+#if defined(AREALIGHT{X})
+vec4 vLightWidth;vec4 vLightHeight;
+#endif
 vec4 shadowsInfo;vec2 depthValues;} light{X};
 #ifdef SHADOW{X}
 #ifdef SHADOWCSM{X}

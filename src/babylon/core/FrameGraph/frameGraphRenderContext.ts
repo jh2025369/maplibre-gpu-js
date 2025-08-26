@@ -11,7 +11,7 @@ import type {
     Scene,
     FrameGraphRenderTarget,
     InternalTexture,
-    // eslint-disable-next-line import/no-internal-modules
+    UtilityLayerRenderer,
 } from "core/index";
 import { Constants } from "../Engines/constants";
 import { EffectRenderer } from "../Materials/effectRenderer";
@@ -30,17 +30,13 @@ export class FrameGraphRenderContext extends FrameGraphContext {
     private _renderTargetIsBound = true;
     private readonly _copyTexture: CopyTextureToTexture;
 
-    private static _IsObjectRenderer(value: Layer | ObjectRenderer): value is ObjectRenderer {
+    private static _IsObjectRenderer(value: Layer | ObjectRenderer | UtilityLayerRenderer): value is ObjectRenderer {
         return (value as ObjectRenderer).initRender !== undefined;
     }
 
     /** @internal */
-    constructor(
-        private readonly _engine: AbstractEngine,
-        private readonly _textureManager: FrameGraphTextureManager,
-        private readonly _scene: Scene
-    ) {
-        super();
+    constructor(engine: AbstractEngine, textureManager: FrameGraphTextureManager, scene: Scene) {
+        super(engine, textureManager, scene);
         this._effectRenderer = new EffectRenderer(this._engine);
         this._copyTexture = new CopyTextureToTexture(this._engine);
     }
@@ -109,6 +105,20 @@ export class FrameGraphRenderContext extends FrameGraphContext {
         this._applyRenderTarget();
         this._engine.bindAttachments(attachments);
         this._engine.clear(color, true, false, false);
+    }
+
+    /**
+     * Clears all attachments (color(s) + depth/stencil) of the current render target
+     * @param color Defines the color to use
+     * @param attachments The attachments to clear
+     * @param backBuffer Defines if the back buffer must be cleared
+     * @param depth Defines if the depth buffer must be cleared
+     * @param stencil Defines if the stencil buffer must be cleared
+     */
+    public clearAttachments(color: Nullable<IColor4Like>, attachments: number[], backBuffer: boolean, depth: boolean, stencil?: boolean): void {
+        this._applyRenderTarget();
+        this._engine.bindAttachments(attachments);
+        this._engine.clear(color, backBuffer, depth, stencil);
     }
 
     /**
@@ -183,16 +193,6 @@ export class FrameGraphRenderContext extends FrameGraphContext {
     }
 
     /**
-     * Sets the depth states for the current render target
-     * @param depthTest If true, depth testing is enabled
-     * @param depthWrite If true, depth writing is enabled
-     */
-    public setDepthStates(depthTest: boolean, depthWrite: boolean): void {
-        this._engine.setDepthBuffer(depthTest);
-        this._engine.setDepthWrite(depthWrite);
-    }
-
-    /**
      * Applies a full-screen effect to the current render target
      * @param drawWrapper The draw wrapper containing the effect to apply
      * @param customBindings The custom bindings to use when applying the effect (optional)
@@ -244,20 +244,24 @@ export class FrameGraphRenderContext extends FrameGraphContext {
      * @param viewportWidth The width of the viewport (optional for Layer, but mandatory for ObjectRenderer)
      * @param viewportHeight The height of the viewport (optional for Layer, but mandatory for ObjectRenderer)
      */
-    public render(object: Layer | ObjectRenderer, viewportWidth?: number, viewportHeight?: number): void {
+    public render(object: Layer | ObjectRenderer | UtilityLayerRenderer, viewportWidth?: number, viewportHeight?: number): void {
         if (FrameGraphRenderContext._IsObjectRenderer(object)) {
+            this._scene._intermediateRendering = true;
             if (object.shouldRender()) {
                 this._scene.incrementRenderId();
                 this._scene.resetCachedMaterial();
 
+                this._applyRenderTarget();
+
                 object.prepareRenderList();
+
                 object.initRender(viewportWidth!, viewportHeight!);
 
-                this._applyRenderTarget();
                 object.render();
 
                 object.finishRender();
             }
+            this._scene._intermediateRendering = false;
         } else {
             this._applyRenderTarget();
             object.render();
@@ -297,7 +301,8 @@ export class FrameGraphRenderContext extends FrameGraphContext {
         }
     }
 
-    private _applyRenderTarget() {
+    /** @internal */
+    public _applyRenderTarget() {
         if (this._renderTargetIsBound) {
             return;
         }

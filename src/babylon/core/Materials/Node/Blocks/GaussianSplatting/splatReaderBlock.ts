@@ -78,7 +78,7 @@ export class SplatReaderBlock extends NodeMaterialBlock {
             return;
         }
         const scene = mesh.getScene();
-        GaussianSplattingMaterial.BindEffect(mesh as Mesh, effect, scene);
+        GaussianSplattingMaterial.BindEffect(mesh, effect, scene);
     }
 
     protected override _buildBlock(state: NodeMaterialBuildState) {
@@ -96,6 +96,9 @@ export class SplatReaderBlock extends NodeMaterialBlock {
         state._emit2DSampler("covariancesBTexture");
         state._emit2DSampler("centersTexture");
         state._emit2DSampler("colorsTexture");
+        state._emit2DSampler("shTexture0", "SH_DEGREE > 0", undefined, undefined, true, "highp");
+        state._emit2DSampler("shTexture1", "SH_DEGREE > 0", undefined, undefined, true, "highp");
+        state._emit2DSampler("shTexture2", "SH_DEGREE > 0", undefined, undefined, true, "highp");
 
         state._emitFunctionFromInclude("gaussianSplattingVertexDeclaration", comments);
         state._emitFunctionFromInclude("gaussianSplatting", comments);

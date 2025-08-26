@@ -5,6 +5,7 @@ import "./ShadersInclude/pbrUboDeclaration";
 import "./ShadersInclude/uvAttributeDeclaration";
 import "./ShadersInclude/mainUVVaryingDeclaration";
 import "./ShadersInclude/helperFunctions";
+import "./ShadersInclude/pbrBRDFFunctions";
 import "./ShadersInclude/bonesDeclaration";
 import "./ShadersInclude/bakedVertexAnimationDeclaration";
 import "./ShadersInclude/instancesDeclaration";
@@ -35,7 +36,9 @@ import "./ShadersInclude/vertexColorMixing";
 import "./ShadersInclude/logDepthVertex";
 
 const name = "pbrVertexShader";
-const shader = `precision highp float;
+const shader = `#define PBR_VERTEX_SHADER
+#define CUSTOM_VERTEX_EXTENSION
+precision highp float;
 #include<__decl__pbrVertex>
 #define CUSTOM_VERTEX_BEGIN
 attribute vec3 position;
@@ -54,11 +57,14 @@ attribute vec2 uv;
 attribute vec4 color;
 #endif
 #include<helperFunctions>
+#include<pbrBRDFFunctions>
 #include<bonesDeclaration>
 #include<bakedVertexAnimationDeclaration>
 #include<instancesDeclaration>
 #include<prePassVertexDeclaration>
 #include<samplerVertexDeclaration>(_DEFINENAME_,ALBEDO,_VARYINGNAME_,Albedo)
+#include<samplerVertexDeclaration>(_DEFINENAME_,BASE_WEIGHT,_VARYINGNAME_,BaseWeight)
+#include<samplerVertexDeclaration>(_DEFINENAME_,BASE_DIFFUSE_ROUGHNESS,_VARYINGNAME_,BaseDiffuseRoughness)
 #include<samplerVertexDeclaration>(_DEFINENAME_,DETAIL,_VARYINGNAME_,Detail)
 #include<samplerVertexDeclaration>(_DEFINENAME_,AMBIENT,_VARYINGNAME_,Ambient)
 #include<samplerVertexDeclaration>(_DEFINENAME_,OPACITY,_VARYINGNAME_,Opacity)
@@ -133,6 +139,12 @@ vec4 tangentUpdated=tangent;
 #ifdef UV1
 vec2 uvUpdated=uv;
 #endif
+#ifdef UV2
+vec2 uv2Updated=uv2;
+#endif
+#ifdef VERTEXCOLOR
+vec4 colorUpdated=color;
+#endif
 #include<morphTargetsVertexGlobal>
 #include<morphTargetsVertex>[0..maxSimultaneousMorphTargets]
 #ifdef REFLECTIONMAP_SKYBOX
@@ -161,7 +173,15 @@ normalWorld=transposeMat3(inverseMat3(normalWorld));
 vNormalW=normalize(normalWorld*normalUpdated);
 #endif
 #if defined(USESPHERICALFROMREFLECTIONMAP) && defined(USESPHERICALINVERTEX)
+#if BASE_DIFFUSE_MODEL != BRDF_DIFFUSE_MODEL_LAMBERT && BASE_DIFFUSE_MODEL != BRDF_DIFFUSE_MODEL_LEGACY
+vec3 viewDirectionW=normalize(vEyePosition.xyz-vPositionW);
+#if !defined(NATIVE) && !defined(WEBGPU)
+bool bbb=any(isnan(position));if (bbb) { }
+#endif
+float NdotV=max(dot(vNormalW,viewDirectionW),0.0);vec3 roughNormal=mix(vNormalW,viewDirectionW,(0.5*(1.0-NdotV))*baseDiffuseRoughness);vec3 reflectionVector=vec3(reflectionMatrix*vec4(roughNormal,0)).xyz;
+#else
 vec3 reflectionVector=vec3(reflectionMatrix*vec4(vNormalW,0)).xyz;
+#endif
 #ifdef REFLECTIONMAP_OPPOSITEZ
 reflectionVector.z*=-1.0;
 #endif
@@ -183,11 +203,19 @@ vDirectionW=normalize(vec3(finalWorld*vec4(positionUpdated,0.0)));
 #ifndef UV1
 vec2 uvUpdated=vec2(0.,0.);
 #endif
+#ifndef UV2
+vec2 uv2Updated=vec2(0.,0.);
+#endif
 #ifdef MAINUV1
 vMainUV1=uvUpdated;
 #endif
-#include<uvVariableDeclaration>[2..7]
+#ifdef MAINUV2
+vMainUV2=uv2Updated;
+#endif
+#include<uvVariableDeclaration>[3..7]
 #include<samplerVertexImplementation>(_DEFINENAME_,ALBEDO,_VARYINGNAME_,Albedo,_MATRIXNAME_,albedo,_INFONAME_,AlbedoInfos.x)
+#include<samplerVertexImplementation>(_DEFINENAME_,BASE_WEIGHT,_VARYINGNAME_,BaseWeight,_MATRIXNAME_,baseWeight,_INFONAME_,BaseWeightInfos.x)
+#include<samplerVertexImplementation>(_DEFINENAME_,BASE_DIFFUSE_ROUGHNESS,_VARYINGNAME_,BaseDiffuseRoughness,_MATRIXNAME_,baseDiffuseRoughness,_INFONAME_,BaseDiffuseRoughnessInfos.x)
 #include<samplerVertexImplementation>(_DEFINENAME_,DETAIL,_VARYINGNAME_,Detail,_MATRIXNAME_,detail,_INFONAME_,DetailInfos.x)
 #include<samplerVertexImplementation>(_DEFINENAME_,AMBIENT,_VARYINGNAME_,Ambient,_MATRIXNAME_,ambient,_INFONAME_,AmbientInfos.x)
 #include<samplerVertexImplementation>(_DEFINENAME_,OPACITY,_VARYINGNAME_,Opacity,_MATRIXNAME_,opacity,_INFONAME_,OpacityInfos.x)
@@ -232,7 +260,8 @@ gl_PointSize=pointSize;
 #endif
 #include<logDepthVertex>
 #define CUSTOM_VERTEX_MAIN_END
-}`;
+}
+`;
 // Sideeffect
 ShaderStore.ShadersStore[name] = shader;
 /** @internal */

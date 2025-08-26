@@ -21,20 +21,30 @@ export class MorphTargetManager implements IDisposable {
     /** Maximum number of active morph targets supported in the "vertex attribute" mode (i.e., not the "texture" mode) */
     public static MaxActiveMorphTargetsInVertexAttributeMode = 8;
 
+    /**
+     * When used in texture mode, if greather than 0, this will override the the morph manager numMaxInfluencers value.
+     */
+    public static ConstantTargetCountForTextureMode = 0;
+
     private _targets = new Array<MorphTarget>();
     private _targetInfluenceChangedObservers = new Array<Nullable<Observer<boolean>>>();
     private _targetDataLayoutChangedObservers = new Array<Nullable<Observer<void>>>();
     private _activeTargets = new SmartArray<MorphTarget>(16);
     private _scene: Nullable<Scene>;
     private _influences: Float32Array;
+    private _supportsPositions = false;
     private _supportsNormals = false;
     private _supportsTangents = false;
     private _supportsUVs = false;
+    private _supportsUV2s = false;
+    private _supportsColors = false;
     private _vertexCount = 0;
     private _uniqueId = 0;
     private _tempInfluences = new Array<number>();
     private _canUseTextureForTargets = false;
     private _blockCounter = 0;
+    private _mustSynchronize = true;
+    private _forceUpdateWhenUnfrozen = false;
 
     /** @internal */
     public _textureVertexStride = 0;
@@ -60,6 +70,11 @@ export class MorphTargetManager implements IDisposable {
     public optimizeInfluencers = true;
 
     /**
+     * Gets or sets a boolean indicating if positions must be morphed
+     */
+    public enablePositionMorphing = true;
+
+    /**
      * Gets or sets a boolean indicating if normals must be morphed
      */
     public enableNormalMorphing = true;
@@ -75,6 +90,16 @@ export class MorphTargetManager implements IDisposable {
     public enableUVMorphing = true;
 
     /**
+     * Gets or sets a boolean indicating if UV2 must be morphed
+     */
+    public enableUV2Morphing = true;
+
+    /**
+     * Gets or sets a boolean indicating if colors must be morphed
+     */
+    public enableColorMorphing = true;
+
+    /**
      * Sets a boolean indicating that adding new target or updating an existing target will not update the underlying data buffers
      */
     public set areUpdatesFrozen(block: boolean) {
@@ -85,7 +110,8 @@ export class MorphTargetManager implements IDisposable {
             if (this._blockCounter <= 0) {
                 this._blockCounter = 0;
 
-                this._syncActiveTargets(true);
+                this._syncActiveTargets(this._forceUpdateWhenUnfrozen);
+                this._forceUpdateWhenUnfrozen = false;
             }
         }
     }
@@ -125,8 +151,12 @@ export class MorphTargetManager implements IDisposable {
      * If you assign a non-zero value to this property, you need to ensure that this value is greater than the maximum number of (active) influencers you'll need for this morph manager.
      * Otherwise, the number of active influencers will be truncated at the value you set for this property, which can lead to unexpected results.
      * Note that this property has no effect if "useTextureToStoreTargets" is false.
+     * Note as well that if MorphTargetManager.ConstantTargetCountForTextureMode is greater than 0, this property will be ignored and the constant value will be used instead.
      */
     public get numMaxInfluencers(): number {
+        if (MorphTargetManager.ConstantTargetCountForTextureMode > 0 && this.isUsingTextureForTargets) {
+            return MorphTargetManager.ConstantTargetCountForTextureMode;
+        }
         return this._numMaxInfluencers;
     }
 
@@ -136,7 +166,8 @@ export class MorphTargetManager implements IDisposable {
         }
 
         this._numMaxInfluencers = value;
-        this._syncActiveTargets(true);
+        this._mustSynchronize = true;
+        this._syncActiveTargets();
     }
 
     /**
@@ -151,6 +182,13 @@ export class MorphTargetManager implements IDisposable {
      */
     public get vertexCount(): number {
         return this._vertexCount;
+    }
+
+    /**
+     * Gets a boolean indicating if this manager supports morphing of positions
+     */
+    public get supportsPositions(): boolean {
+        return this._supportsPositions && this.enablePositionMorphing;
     }
 
     /**
@@ -172,6 +210,62 @@ export class MorphTargetManager implements IDisposable {
      */
     public get supportsUVs(): boolean {
         return this._supportsUVs && this.enableUVMorphing;
+    }
+
+    /**
+     * Gets a boolean indicating if this manager supports morphing of texture coordinates 2
+     */
+    public get supportsUV2s(): boolean {
+        return this._supportsUV2s && this.enableUV2Morphing;
+    }
+
+    /**
+     * Gets a boolean indicating if this manager supports morphing of colors
+     */
+    public get supportsColors(): boolean {
+        return this._supportsColors && this.enableColorMorphing;
+    }
+
+    /**
+     * Gets a boolean indicating if this manager has data for morphing positions
+     */
+    public get hasPositions(): boolean {
+        return this._supportsPositions;
+    }
+
+    /**
+     * Gets a boolean indicating if this manager has data for morphing normals
+     */
+    public get hasNormals(): boolean {
+        return this._supportsNormals;
+    }
+
+    /**
+     * Gets a boolean indicating if this manager has data for morphing tangents
+     */
+    public get hasTangents(): boolean {
+        return this._supportsTangents;
+    }
+
+    /**
+     * Gets a boolean indicating if this manager has data for morphing texture coordinates
+     */
+    public get hasUVs(): boolean {
+        return this._supportsUVs;
+    }
+
+    /**
+     * Gets a boolean indicating if this manager has data for morphing texture coordinates 2
+     */
+    public get hasUV2s(): boolean {
+        return this._supportsUV2s;
+    }
+
+    /**
+     * Gets a boolean indicating if this manager has data for morphing colors
+     */
+    public get hasColors(): boolean {
+        return this._supportsColors;
     }
 
     /**
@@ -205,7 +299,12 @@ export class MorphTargetManager implements IDisposable {
     }
 
     public set useTextureToStoreTargets(value: boolean) {
+        if (this._useTextureToStoreTargets === value) {
+            return;
+        }
         this._useTextureToStoreTargets = value;
+        this._mustSynchronize = true;
+        this._syncActiveTargets();
     }
 
     /**
@@ -261,15 +360,20 @@ export class MorphTargetManager implements IDisposable {
         this._targets.push(target);
         this._targetInfluenceChangedObservers.push(
             target.onInfluenceChanged.add((needUpdate) => {
+                if (this.areUpdatesFrozen && needUpdate) {
+                    this._forceUpdateWhenUnfrozen = true;
+                }
                 this._syncActiveTargets(needUpdate);
             })
         );
         this._targetDataLayoutChangedObservers.push(
             target._onDataLayoutChanged.add(() => {
-                this._syncActiveTargets(true);
+                this._mustSynchronize = true;
+                this._syncActiveTargets();
             })
         );
-        this._syncActiveTargets(true);
+        this._mustSynchronize = true;
+        this._syncActiveTargets();
     }
 
     /**
@@ -283,7 +387,8 @@ export class MorphTargetManager implements IDisposable {
 
             target.onInfluenceChanged.remove(this._targetInfluenceChangedObservers.splice(index, 1)[0]);
             target._onDataLayoutChanged.remove(this._targetDataLayoutChangedObservers.splice(index, 1)[0]);
-            this._syncActiveTargets(true);
+            this._mustSynchronize = true;
+            this._syncActiveTargets();
         }
 
         if (this._scene) {
@@ -312,9 +417,12 @@ export class MorphTargetManager implements IDisposable {
             copy.addTarget(target.clone());
         }
 
+        copy.enablePositionMorphing = this.enablePositionMorphing;
         copy.enableNormalMorphing = this.enableNormalMorphing;
         copy.enableTangentMorphing = this.enableTangentMorphing;
         copy.enableUVMorphing = this.enableUVMorphing;
+        copy.enableUV2Morphing = this.enableUV2Morphing;
+        copy.enableColorMorphing = this.enableColorMorphing;
 
         return copy;
     }
@@ -336,21 +444,21 @@ export class MorphTargetManager implements IDisposable {
         return serializationObject;
     }
 
-    private _syncActiveTargets(needUpdate: boolean): void {
+    private _syncActiveTargets(needUpdate = false): void {
         if (this.areUpdatesFrozen) {
             return;
         }
 
+        const wasUsingTextureForTargets = !!this._targetStoreTexture;
+        const isUsingTextureForTargets = this.isUsingTextureForTargets;
+
+        if (this._mustSynchronize || wasUsingTextureForTargets !== isUsingTextureForTargets) {
+            this._mustSynchronize = false;
+            this.synchronize();
+        }
+
         let influenceCount = 0;
         this._activeTargets.reset();
-        this._supportsNormals = true;
-        this._supportsTangents = true;
-        this._supportsUVs = true;
-        this._vertexCount = 0;
-
-        if (this._scene && this._targets.length > this._scene.getEngine().getCaps().texture2DArrayMaxLayerCount) {
-            this.useTextureToStoreTargets = false;
-        }
 
         if (!this._morphTargetTextureIndices || this._morphTargetTextureIndices.length !== this._targets.length) {
             this._morphTargetTextureIndices = new Float32Array(this._targets.length);
@@ -370,21 +478,6 @@ export class MorphTargetManager implements IDisposable {
             this._activeTargets.push(target);
             this._morphTargetTextureIndices[influenceCount] = targetIndex;
             this._tempInfluences[influenceCount++] = target.influence;
-
-            this._supportsNormals = this._supportsNormals && target.hasNormals;
-            this._supportsTangents = this._supportsTangents && target.hasTangents;
-            this._supportsUVs = this._supportsUVs && target.hasUVs;
-
-            const positions = target.getPositions();
-            if (positions) {
-                const vertexCount = positions.length / 3;
-                if (this._vertexCount === 0) {
-                    this._vertexCount = vertexCount;
-                } else if (this._vertexCount !== vertexCount) {
-                    Logger.Error("Incompatible target. Targets must all have the same vertices count.");
-                    return;
-                }
-            }
         }
 
         if (this._morphTargetTextureIndices.length !== influenceCount) {
@@ -399,8 +492,16 @@ export class MorphTargetManager implements IDisposable {
             this._influences[index] = this._tempInfluences[index];
         }
 
-        if (needUpdate) {
-            this.synchronize();
+        if (needUpdate && this._scene) {
+            for (const mesh of this._scene.meshes) {
+                if ((<any>mesh).morphTargetManager === this) {
+                    if (isUsingTextureForTargets) {
+                        mesh._markSubMeshesAsAttributesDirty();
+                    } else {
+                        (<Mesh>mesh)._syncGeometryWithMorphTargetManager();
+                    }
+                }
+            }
         }
     }
 
@@ -412,104 +513,132 @@ export class MorphTargetManager implements IDisposable {
             return;
         }
 
-        if (this.isUsingTextureForTargets && (this._vertexCount || this.numMaxInfluencers > 0)) {
-            this._textureVertexStride = 1;
+        const engine = this._scene.getEngine();
 
-            if (this._supportsNormals) {
-                this._textureVertexStride++;
-            }
+        this._supportsPositions = true;
+        this._supportsNormals = true;
+        this._supportsTangents = true;
+        this._supportsUVs = true;
+        this._supportsUV2s = true;
+        this._supportsColors = true;
+        this._vertexCount = 0;
 
-            if (this._supportsTangents) {
-                this._textureVertexStride++;
-            }
+        this._targetStoreTexture?.dispose();
+        this._targetStoreTexture = null;
 
-            if (this._supportsUVs) {
-                this._textureVertexStride++;
+        if (this.isUsingTextureForTargets && this._targets.length > engine.getCaps().texture2DArrayMaxLayerCount) {
+            this.useTextureToStoreTargets = false;
+        }
+
+        for (const target of this._targets) {
+            this._supportsPositions = this._supportsPositions && target.hasPositions;
+            this._supportsNormals = this._supportsNormals && target.hasNormals;
+            this._supportsTangents = this._supportsTangents && target.hasTangents;
+            this._supportsUVs = this._supportsUVs && target.hasUVs;
+            this._supportsUV2s = this._supportsUV2s && target.hasUV2s;
+            this._supportsColors = this._supportsColors && target.hasColors;
+
+            const vertexCount = target.vertexCount;
+            if (this._vertexCount === 0) {
+                this._vertexCount = vertexCount;
+            } else if (this._vertexCount !== vertexCount) {
+                Logger.Error(
+                    `Incompatible target. Targets must all have the same vertices count. Current vertex count: ${this._vertexCount}, vertex count for target "${target.name}": ${vertexCount}`
+                );
+                return;
             }
+        }
+
+        if (this.isUsingTextureForTargets) {
+            this._textureVertexStride = 0;
+
+            this._supportsPositions && this._textureVertexStride++;
+            this._supportsNormals && this._textureVertexStride++;
+            this._supportsTangents && this._textureVertexStride++;
+            this._supportsUVs && this._textureVertexStride++;
+            this._supportsUV2s && this._textureVertexStride++;
+            this._supportsColors && this._textureVertexStride++;
 
             this._textureWidth = this._vertexCount * this._textureVertexStride || 1;
             this._textureHeight = 1;
 
-            const maxTextureSize = this._scene.getEngine().getCaps().maxTextureSize;
+            const maxTextureSize = engine.getCaps().maxTextureSize;
             if (this._textureWidth > maxTextureSize) {
                 this._textureHeight = Math.ceil(this._textureWidth / maxTextureSize);
                 this._textureWidth = maxTextureSize;
             }
 
-            let mustUpdateTexture = true;
-            if (this._targetStoreTexture) {
-                const textureSize = this._targetStoreTexture.getSize();
-                if (textureSize.width === this._textureWidth && textureSize.height === this._textureHeight && this._targetStoreTexture.depth === this._targets.length) {
-                    mustUpdateTexture = false;
-                }
-            }
+            const targetCount = this._targets.length;
+            const data = new Float32Array(targetCount * this._textureWidth * this._textureHeight * 4);
 
-            if (mustUpdateTexture) {
-                if (this._targetStoreTexture) {
-                    this._targetStoreTexture.dispose();
-                }
+            let offset = 0;
+            for (let index = 0; index < targetCount; index++) {
+                const target = this._targets[index];
 
-                const targetCount = this._targets.length;
-                const data = new Float32Array(targetCount * this._textureWidth * this._textureHeight * 4);
+                const positions = target.getPositions();
+                const normals = target.getNormals();
+                const uvs = target.getUVs();
+                const tangents = target.getTangents();
+                const uv2s = target.getUV2s();
+                const colors = target.getColors();
 
-                let offset = 0;
-                for (let index = 0; index < targetCount; index++) {
-                    const target = this._targets[index];
-
-                    const positions = target.getPositions();
-                    const normals = target.getNormals();
-                    const uvs = target.getUVs();
-                    const tangents = target.getTangents();
-
-                    if (!positions) {
-                        if (index === 0) {
-                            Logger.Error("Invalid morph target. Target must have positions.");
-                        }
-                        return;
-                    }
-
-                    offset = index * this._textureWidth * this._textureHeight * 4;
-                    for (let vertex = 0; vertex < this._vertexCount; vertex++) {
+                offset = index * this._textureWidth * this._textureHeight * 4;
+                for (let vertex = 0; vertex < this._vertexCount; vertex++) {
+                    if (this._supportsPositions && positions) {
                         data[offset] = positions[vertex * 3];
                         data[offset + 1] = positions[vertex * 3 + 1];
                         data[offset + 2] = positions[vertex * 3 + 2];
-
                         offset += 4;
+                    }
 
-                        if (this._supportsNormals && normals) {
-                            data[offset] = normals[vertex * 3];
-                            data[offset + 1] = normals[vertex * 3 + 1];
-                            data[offset + 2] = normals[vertex * 3 + 2];
-                            offset += 4;
-                        }
+                    if (this._supportsNormals && normals) {
+                        data[offset] = normals[vertex * 3];
+                        data[offset + 1] = normals[vertex * 3 + 1];
+                        data[offset + 2] = normals[vertex * 3 + 2];
+                        offset += 4;
+                    }
 
-                        if (this._supportsUVs && uvs) {
-                            data[offset] = uvs[vertex * 2];
-                            data[offset + 1] = uvs[vertex * 2 + 1];
-                            offset += 4;
-                        }
+                    if (this._supportsUVs && uvs) {
+                        data[offset] = uvs[vertex * 2];
+                        data[offset + 1] = uvs[vertex * 2 + 1];
+                        offset += 4;
+                    }
 
-                        if (this._supportsTangents && tangents) {
-                            data[offset] = tangents[vertex * 3];
-                            data[offset + 1] = tangents[vertex * 3 + 1];
-                            data[offset + 2] = tangents[vertex * 3 + 2];
-                            offset += 4;
-                        }
+                    if (this._supportsTangents && tangents) {
+                        data[offset] = tangents[vertex * 3];
+                        data[offset + 1] = tangents[vertex * 3 + 1];
+                        data[offset + 2] = tangents[vertex * 3 + 2];
+                        offset += 4;
+                    }
+
+                    if (this._supportsUV2s && uv2s) {
+                        data[offset] = uv2s[vertex * 2];
+                        data[offset + 1] = uv2s[vertex * 2 + 1];
+                        offset += 4;
+                    }
+
+                    if (this._supportsColors && colors) {
+                        data[offset] = colors[vertex * 4];
+                        data[offset + 1] = colors[vertex * 4 + 1];
+                        data[offset + 2] = colors[vertex * 4 + 2];
+                        data[offset + 3] = colors[vertex * 4 + 3];
+                        offset += 4;
                     }
                 }
-
-                this._targetStoreTexture = RawTexture2DArray.CreateRGBATexture(
-                    data,
-                    this._textureWidth,
-                    this._textureHeight,
-                    targetCount,
-                    this._scene,
-                    false,
-                    false,
-                    Constants.TEXTURE_NEAREST_SAMPLINGMODE,
-                    Constants.TEXTURETYPE_FLOAT
-                );
             }
+
+            this._targetStoreTexture = RawTexture2DArray.CreateRGBATexture(
+                data,
+                this._textureWidth,
+                this._textureHeight,
+                targetCount,
+                this._scene,
+                false,
+                false,
+                Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+                Constants.TEXTURETYPE_FLOAT
+            );
+            this._targetStoreTexture.name = `Morph texture_${this.uniqueId}`;
         }
 
         // Flag meshes as dirty to resync with the active targets

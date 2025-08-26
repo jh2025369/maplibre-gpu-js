@@ -1,4 +1,3 @@
-/* eslint-disable import/no-internal-modules */
 import type {
     Observer,
     Nullable,
@@ -10,6 +9,7 @@ import type {
     INodeRenderGraphEditorOptions,
     Scene,
     WritableObject,
+    IShadowLight,
 } from "core/index";
 import { Observable } from "../../Misc/observable";
 import { NodeRenderGraphOutputBlock } from "./Blocks/outputBlock";
@@ -24,10 +24,13 @@ import { Tools } from "../../Misc/tools";
 import { Engine } from "../../Engines/engine";
 import { NodeRenderGraphBlockConnectionPointTypes } from "./Types/nodeRenderGraphTypes";
 import { NodeRenderGraphClearBlock } from "./Blocks/Textures/clearBlock";
+import { NodeRenderGraphObjectRendererBlock } from "./Blocks/Rendering/objectRendererBlock";
 import { NodeRenderGraphBuildState } from "./nodeRenderGraphBuildState";
 
 // declare NODERENDERGRAPHEDITOR namespace for compilation issue
+// eslint-disable-next-line @typescript-eslint/naming-convention
 declare let NODERENDERGRAPHEDITOR: any;
+// eslint-disable-next-line @typescript-eslint/naming-convention
 declare let BABYLON: any;
 
 /**
@@ -146,7 +149,8 @@ export class NodeRenderGraph {
 
         this._options = options;
 
-        this._frameGraph = new FrameGraph(this._engine, options.debugTextures, this._scene);
+        this._frameGraph = new FrameGraph(this._scene, options.debugTextures, this);
+        this._frameGraph.name = name;
 
         if (options.rebuildGraphOnEngineResize) {
             this._resizeObserver = this._engine.onResizeObservable.add(() => {
@@ -235,8 +239,9 @@ export class NodeRenderGraph {
      * @param config Define the configuration of the editor
      * @returns a promise fulfilled when the node editor is visible
      */
-    public edit(config?: INodeRenderGraphEditorOptions): Promise<void> {
-        return new Promise((resolve) => {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    public async edit(config?: INodeRenderGraphEditorOptions): Promise<void> {
+        return await new Promise((resolve) => {
             this.BJSNODERENDERGRAPHEDITOR = this.BJSNODERENDERGRAPHEDITOR || this._getGlobalNodeRenderGraphEditor();
             if (typeof this.BJSNODERENDERGRAPHEDITOR == "undefined") {
                 const editorUrl = config && config.editorURL ? config.editorURL : NodeRenderGraph.EditorURL;
@@ -288,20 +293,31 @@ export class NodeRenderGraph {
             this._autoFillExternalInputs();
         }
 
-        this.outputBlock.build(state);
+        try {
+            this.outputBlock.build(state);
 
-        this._frameGraph.build();
+            this._frameGraph.build();
+        } finally {
+            this._buildId = NodeRenderGraph._BuildIdGenerator++;
 
-        this._buildId = NodeRenderGraph._BuildIdGenerator++;
-
-        if (state.emitErrors(this.onBuildErrorObservable)) {
-            this.onBuildObservable.notifyObservers(this);
+            if (state.emitErrors(this.onBuildErrorObservable)) {
+                this.onBuildObservable.notifyObservers(this);
+            }
         }
     }
 
     private _autoFillExternalInputs() {
         const allInputs = this.getInputBlocks();
+
+        const shadowLights: IShadowLight[] = [];
+        for (const light of this._scene.lights) {
+            if ((light as IShadowLight).setShadowProjectionMatrix !== undefined) {
+                shadowLights.push(light as IShadowLight);
+            }
+        }
+
         let cameraIndex = 0;
+        let lightIndex = 0;
         for (const input of allInputs) {
             if (!input.isExternal) {
                 continue;
@@ -320,6 +336,11 @@ export class NodeRenderGraph {
                 input.value = camera;
             } else if (input.isObjectList()) {
                 input.value = { meshes: this._scene.meshes, particleSystems: this._scene.particleSystems };
+            } else if (input.isShadowLight()) {
+                if (lightIndex < shadowLights.length) {
+                    input.value = shadowLights[lightIndex++];
+                    lightIndex = lightIndex % shadowLights.length;
+                }
             }
         }
     }
@@ -327,11 +348,13 @@ export class NodeRenderGraph {
     /**
      * Returns a promise that resolves when the node render graph is ready to be executed
      * This method must be called after the graph has been built (NodeRenderGraph.build called)!
-     * @param timeout Timeout in ms between retries (default is 16)
+     * @param timeStep Time step in ms between retries (default is 16)
+     * @param maxTimeout Maximum time in ms to wait for the graph to be ready (default is 30000)
      * @returns The promise that resolves when the graph is ready
      */
-    public whenReadyAsync(timeout = 16): Promise<void> {
-        return this._frameGraph.whenReadyAsync(timeout);
+    // eslint-disable-next-line @typescript-eslint/promise-function-async, no-restricted-syntax
+    public whenReadyAsync(timeStep = 16, maxTimeout = 30000): Promise<void> {
+        return this._frameGraph.whenReadyAsync(timeStep, maxTimeout);
     }
 
     /**
@@ -581,17 +604,35 @@ export class NodeRenderGraph {
 
         this.editorData = null;
 
-        // Source
-        const backBuffer = new NodeRenderGraphInputBlock("BackBuffer color", this._frameGraph, this._scene, NodeRenderGraphBlockConnectionPointTypes.TextureBackBuffer);
+        // Source textures
+        const colorTexture = new NodeRenderGraphInputBlock("Color Texture", this._frameGraph, this._scene, NodeRenderGraphBlockConnectionPointTypes.Texture);
+        colorTexture.creationOptions.options.samples = 4;
+
+        const depthTexture = new NodeRenderGraphInputBlock("Depth Texture", this._frameGraph, this._scene, NodeRenderGraphBlockConnectionPointTypes.TextureDepthStencilAttachment);
+        depthTexture.creationOptions.options.samples = 4;
 
         // Clear texture
         const clear = new NodeRenderGraphClearBlock("Clear", this._frameGraph, this._scene);
+        clear.clearDepth = true;
+        clear.clearStencil = true;
 
-        backBuffer.output.connectTo(clear.texture);
+        colorTexture.output.connectTo(clear.target);
+        depthTexture.output.connectTo(clear.depth);
+
+        // Render objects
+        const camera = new NodeRenderGraphInputBlock("Camera", this._frameGraph, this._scene, NodeRenderGraphBlockConnectionPointTypes.Camera);
+        const objectList = new NodeRenderGraphInputBlock("Object List", this._frameGraph, this._scene, NodeRenderGraphBlockConnectionPointTypes.ObjectList);
+
+        const mainRendering = new NodeRenderGraphObjectRendererBlock("Main Rendering", this._frameGraph, this._scene);
+
+        camera.output.connectTo(mainRendering.camera);
+        objectList.output.connectTo(mainRendering.objects);
+        clear.output.connectTo(mainRendering.target);
+        clear.outputDepth.connectTo(mainRendering.depth);
 
         // Final output
         const output = new NodeRenderGraphOutputBlock("Output", this._frameGraph, this._scene);
-        clear.output.connectTo(output.texture);
+        mainRendering.output.connectTo(output.texture);
 
         this.outputBlock = output;
     }
@@ -654,7 +695,7 @@ export class NodeRenderGraph {
     }
 
     /**
-     * Disposes the ressources
+     * Disposes the resources
      */
     public dispose(): void {
         for (const block of this.attachedBlocks) {
@@ -716,6 +757,7 @@ export class NodeRenderGraph {
      * @param skipBuild defines whether to skip building the node render graph (default is true)
      * @returns a promise that will resolve to the new node render graph
      */
+    // eslint-disable-next-line @typescript-eslint/promise-function-async, no-restricted-syntax
     public static ParseFromSnippetAsync(
         snippetId: string,
         scene: Scene,
@@ -748,9 +790,11 @@ export class NodeRenderGraph {
                             }
                             resolve(nodeRenderGraph);
                         } catch (err) {
+                            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
                             reject(err);
                         }
                     } else {
+                        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
                         reject("Unable to load the snippet " + snippetId);
                     }
                 }

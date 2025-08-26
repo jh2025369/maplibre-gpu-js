@@ -3,22 +3,19 @@ import { ShaderStore } from "../../Engines/shaderStore";
 
 const name = "pbrBlockReflectivity";
 const shader = `struct reflectivityOutParams
-{float microSurface;float roughness;vec3 surfaceReflectivityColor;
+{float microSurface;float roughness;float diffuseRoughness;float reflectanceF0;vec3 reflectanceF90;vec3 colorReflectanceF0;vec3 colorReflectanceF90;
 #ifdef METALLICWORKFLOW
-vec3 surfaceAlbedo;
+vec3 surfaceAlbedo;float metallic;float specularWeight;vec3 dielectricColorF0;
 #endif
 #if defined(METALLICWORKFLOW) && defined(REFLECTIVITY) && defined(AOSTOREINMETALMAPRED)
 vec3 ambientOcclusionColor;
 #endif
 #if DEBUGMODE>0
 #ifdef METALLICWORKFLOW
-vec2 metallicRoughness;
 #ifdef REFLECTIVITY
 vec4 surfaceMetallicColorMap;
 #endif
-#ifndef FROSTBITE_REFLECTANCE
 vec3 metallicF0;
-#endif
 #else
 #ifdef REFLECTIVITY
 vec4 surfaceReflectivityColorMap;
@@ -28,10 +25,15 @@ vec4 surfaceReflectivityColorMap;
 };
 #define pbr_inline
 reflectivityOutParams reflectivityBlock(
-in vec4 vReflectivityColor
+in vec4 reflectivityColor
 #ifdef METALLICWORKFLOW
 ,in vec3 surfaceAlbedo
 ,in vec4 metallicReflectanceFactors
+#endif
+,in float baseDiffuseRoughness
+#ifdef BASE_DIFFUSE_ROUGHNESS
+,in float baseDiffuseRoughnessTexture
+,in vec2 baseDiffuseRoughnessInfos
 #endif
 #ifdef REFLECTIVITY
 ,in vec3 reflectivityInfos
@@ -48,9 +50,9 @@ in vec4 vReflectivityColor
 ,in vec4 vDetailInfos
 #endif
 )
-{reflectivityOutParams outParams;float microSurface=vReflectivityColor.a;vec3 surfaceReflectivityColor=vReflectivityColor.rgb;
+{reflectivityOutParams outParams;float microSurface=reflectivityColor.a;vec3 surfaceReflectivityColor=reflectivityColor.rgb;
 #ifdef METALLICWORKFLOW
-vec2 metallicRoughness=surfaceReflectivityColor.rg;
+vec2 metallicRoughness=surfaceReflectivityColor.rg;float ior=surfaceReflectivityColor.b;
 #ifdef REFLECTIVITY
 #if DEBUGMODE>0
 outParams.surfaceMetallicColorMap=surfaceMetallicOrReflectivityColorMap;
@@ -77,20 +79,46 @@ float detailRoughness=mix(0.5,detailColor.b,vDetailInfos.w);float loLerp=mix(0.,
 #ifdef MICROSURFACEMAP
 metallicRoughness.g*=microSurfaceTexel.r;
 #endif
-#if DEBUGMODE>0
-outParams.metallicRoughness=metallicRoughness;
-#endif
 #define CUSTOM_FRAGMENT_UPDATE_METALLICROUGHNESS
-microSurface=1.0-metallicRoughness.g;vec3 baseColor=surfaceAlbedo;
-#ifdef FROSTBITE_REFLECTANCE
-outParams.surfaceAlbedo=baseColor.rgb*(1.0-metallicRoughness.r);surfaceReflectivityColor=mix(0.16*reflectance*reflectance,baseColor,metallicRoughness.r);
-#else
-vec3 metallicF0=metallicReflectanceFactors.rgb;
+microSurface=1.0-metallicRoughness.g;vec3 baseColor=surfaceAlbedo;outParams.metallic=metallicRoughness.r;outParams.specularWeight=metallicReflectanceFactors.a;float dielectricF0=reflectivityColor.a*outParams.specularWeight;surfaceReflectivityColor=metallicReflectanceFactors.rgb;
 #if DEBUGMODE>0
-outParams.metallicF0=metallicF0;
+outParams.metallicF0=vec3(dielectricF0)*surfaceReflectivityColor;
 #endif
-outParams.surfaceAlbedo=mix(baseColor.rgb*(1.0-metallicF0),vec3(0.,0.,0.),metallicRoughness.r);surfaceReflectivityColor=mix(metallicF0,baseColor,metallicRoughness.r);
+#ifdef LEGACY_SPECULAR_ENERGY_CONSERVATION
+outParams.surfaceAlbedo=baseColor.rgb*(vec3(1.0)-vec3(dielectricF0)*surfaceReflectivityColor)*(1.0-outParams.metallic);
+#else
+outParams.surfaceAlbedo=baseColor.rgb;
 #endif
+#ifdef LEGACY_SPECULAR_ENERGY_CONSERVATION
+{vec3 reflectivityColor=mix(dielectricF0*surfaceReflectivityColor,baseColor.rgb,outParams.metallic);outParams.reflectanceF0=max(reflectivityColor.r,max(reflectivityColor.g,reflectivityColor.b));}
+#else
+#if DIELECTRIC_SPECULAR_MODEL==DIELECTRIC_SPECULAR_MODEL_GLTF
+float maxF0=max(surfaceReflectivityColor.r,max(surfaceReflectivityColor.g,surfaceReflectivityColor.b));outParams.reflectanceF0=mix(dielectricF0*maxF0,1.0,outParams.metallic);
+#else
+outParams.reflectanceF0=mix(dielectricF0,1.0,outParams.metallic);
+#endif
+#endif
+#ifdef LEGACY_SPECULAR_ENERGY_CONSERVATION
+outParams.reflectanceF90=vec3(outParams.specularWeight);float f90Scale=1.0;
+#else
+float f90Scale=clamp(2.0*(ior-1.0),0.0,1.0);outParams.reflectanceF90=vec3(mix(outParams.specularWeight*f90Scale,1.0,outParams.metallic));
+#endif
+outParams.dielectricColorF0=vec3(dielectricF0*surfaceReflectivityColor);vec3 metallicColorF0=baseColor.rgb;outParams.colorReflectanceF0=mix(outParams.dielectricColorF0,metallicColorF0,outParams.metallic);
+#if (DIELECTRIC_SPECULAR_MODEL==DIELECTRIC_SPECULAR_MODEL_OPENPBR)
+vec3 dielectricColorF90=surfaceReflectivityColor*vec3(outParams.specularWeight)*vec3(f90Scale);
+#else
+vec3 dielectricColorF90=vec3(outParams.specularWeight*f90Scale);
+#endif
+#if (CONDUCTOR_SPECULAR_MODEL==CONDUCTOR_SPECULAR_MODEL_OPENPBR)
+vec3 conductorColorF90=surfaceReflectivityColor;
+#else
+#ifdef LEGACY_SPECULAR_ENERGY_CONSERVATION
+vec3 conductorColorF90=outParams.reflectanceF90;
+#else
+vec3 conductorColorF90=vec3(1.0);
+#endif
+#endif
+outParams.colorReflectanceF90=mix(dielectricColorF90,conductorColorF90,outParams.metallic);
 #else
 #ifdef REFLECTIVITY
 surfaceReflectivityColor*=surfaceMetallicOrReflectivityColorMap.rgb;
@@ -109,8 +137,18 @@ microSurface*=microSurfaceTexel.r;
 #define CUSTOM_FRAGMENT_UPDATE_MICROSURFACE
 #endif
 #endif
+outParams.colorReflectanceF0=surfaceReflectivityColor;outParams.reflectanceF0=max(surfaceReflectivityColor.r,max(surfaceReflectivityColor.g,surfaceReflectivityColor.b));outParams.reflectanceF90=vec3(1.0);
+#if (DIELECTRIC_SPECULAR_MODEL==DIELECTRIC_SPECULAR_MODEL_OPENPBR)
+outParams.colorReflectanceF90=surfaceReflectivityColor;
+#else
+outParams.colorReflectanceF90=vec3(1.0);
 #endif
-microSurface=saturate(microSurface);float roughness=1.-microSurface;outParams.microSurface=microSurface;outParams.roughness=roughness;outParams.surfaceReflectivityColor=surfaceReflectivityColor;return outParams;}
+#endif
+microSurface=saturate(microSurface);float roughness=1.-microSurface;float diffuseRoughness=baseDiffuseRoughness;
+#ifdef BASE_DIFFUSE_ROUGHNESS
+diffuseRoughness*=baseDiffuseRoughnessTexture*baseDiffuseRoughnessInfos.y;
+#endif
+outParams.microSurface=microSurface;outParams.roughness=roughness;outParams.diffuseRoughness=diffuseRoughness;return outParams;}
 `;
 // Sideeffect
 ShaderStore.IncludesShadersStore[name] = shader;

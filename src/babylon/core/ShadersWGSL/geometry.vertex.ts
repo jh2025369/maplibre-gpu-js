@@ -63,6 +63,9 @@ fn main(input : VertexInputs)->FragmentInputs {var positionUpdated: vec3f=input.
 #ifdef UV1
 var uvUpdated: vec2f=input.uv;
 #endif
+#ifdef UV2
+var uv2Updated: vec2f=input.uv2;
+#endif
 #include<morphTargetsVertexGlobal>
 #include<morphTargetsVertex>[0..maxSimultaneousMorphTargets]
 #include<instancesVertex>
@@ -85,27 +88,27 @@ vertexOutputs.vViewPos=scene.view*worldPos;
 #if (defined(VELOCITY) || defined(VELOCITY_LINEAR)) && defined(BONES_VELOCITY_ENABLED)
 vertexOutputs.vCurrentPosition=scene.viewProjection*finalWorld* vec4f(positionUpdated,1.0);
 #if NUM_BONE_INFLUENCERS>0
-var previousInfluence: mat4x4f;previousInfluence=mPreviousBones[ i32(matricesIndices[0])]*matricesWeights[0];
+var previousInfluence: mat4x4f;previousInfluence=uniforms.mPreviousBones[ i32(vertexInputs.matricesIndices[0])]*vertexInputs.matricesWeights[0];
 #if NUM_BONE_INFLUENCERS>1
-previousInfluence+=mPreviousBones[ i32(matricesIndices[1])]*matricesWeights[1];
+previousInfluence+=uniforms.mPreviousBones[ i32(vertexInputs.matricesIndices[1])]*vertexInputs.matricesWeights[1];
 #endif
 #if NUM_BONE_INFLUENCERS>2
-previousInfluence+=mPreviousBones[ i32(matricesIndices[2])]*matricesWeights[2];
+previousInfluence+=uniforms.mPreviousBones[ i32(vertexInputs.matricesIndices[2])]*vertexInputs.matricesWeights[2];
 #endif
 #if NUM_BONE_INFLUENCERS>3
-previousInfluence+=mPreviousBones[ i32(matricesIndices[3])]*matricesWeights[3];
+previousInfluence+=uniforms.mPreviousBones[ i32(vertexInputs.matricesIndices[3])]*vertexInputs.matricesWeights[3];
 #endif
 #if NUM_BONE_INFLUENCERS>4
-previousInfluence+=mPreviousBones[ i32(matricesIndicesExtra[0])]*matricesWeightsExtra[0];
+previousInfluence+=uniforms.mPreviousBones[ i32(vertexInputs.matricesIndicesExtra[0])]*vertexInputs.matricesWeightsExtra[0];
 #endif
 #if NUM_BONE_INFLUENCERS>5
-previousInfluence+=mPreviousBones[ i32(matricesIndicesExtra[1])]*matricesWeightsExtra[1];
+previousInfluence+=uniforms.mPreviousBones[ i32(vertexInputs.matricesIndicesExtra[1])]*vertexInputs.matricesWeightsExtra[1];
 #endif
 #if NUM_BONE_INFLUENCERS>6
-previousInfluence+=mPreviousBones[ i32(matricesIndicesExtra[2])]*matricesWeightsExtra[2];
+previousInfluence+=uniforms.mPreviousBones[ i32(vertexInputs.matricesIndicesExtra[2])]*vertexInputs.matricesWeightsExtra[2];
 #endif
 #if NUM_BONE_INFLUENCERS>7
-previousInfluence+=mPreviousBones[ i32(matricesIndicesExtra[3])]*matricesWeightsExtra[3];
+previousInfluence+=uniforms.mPreviousBones[ i32(vertexInputs.matricesIndicesExtra[3])]*vertexInputs.matricesWeightsExtra[3];
 #endif
 vertexOutputs.vPreviousPosition=uniforms.previousViewProjection*finalPreviousWorld*previousInfluence* vec4f(positionUpdated,1.0);
 #else
@@ -122,7 +125,7 @@ vertexOutputs.position=scene.viewProjection*finalWorld* vec4f(positionUpdated,1.
 #if defined(ALPHATEST) && defined(ALPHATEST_UV1)
 vertexOutputs.vUV=(uniforms.diffuseMatrix* vec4f(uvUpdated,1.0,0.0)).xy;
 #else
-vertexOutputs.vUV=input.uv;
+vertexOutputs.vUV=uvUpdated;
 #endif
 #ifdef BUMP_UV1
 vertexOutputs.vBumpUV=(uniforms.bumpMatrix* vec4f(uvUpdated,1.0,0.0)).xy;
@@ -136,18 +139,18 @@ vertexOutputs.vAlbedoUV=(uniforms.albedoMatrix* vec4f(uvUpdated,1.0,0.0)).xy;
 #endif
 #ifdef UV2
 #if defined(ALPHATEST) && defined(ALPHATEST_UV2)
-vertexOutputs.vUV=(uniforms.diffuseMatrix* vec4f(input.uv2,1.0,0.0)).xy;
+vertexOutputs.vUV=(uniforms.diffuseMatrix* vec4f(uv2Updated,1.0,0.0)).xy;
 #else
-vertexOutputs.vUV=input.uv2;
+vertexOutputs.vUV=uv2Updated;
 #endif
 #ifdef BUMP_UV2
-vertexOutputs.vBumpUV=(uniforms.bumpMatrix* vec4f(input.uv2,1.0,0.0)).xy;
+vertexOutputs.vBumpUV=(uniforms.bumpMatrix* vec4f(uv2Updated,1.0,0.0)).xy;
 #endif
 #ifdef REFLECTIVITY_UV2
-vertexOutputs.vReflectivityUV=(uniforms.reflectivityMatrix* vec4f(input.uv2,1.0,0.0)).xy;
+vertexOutputs.vReflectivityUV=(uniforms.reflectivityMatrix* vec4f(uv2Updated,1.0,0.0)).xy;
 #endif
 #ifdef ALBEDO_UV2
-vertexOutputs.vAlbedoUV=(uniforms.albedoMatrix* vec4f(input.uv2,1.0,0.0)).xy;
+vertexOutputs.vAlbedoUV=(uniforms.albedoMatrix* vec4f(uv2Updated,1.0,0.0)).xy;
 #endif
 #endif
 #endif

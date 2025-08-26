@@ -56,6 +56,9 @@ export class NodeGeometryConnectionPoint {
     /** @internal */
     public _defaultConnectionPointType: Nullable<NodeGeometryBlockConnectionPointTypes> = null;
 
+    /** @internal */
+    public _isMainLinkSource = false;
+
     /** Gets the direction of the point */
     public get direction() {
         return this._direction;
@@ -218,7 +221,7 @@ export class NodeGeometryConnectionPoint {
 
     /** Get the inner type (ie AutoDetect for instance instead of the inferred one) */
     public get innerType() {
-        if (this._linkedConnectionSource && this._linkedConnectionSource.isConnected) {
+        if (this._linkedConnectionSource && !this._isMainLinkSource && this._linkedConnectionSource.isConnected) {
             return this.type;
         }
         return this._type;
@@ -258,9 +261,9 @@ export class NodeGeometryConnectionPoint {
     public getConnectedValue(state: NodeGeometryBuildState) {
         if (this.isConnected) {
             if (this._connectedPoint?._storedFunction) {
-                this._connectedPoint!._callCount++;
-                this._connectedPoint!._executionCount++;
-                return this._connectedPoint!._storedFunction(state);
+                this._connectedPoint._callCount++;
+                this._connectedPoint._executionCount++;
+                return this._connectedPoint._storedFunction(state);
             }
             this._connectedPoint!._callCount++;
             this._connectedPoint!._executionCount = 1;
@@ -347,7 +350,7 @@ export class NodeGeometryConnectionPoint {
     public connectTo(connectionPoint: NodeGeometryConnectionPoint, ignoreConstraints = false): NodeGeometryConnectionPoint {
         if (!ignoreConstraints && !this.canConnectTo(connectionPoint)) {
             // eslint-disable-next-line no-throw-literal
-            throw "Cannot connect these two connectors.";
+            throw `Cannot connect these two connectors. source: "${this.ownerBlock.name}".${this.name}, target: "${connectionPoint.ownerBlock.name}".${connectionPoint.name}`;
         }
 
         this._endpoints.push(connectionPoint);

@@ -90,6 +90,7 @@ export interface IPropertyDescriptionForEdition {
  * @param options the options of the property
  * @returns the decorator
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export function editableInPropertyPage(
     displayName: string,
     propertyType: PropertyTypeForEdition = PropertyTypeForEdition.Boolean,
@@ -108,7 +109,7 @@ export function editableInPropertyPage(
             type: propertyType,
             groupName: groupName,
             options: options ?? {},
-            className: target.constructor.name,
+            className: target.getClassName(),
         });
     };
 }

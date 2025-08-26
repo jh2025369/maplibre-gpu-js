@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-internal-modules
 import type { FrameGraphTextureHandle } from "core/index";
 import { backbufferColorTextureHandle } from "../../frameGraphTypes";
 import { FrameGraphTask } from "../../frameGraphTask";
@@ -18,6 +17,8 @@ export class FrameGraphCopyToBackbufferColorTask extends FrameGraphTask {
         }
 
         const pass = this._frameGraph.addRenderPass(this.name);
+
+        pass.addDependencies(this.sourceTexture);
 
         pass.setRenderTarget(backbufferColorTextureHandle);
         pass.setExecuteFunc((context) => {

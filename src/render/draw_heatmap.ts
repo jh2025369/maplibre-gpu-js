@@ -45,7 +45,7 @@ export function drawHeatmap(painter: Painter, sourceCache: SourceCache, layer: H
             // large kernels are not clipped to tiles
             // Turn on additive blending for kernels, which is a key aspect of kernel density estimation formula
             engine._cacheRenderPipeline.setDepthTestEnabled(false);
-            engine._cacheRenderPipeline.setAlphaBlendEnabled(true);
+            engine._cacheRenderPipeline.setAlphaBlendEnabled([true], 1);
             engine.setAlphaEquation(Constants.ALPHA_EQUATION_ADD);
             engine.setAlphaMode(Constants.ALPHA_ONEONE_ONEONE);
 

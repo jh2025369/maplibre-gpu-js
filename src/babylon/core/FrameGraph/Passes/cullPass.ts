@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-internal-modules
 import type { Nullable, AbstractEngine, IFrameGraphPass, FrameGraphContext, FrameGraphObjectList, FrameGraphTask } from "core/index";
 import { FrameGraphPass } from "./pass";
 
@@ -6,7 +5,7 @@ import { FrameGraphPass } from "./pass";
  * Cull pass used to filter objects that are not visible.
  */
 export class FrameGraphCullPass extends FrameGraphPass<FrameGraphContext> {
-    protected _engine: AbstractEngine;
+    protected readonly _engine: AbstractEngine;
     protected _objectList: FrameGraphObjectList;
 
     /**

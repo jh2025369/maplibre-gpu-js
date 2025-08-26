@@ -12,6 +12,11 @@ in vec4 vAlbedoColor
 ,in vec4 albedoTexture
 ,in vec2 albedoInfos
 #endif
+,in float baseWeight
+#ifdef BASE_WEIGHT
+,in vec4 baseWeightTexture
+,in vec2 vBaseWeightInfos
+#endif
 #ifdef OPACITY
 ,in vec4 opacityMap
 ,in vec2 vOpacityInfos
@@ -23,7 +28,7 @@ in vec4 vAlbedoColor
 #ifdef DECAL
 ,in vec4 decalColor
 ,in vec4 vDecalInfos
-#endif 
+#endif
 )
 {albedoOpacityOutParams outParams;vec3 surfaceAlbedo=vAlbedoColor.rgb;float alpha=vAlbedoColor.a;
 #ifdef ALBEDO
@@ -50,6 +55,10 @@ float detailAlbedo=2.0*mix(0.5,detailColor.r,vDetailInfos.y);surfaceAlbedo.rgb=s
 #include<decalFragment>
 #endif
 #define CUSTOM_FRAGMENT_UPDATE_ALBEDO
+surfaceAlbedo*=baseWeight;
+#ifdef BASE_WEIGHT
+surfaceAlbedo*=baseWeightTexture.r;
+#endif
 #ifdef OPACITY
 #ifdef OPACITYRGB
 alpha=getLuminance(opacityMap.rgb);
@@ -62,7 +71,7 @@ alpha*=vOpacityInfos.y;
 alpha*=vColor.a;
 #endif
 #if !defined(SS_LINKREFRACTIONTOTRANSPARENCY) && !defined(ALPHAFRESNEL)
-#ifdef ALPHATEST 
+#ifdef ALPHATEST
 #if DEBUGMODE != 88
 if (alpha<ALPHATESTVALUE)
 discard;

@@ -39,6 +39,9 @@ indexResult : u32,};@group(0) @binding(0) var<storage,read> positionBuffer : arr
 fn readVector3FromRawSampler(targetIndex : i32,vertexIndex : u32)->vec3f
 { 
 let vertexID=f32(vertexIndex)*settings.morphTargetTextureInfo.x;let y=floor(vertexID/settings.morphTargetTextureInfo.y);let x=vertexID-y*settings.morphTargetTextureInfo.y;let textureUV=vec2<i32>(i32(x),i32(y));return textureLoad(morphTargets,textureUV,i32(morphTargetTextureIndices[targetIndex]),0).xyz;}
+fn readVector4FromRawSampler(targetIndex : i32,vertexIndex : u32)->vec4f
+{ 
+let vertexID=f32(vertexIndex)*settings.morphTargetTextureInfo.x;let y=floor(vertexID/settings.morphTargetTextureInfo.y);let x=vertexID-y*settings.morphTargetTextureInfo.y;let textureUV=vec2<i32>(i32(x),i32(y));return textureLoad(morphTargets,textureUV,i32(morphTargetTextureIndices[targetIndex]),0);}
 #endif
 @compute @workgroup_size(256,1,1)
 fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {let index=global_id.x;if (index>=arrayLength(&positionBuffer)/3) {return;}

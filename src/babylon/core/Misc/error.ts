@@ -13,6 +13,7 @@ export abstract class BaseError extends Error {
         (Object as any).setPrototypeOf ||
         ((o, proto) => {
             o.__proto__ = proto;
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
             return o;
         });
 }
@@ -80,5 +81,16 @@ export class RuntimeError extends BaseError {
 
         this.name = "RuntimeError";
         BaseError._setPrototypeOf(this, RuntimeError.prototype);
+    }
+}
+
+/**
+ * Used for flow control when an operation is aborted, such as with AbortController.
+ */
+export class AbortError extends BaseError {
+    public constructor(message = "Operation aborted") {
+        super(message);
+        this.name = "AbortError";
+        BaseError._setPrototypeOf(this, AbortError.prototype);
     }
 }

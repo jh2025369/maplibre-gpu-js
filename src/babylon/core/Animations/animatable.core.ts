@@ -12,6 +12,13 @@ import type { Node } from "../node";
  * Class used to store an actual running animation
  */
 export class Animatable {
+    /**
+     * If true, the animatable will be processed even if it is considered actively paused (weight of 0 and previous weight of 0).
+     * This can be used to force the full processing of paused animatables in the animation engine.
+     * Default is false.
+     */
+    public static ProcessPausedAnimatables = false;
+
     private _localDelayOffset: Nullable<number> = null;
     private _pausedDelay: Nullable<number> = null;
     private _manualJumpDelay: Nullable<number> = null;
@@ -21,6 +28,7 @@ export class Animatable {
     private _scene: Scene;
     private _speedRatio = 1;
     private _weight = -1.0;
+    private _previousWeight = -1.0;
     private _syncRoot: Nullable<Animatable> = null;
     private _frameToSyncFromJump: Nullable<number> = null;
     private _goToFrame: Nullable<number> = null;
@@ -396,8 +404,8 @@ export class Animatable {
      * Wait asynchronously for the animation to end
      * @returns a promise which will be fulfilled when the animation ends
      */
-    public waitAsync(): Promise<Animatable> {
-        return new Promise((resolve) => {
+    public async waitAsync(): Promise<Animatable> {
+        return await new Promise((resolve) => {
             this.onAnimationEndObservable.add(
                 () => {
                     resolve(this);
@@ -431,17 +439,19 @@ export class Animatable {
         }
 
         if (this._manualJumpDelay !== null) {
-            this._localDelayOffset += this._manualJumpDelay;
+            this._localDelayOffset += this.speedRatio < 0 ? -this._manualJumpDelay : this._manualJumpDelay;
             this._manualJumpDelay = null;
             this._frameToSyncFromJump = null;
         }
 
         this._goToFrame = null;
 
-        if (this._weight === 0) {
+        if (!Animatable.ProcessPausedAnimatables && this._weight === 0 && this._previousWeight === 0) {
             // We consider that an animatable with a weight === 0 is "actively" paused
             return true;
         }
+
+        this._previousWeight = this._weight;
 
         // Animating
         let running = false;
@@ -665,7 +675,7 @@ function ProcessLateAnimationBindingsForQuaternions(
         Quaternion.SlerpToRef(cumulativeQuaternion, TmpVectors.Quaternion[0], runtimeAnimation.weight, cumulativeQuaternion);
     }
 
-    return cumulativeQuaternion!;
+    return cumulativeQuaternion;
 }
 
 /** @internal */

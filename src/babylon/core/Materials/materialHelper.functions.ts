@@ -17,11 +17,19 @@ import { LightConstants } from "../Lights/lightConstants";
 import type { AbstractEngine } from "../Engines/abstractEngine";
 import type { Material } from "./material";
 import type { Nullable } from "../types";
-import { prepareDefinesForClipPlanes } from "./clipPlaneMaterialHelper";
+import { PrepareDefinesForClipPlanes } from "./clipPlaneMaterialHelper";
+import type { MorphTargetManager } from "core/Morph/morphTargetManager";
 
 // Temps
-const _TempFogColor = Color3.Black();
-const _TmpMorphInfluencers = { NUM_MORPH_INFLUENCERS: 0 };
+const TempFogColor = Color3.Black();
+const TmpMorphInfluencers = {
+    NUM_MORPH_INFLUENCERS: 0,
+    NORMAL: false,
+    TANGENT: false,
+    UV: false,
+    UV2: false,
+    COLOR: false,
+};
 
 /**
  * Binds the logarithmic depth information from the scene to the effect for the given defines.
@@ -51,12 +59,100 @@ export function BindFogParameters(scene: Scene, mesh?: AbstractMesh, effect?: Ef
         effect.setFloat4("vFogInfos", scene.fogMode, scene.fogStart, scene.fogEnd, scene.fogDensity);
         // Convert fog color to linear space if used in a linear space computed shader.
         if (linearSpace) {
-            scene.fogColor.toLinearSpaceToRef(_TempFogColor, scene.getEngine().useExactSrgbConversions);
-            effect.setColor3("vFogColor", _TempFogColor);
+            scene.fogColor.toLinearSpaceToRef(TempFogColor, scene.getEngine().useExactSrgbConversions);
+            effect.setColor3("vFogColor", TempFogColor);
         } else {
             effect.setColor3("vFogColor", scene.fogColor);
         }
     }
+}
+
+/**
+ * Prepares the list of attributes and defines required for morph targets.
+ * @param morphTargetManager The manager for the morph targets
+ * @param defines The current list of defines
+ * @param attribs The current list of attributes
+ * @param mesh The mesh to prepare the defines and attributes for
+ * @param usePositionMorph Whether the position morph target is used
+ * @param useNormalMorph Whether the normal morph target is used
+ * @param useTangentMorph Whether the tangent morph target is used
+ * @param useUVMorph Whether the UV morph target is used
+ * @param useUV2Morph Whether the UV2 morph target is used
+ * @param useColorMorph Whether the color morph target is used
+ * @returns The maxSimultaneousMorphTargets for the effect
+ */
+export function PrepareDefinesAndAttributesForMorphTargets(
+    morphTargetManager: MorphTargetManager,
+    defines: string[],
+    attribs: string[],
+    mesh: AbstractMesh,
+    usePositionMorph: boolean,
+    useNormalMorph: boolean,
+    useTangentMorph: boolean,
+    useUVMorph: boolean,
+    useUV2Morph: boolean,
+    useColorMorph: boolean
+): number {
+    const numMorphInfluencers = morphTargetManager.numMaxInfluencers || morphTargetManager.numInfluencers;
+    if (numMorphInfluencers <= 0) {
+        return 0;
+    }
+
+    defines.push("#define MORPHTARGETS");
+
+    if (morphTargetManager.hasPositions) {
+        defines.push("#define MORPHTARGETTEXTURE_HASPOSITIONS");
+    }
+    if (morphTargetManager.hasNormals) {
+        defines.push("#define MORPHTARGETTEXTURE_HASNORMALS");
+    }
+    if (morphTargetManager.hasTangents) {
+        defines.push("#define MORPHTARGETTEXTURE_HASTANGENTS");
+    }
+    if (morphTargetManager.hasUVs) {
+        defines.push("#define MORPHTARGETTEXTURE_HASUVS");
+    }
+    if (morphTargetManager.hasUV2s) {
+        defines.push("#define MORPHTARGETTEXTURE_HASUV2S");
+    }
+    if (morphTargetManager.hasColors) {
+        defines.push("#define MORPHTARGETTEXTURE_HASCOLORS");
+    }
+
+    if (morphTargetManager.supportsPositions && usePositionMorph) {
+        defines.push("#define MORPHTARGETS_POSITION");
+    }
+    if (morphTargetManager.supportsNormals && useNormalMorph) {
+        defines.push("#define MORPHTARGETS_NORMAL");
+    }
+    if (morphTargetManager.supportsTangents && useTangentMorph) {
+        defines.push("#define MORPHTARGETS_TANGENT");
+    }
+    if (morphTargetManager.supportsUVs && useUVMorph) {
+        defines.push("#define MORPHTARGETS_UV");
+    }
+    if (morphTargetManager.supportsUV2s && useUV2Morph) {
+        defines.push("#define MORPHTARGETS_UV2");
+    }
+    if (morphTargetManager.supportsColors && useColorMorph) {
+        defines.push("#define MORPHTARGETS_COLOR");
+    }
+
+    defines.push("#define NUM_MORPH_INFLUENCERS " + numMorphInfluencers);
+
+    if (morphTargetManager.isUsingTextureForTargets) {
+        defines.push("#define MORPHTARGETS_TEXTURE");
+    }
+
+    TmpMorphInfluencers.NUM_MORPH_INFLUENCERS = numMorphInfluencers;
+    TmpMorphInfluencers.NORMAL = useNormalMorph;
+    TmpMorphInfluencers.TANGENT = useTangentMorph;
+    TmpMorphInfluencers.UV = useUVMorph;
+    TmpMorphInfluencers.UV2 = useUV2Morph;
+    TmpMorphInfluencers.COLOR = useColorMorph;
+
+    PrepareAttributesForMorphTargets(attribs, mesh, TmpMorphInfluencers, usePositionMorph);
+    return numMorphInfluencers;
 }
 
 /**
@@ -66,8 +162,13 @@ export function BindFogParameters(scene: Scene, mesh?: AbstractMesh, effect?: Ef
  * @param influencers The number of influencers
  */
 export function PrepareAttributesForMorphTargetsInfluencers(attribs: string[], mesh: AbstractMesh, influencers: number): void {
-    _TmpMorphInfluencers.NUM_MORPH_INFLUENCERS = influencers;
-    PrepareAttributesForMorphTargets(attribs, mesh, _TmpMorphInfluencers);
+    TmpMorphInfluencers.NUM_MORPH_INFLUENCERS = influencers;
+    TmpMorphInfluencers.NORMAL = false;
+    TmpMorphInfluencers.TANGENT = false;
+    TmpMorphInfluencers.UV = false;
+    TmpMorphInfluencers.UV2 = false;
+    TmpMorphInfluencers.COLOR = false;
+    PrepareAttributesForMorphTargets(attribs, mesh, TmpMorphInfluencers, true);
 }
 
 /**
@@ -75,8 +176,9 @@ export function PrepareAttributesForMorphTargetsInfluencers(attribs: string[], m
  * @param attribs The current list of supported attribs
  * @param mesh The mesh to prepare the morph targets attributes for
  * @param defines The current Defines of the effect
+ * @param usePositionMorph Whether the position morph target is used
  */
-export function PrepareAttributesForMorphTargets(attribs: string[], mesh: AbstractMesh, defines: any): void {
+export function PrepareAttributesForMorphTargets(attribs: string[], mesh: AbstractMesh, defines: any, usePositionMorph = true): void {
     const influencers = defines["NUM_MORPH_INFLUENCERS"];
 
     if (influencers > 0 && EngineStore.LastCreatedEngine) {
@@ -85,11 +187,16 @@ export function PrepareAttributesForMorphTargets(attribs: string[], mesh: Abstra
         if (manager?.isUsingTextureForTargets) {
             return;
         }
+        const position = manager && manager.supportsPositions && usePositionMorph;
         const normal = manager && manager.supportsNormals && defines["NORMAL"];
         const tangent = manager && manager.supportsTangents && defines["TANGENT"];
         const uv = manager && manager.supportsUVs && defines["UV1"];
+        const uv2 = manager && manager.supportsUV2s && defines["UV2"];
+        const color = manager && manager.supportsColors && defines["VERTEXCOLOR"];
         for (let index = 0; index < influencers; index++) {
-            attribs.push(Constants.PositionKind + index);
+            if (position) {
+                attribs.push(Constants.PositionKind + index);
+            }
 
             if (normal) {
                 attribs.push(Constants.NormalKind + index);
@@ -101,6 +208,14 @@ export function PrepareAttributesForMorphTargets(attribs: string[], mesh: Abstra
 
             if (uv) {
                 attribs.push(Constants.UVKind + "_" + index);
+            }
+
+            if (uv2) {
+                attribs.push(Constants.UV2Kind + "_" + index);
+            }
+
+            if (color) {
+                attribs.push(Constants.ColorKind + index);
             }
 
             if (attribs.length > maxAttributesCount) {
@@ -196,7 +311,7 @@ export function PrepareAttributesForBakedVertexAnimation(attribs: string[], mesh
 }
 
 // Copies the bones transformation matrices into the target array and returns the target's reference
-function _CopyBonesTransformationMatrices(source: Float32Array, target: Float32Array): Float32Array {
+function CopyBonesTransformationMatrices(source: Float32Array, target: Float32Array): Float32Array {
     target.set(source);
 
     return target;
@@ -233,7 +348,7 @@ export function BindBonesParameters(mesh?: AbstractMesh, effect?: Effect, prePas
                         prePassConfiguration.previousBones[mesh.uniqueId] = matrices.slice();
                     }
                     effect.setMatrices("mPreviousBones", prePassConfiguration.previousBones[mesh.uniqueId]);
-                    _CopyBonesTransformationMatrices(matrices, prePassConfiguration.previousBones[mesh.uniqueId]);
+                    CopyBonesTransformationMatrices(matrices, prePassConfiguration.previousBones[mesh.uniqueId]);
                 }
             }
         }
@@ -451,6 +566,7 @@ export function PrepareDefinesForLights(scene: Scene, mesh: AbstractMesh, define
             defines["POINTLIGHT" + index] = false;
             defines["DIRLIGHT" + index] = false;
             defines["SPOTLIGHT" + index] = false;
+            defines["AREALIGHT" + index] = false;
             defines["SHADOW" + index] = false;
             defines["SHADOWCSM" + index] = false;
             defines["SHADOWCSMDEBUG" + index] = false;
@@ -528,6 +644,7 @@ export function PrepareDefinesForLight(
     defines["HEMILIGHT" + lightIndex] = false;
     defines["POINTLIGHT" + lightIndex] = false;
     defines["DIRLIGHT" + lightIndex] = false;
+    defines["AREALIGHT" + lightIndex] = false;
 
     light.prepareLightSpecificDefines(defines, lightIndex);
 
@@ -615,7 +732,7 @@ export function PrepareDefinesForFrameBoundValues(
     let changed = PrepareDefinesForCamera(scene, defines);
 
     if (useClipPlane !== false) {
-        changed = prepareDefinesForClipPlanes(material, scene, defines);
+        changed = PrepareDefinesForClipPlanes(material, scene, defines);
     }
 
     if (defines["DEPTHPREPASS"] !== !engine.getColorWrite()) {
@@ -679,16 +796,38 @@ export function PrepareDefinesForMorphTargets(mesh: AbstractMesh, defines: any) 
     const manager = (<Mesh>mesh).morphTargetManager;
     if (manager) {
         defines["MORPHTARGETS_UV"] = manager.supportsUVs && defines["UV1"];
+        defines["MORPHTARGETS_UV2"] = manager.supportsUV2s && defines["UV2"];
         defines["MORPHTARGETS_TANGENT"] = manager.supportsTangents && defines["TANGENT"];
         defines["MORPHTARGETS_NORMAL"] = manager.supportsNormals && defines["NORMAL"];
+        defines["MORPHTARGETS_POSITION"] = manager.supportsPositions;
+        defines["MORPHTARGETS_COLOR"] = manager.supportsColors;
+
+        defines["MORPHTARGETTEXTURE_HASUVS"] = manager.hasUVs;
+        defines["MORPHTARGETTEXTURE_HASUV2S"] = manager.hasUV2s;
+        defines["MORPHTARGETTEXTURE_HASTANGENTS"] = manager.hasTangents;
+        defines["MORPHTARGETTEXTURE_HASNORMALS"] = manager.hasNormals;
+        defines["MORPHTARGETTEXTURE_HASPOSITIONS"] = manager.hasPositions;
+        defines["MORPHTARGETTEXTURE_HASCOLORS"] = manager.hasColors;
+
         defines["NUM_MORPH_INFLUENCERS"] = manager.numMaxInfluencers || manager.numInfluencers;
         defines["MORPHTARGETS"] = defines["NUM_MORPH_INFLUENCERS"] > 0;
 
         defines["MORPHTARGETS_TEXTURE"] = manager.isUsingTextureForTargets;
     } else {
         defines["MORPHTARGETS_UV"] = false;
+        defines["MORPHTARGETS_UV2"] = false;
         defines["MORPHTARGETS_TANGENT"] = false;
         defines["MORPHTARGETS_NORMAL"] = false;
+        defines["MORPHTARGETS_POSITION"] = false;
+        defines["MORPHTARGETS_COLOR"] = false;
+
+        defines["MORPHTARGETTEXTURE_HASUVS"] = false;
+        defines["MORPHTARGETTEXTURE_HASUV2S"] = false;
+        defines["MORPHTARGETTEXTURE_HASTANGENTS"] = false;
+        defines["MORPHTARGETTEXTURE_HASNORMALS"] = false;
+        defines["MORPHTARGETTEXTURE_HASPOSITIONS"] = false;
+        defines["MORPHTARGETTEXTURE_HAS_COLORS"] = false;
+
         defines["MORPHTARGETS"] = false;
         defines["NUM_MORPH_INFLUENCERS"] = 0;
     }
@@ -787,6 +926,7 @@ export function PrepareDefinesForMultiview(scene: Scene, defines: any) {
  * @param defines The defines to update
  * @param needAlphaBlending Determines if the material needs alpha blending
  */
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export function PrepareDefinesForOIT(scene: Scene, defines: any, needAlphaBlending: boolean) {
     const previousDefine = defines.ORDER_INDEPENDENT_TRANSPARENCY;
     const previousDefine16Bits = defines.ORDER_INDEPENDENT_TRANSPARENCY_16BITS;
@@ -932,6 +1072,7 @@ export function PrepareDefinesForCamera(scene: Scene, defines: any): boolean {
  * @param projectedLightTexture defines if projected texture must be used
  * @param uniformBuffersList defines an optional list of uniform buffers
  * @param updateOnlyBuffersList True to only update the uniformBuffersList array
+ * @param iesLightTexture defines if IES texture must be used
  */
 export function PrepareUniformsAndSamplersForLight(
     lightIndex: number,
@@ -939,7 +1080,8 @@ export function PrepareUniformsAndSamplersForLight(
     samplersList: string[],
     projectedLightTexture?: any,
     uniformBuffersList: Nullable<string[]> = null,
-    updateOnlyBuffersList = false
+    updateOnlyBuffersList = false,
+    iesLightTexture = false
 ) {
     if (uniformBuffersList) {
         uniformBuffersList.push("Light" + lightIndex);
@@ -954,6 +1096,8 @@ export function PrepareUniformsAndSamplersForLight(
         "vLightDiffuse" + lightIndex,
         "vLightSpecular" + lightIndex,
         "vLightDirection" + lightIndex,
+        "vLightWidth" + lightIndex,
+        "vLightHeight" + lightIndex,
         "vLightFalloff" + lightIndex,
         "vLightGround" + lightIndex,
         "lightMatrix" + lightIndex,
@@ -977,6 +1121,9 @@ export function PrepareUniformsAndSamplersForLight(
         samplersList.push("projectionLightTexture" + lightIndex);
         uniformsList.push("textureProjectionMatrix" + lightIndex);
     }
+    if (iesLightTexture) {
+        samplersList.push("iesLightTexture" + lightIndex);
+    }
 }
 
 /**
@@ -988,7 +1135,7 @@ export function PrepareUniformsAndSamplersForLight(
  */
 export function PrepareUniformsAndSamplersList(uniformsListOrOptions: string[] | IEffectCreationOptions, samplersList?: string[], defines?: any, maxSimultaneousLights = 4): void {
     let uniformsList: string[];
-    let uniformBuffersList: Nullable<string[]> = null;
+    let uniformBuffersList: string[] | undefined;
 
     if ((<IEffectCreationOptions>uniformsListOrOptions).uniformsNames) {
         const options = <IEffectCreationOptions>uniformsListOrOptions;
@@ -1008,7 +1155,15 @@ export function PrepareUniformsAndSamplersList(uniformsListOrOptions: string[] |
         if (!defines["LIGHT" + lightIndex]) {
             break;
         }
-        PrepareUniformsAndSamplersForLight(lightIndex, uniformsList, samplersList, defines["PROJECTEDLIGHTTEXTURE" + lightIndex], uniformBuffersList);
+        PrepareUniformsAndSamplersForLight(
+            lightIndex,
+            uniformsList,
+            samplersList,
+            defines["PROJECTEDLIGHTTEXTURE" + lightIndex],
+            uniformBuffersList,
+            false,
+            defines["IESLIGHTTEXTURE" + lightIndex]
+        );
     }
 
     if (defines["NUM_MORPH_INFLUENCERS"]) {

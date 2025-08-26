@@ -1,5 +1,11 @@
-// eslint-disable-next-line import/no-internal-modules
-import type { Nullable, NodeRenderGraphBlock, NodeRenderGraphBlockConnectionPointValueType, NodeRenderGraphInputBlock } from "core/index";
+import type {
+    Nullable,
+    NodeRenderGraphBlock,
+    NodeRenderGraphBlockConnectionPointValueType,
+    NodeRenderGraphInputBlock,
+    IShadowLight,
+    FrameGraphShadowGeneratorTask,
+} from "core/index";
 import { Observable } from "../../Misc/observable";
 import { NodeRenderGraphBlockConnectionPointTypes, NodeRenderGraphConnectionPointCompatibilityStates, NodeRenderGraphConnectionPointDirection } from "./Types/nodeRenderGraphTypes";
 
@@ -21,6 +27,9 @@ export class NodeRenderGraphConnectionPoint {
     public _linkedConnectionSource: Nullable<NodeRenderGraphConnectionPoint> = null;
 
     /** @internal */
+    public _isMainLinkSource = false;
+
+    /** @internal */
     public _typeConnectionSource: Nullable<NodeRenderGraphConnectionPoint | (() => NodeRenderGraphConnectionPoint)> = null;
 
     /** @internal */
@@ -32,9 +41,39 @@ export class NodeRenderGraphConnectionPoint {
     }
 
     /**
+     * Checks if the value is a texture handle
+     * @param value The value to check
+     * @returns True if the value is a texture handle
+     */
+    public static IsTextureHandle(value: NodeRenderGraphBlockConnectionPointValueType | undefined): boolean {
+        return value !== undefined && Number.isFinite(value);
+    }
+
+    /**
+     * Checks if the value is a shadow generator task
+     * @param value The value to check
+     * @returns True if the value is a shadow generator
+     */
+    public static IsShadowGenerator(value: NodeRenderGraphBlockConnectionPointValueType | undefined): boolean {
+        return value !== undefined && (value as FrameGraphShadowGeneratorTask).mapSize !== undefined;
+    }
+
+    /**
+     * Checks if the value is a shadow light
+     * @param value The value to check
+     * @returns True if the value is a shadow light
+     */
+    public static IsShadowLight(value: NodeRenderGraphBlockConnectionPointValueType | undefined): boolean {
+        return value !== undefined && (value as IShadowLight).setShadowProjectionMatrix !== undefined;
+    }
+
+    /**
      * The value stored in this connection point
      */
     public value: NodeRenderGraphBlockConnectionPointValueType | undefined;
+
+    /** Indicates that this connection point needs dual validation before being connected to another point */
+    public needDualDirectionValidation: boolean = false;
 
     /**
      * Gets or sets the additional types supported by this connection point
@@ -174,10 +213,19 @@ export class NodeRenderGraphConnectionPoint {
 
     /** Get the inner type (ie AutoDetect for instance instead of the inferred one) */
     public get innerType() {
-        if (this._linkedConnectionSource && this._linkedConnectionSource.isConnected) {
+        if (this._linkedConnectionSource && !this._isMainLinkSource && this._linkedConnectionSource.isConnected) {
             return this.type;
         }
         return this._type;
+    }
+
+    /**
+     * Creates a block suitable to be used as an input for this input point.
+     * If null is returned, a block based on the point type will be created.
+     * @returns The returned string parameter is the name of the output point of NodeRenderGraphBlock (first parameter of the returned array) that can be connected to the input
+     */
+    public createCustomInputBlock(): Nullable<[NodeRenderGraphBlock, string]> {
+        return null;
     }
 
     /**
@@ -256,7 +304,7 @@ export class NodeRenderGraphConnectionPoint {
     public connectTo(connectionPoint: NodeRenderGraphConnectionPoint, ignoreConstraints = false): NodeRenderGraphConnectionPoint {
         if (!ignoreConstraints && !this.canConnectTo(connectionPoint)) {
             // eslint-disable-next-line no-throw-literal
-            throw "Cannot connect these two connectors.";
+            throw `Cannot connect these two connectors. source: "${this.ownerBlock.name}".${this.name}, target: "${connectionPoint.ownerBlock.name}".${connectionPoint.name}`;
         }
 
         this._endpoints.push(connectionPoint);

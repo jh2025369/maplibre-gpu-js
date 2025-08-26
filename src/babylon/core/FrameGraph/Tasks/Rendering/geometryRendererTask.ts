@@ -8,7 +8,6 @@ import type {
     FrameGraphObjectList,
     AbstractMesh,
     ObjectRendererOptions,
-    // eslint-disable-next-line import/no-internal-modules
 } from "core/index";
 import { backbufferDepthStencilTextureHandle } from "../../frameGraphTypes";
 import { Color4 } from "core/Maths/math.color";
@@ -38,7 +37,7 @@ export interface IFrameGraphGeometryRendererTextureDescription {
     textureFormat: number;
 }
 
-const clearColors: Color4[] = [new Color4(0, 0, 0, 0), new Color4(1, 1, 1, 1), new Color4(1e8, 1e8, 1e8, 1e8)];
+const ClearColors: Color4[] = [new Color4(0, 0, 0, 0), new Color4(1, 1, 1, 1), new Color4(0, 0, 0, 0)];
 
 /**
  * Task used to render geometry to a set of textures.
@@ -93,6 +92,29 @@ export class FrameGraphGeometryRendererTask extends FrameGraphTask {
      */
     public samples = 1;
 
+    private _reverseCulling = false;
+
+    /**
+     * Whether to reverse culling (default is false).
+     */
+    public get reverseCulling() {
+        return this._reverseCulling;
+    }
+
+    public set reverseCulling(value: boolean) {
+        this._reverseCulling = value;
+
+        const configuration = MaterialHelperGeometryRendering.GetConfiguration(this._renderer.renderPassId);
+        if (configuration) {
+            configuration.reverseCulling = value;
+        }
+    }
+
+    /**
+     * Indicates if a mesh shouldn't be rendered when its material has depth write disabled (default is true).
+     */
+    public dontRenderWhenMaterialDepthWriteIsDisabled = true;
+
     /**
      * The list of texture descriptions used by the geometry renderer task.
      */
@@ -109,6 +131,12 @@ export class FrameGraphGeometryRendererTask extends FrameGraphTask {
      * The depth (in view space) output texture. Will point to a valid texture only if that texture has been requested in textureDescriptions!
      */
     public readonly geometryViewDepthTexture: FrameGraphTextureHandle;
+
+    /**
+     * The normalized depth (in view space) output texture. Will point to a valid texture only if that texture has been requested in textureDescriptions!
+     * The normalization is (d - near) / (far - near), where d is the depth value in view space and near and far are the near and far planes of the camera.
+     */
+    public readonly geometryNormViewDepthTexture: FrameGraphTextureHandle;
 
     /**
      * The depth (in screen space) output texture. Will point to a valid texture only if that texture has been requested in textureDescriptions!
@@ -201,6 +229,14 @@ export class FrameGraphGeometryRendererTask extends FrameGraphTask {
         this._renderer.renderSprites = false;
         this._renderer.renderParticles = false;
 
+        this._renderer.customIsReadyFunction = (mesh: AbstractMesh, refreshRate: number, preWarm?: boolean) => {
+            if (this.dontRenderWhenMaterialDepthWriteIsDisabled && mesh.material && mesh.material.disableDepthWrite) {
+                return !!preWarm;
+            }
+
+            return mesh.isReady(refreshRate === 0);
+        };
+
         this._renderer.onBeforeRenderingManagerRenderObservable.add(() => {
             if (!this._renderer.options.doNotChangeAspectRatio) {
                 scene.updateTransformMatrix(true);
@@ -213,6 +249,7 @@ export class FrameGraphGeometryRendererTask extends FrameGraphTask {
 
         this.outputDepthTexture = this._frameGraph.textureManager.createDanglingHandle();
         this.geometryViewDepthTexture = this._frameGraph.textureManager.createDanglingHandle();
+        this.geometryNormViewDepthTexture = this._frameGraph.textureManager.createDanglingHandle();
         this.geometryScreenDepthTexture = this._frameGraph.textureManager.createDanglingHandle();
         this.geometryViewNormalTexture = this._frameGraph.textureManager.createDanglingHandle();
         this.geometryWorldNormalTexture = this._frameGraph.textureManager.createDanglingHandle();
@@ -231,6 +268,33 @@ export class FrameGraphGeometryRendererTask extends FrameGraphTask {
         return MaterialHelperGeometryRendering.GetConfiguration(this._renderer.renderPassId).excludedSkinnedMesh;
     }
 
+    /**
+     * Excludes the given skinned mesh from computing bones velocities.
+     * Computing bones velocities can have a cost. The cost can be saved by calling this function and by passing the skinned mesh to ignore.
+     * @param skinnedMesh The mesh containing the skeleton to ignore when computing the velocity map.
+     */
+    public excludeSkinnedMeshFromVelocityTexture(skinnedMesh: AbstractMesh): void {
+        if (skinnedMesh.skeleton) {
+            const list = this.excludedSkinnedMeshFromVelocityTexture;
+            if (list.indexOf(skinnedMesh) === -1) {
+                list.push(skinnedMesh);
+            }
+        }
+    }
+
+    /**
+     * Removes the given skinned mesh from the excluded meshes to integrate bones velocities while rendering the velocity map.
+     * @param skinnedMesh The mesh containing the skeleton that has been ignored previously.
+     * @see excludeSkinnedMesh to exclude a skinned mesh from bones velocity computation.
+     */
+    public removeExcludedSkinnedMeshFromVelocityTexture(skinnedMesh: AbstractMesh): void {
+        const list = this.excludedSkinnedMeshFromVelocityTexture;
+        const index = list.indexOf(skinnedMesh);
+        if (index !== -1) {
+            list.splice(index, 1);
+        }
+    }
+
     public override isReady() {
         return this._renderer.isReadyForRendering(this._textureWidth, this._textureHeight);
     }
@@ -239,6 +303,10 @@ export class FrameGraphGeometryRendererTask extends FrameGraphTask {
         if (this.textureDescriptions.length === 0 || this.objectList === undefined) {
             throw new Error(`FrameGraphGeometryRendererTask ${this.name}: object list and at least one geometry texture description must be provided`);
         }
+
+        // Make sure the renderList / particleSystemList are set when FrameGraphGeometryRendererTask.isReady() is called!
+        this._renderer.renderList = this.objectList.meshes;
+        this._renderer.particleSystemList = this.objectList.particleSystems;
 
         const outputTextureHandle = this._createMultiRenderTargetTexture();
 
@@ -260,6 +328,8 @@ export class FrameGraphGeometryRendererTask extends FrameGraphTask {
 
         pass.setRenderTarget(outputTextureHandle);
 
+        let needPreviousWorldMatrices = false;
+
         for (let i = 0; i < this.textureDescriptions.length; i++) {
             const description = this.textureDescriptions[i];
             const handle = outputTextureHandle[i];
@@ -269,6 +339,9 @@ export class FrameGraphGeometryRendererTask extends FrameGraphTask {
             switch (geometryDescription.type) {
                 case Constants.PREPASS_DEPTH_TEXTURE_TYPE:
                     this._frameGraph.textureManager.resolveDanglingHandle(this.geometryViewDepthTexture, handle);
+                    break;
+                case Constants.PREPASS_NORMALIZED_VIEW_DEPTH_TEXTURE_TYPE:
+                    this._frameGraph.textureManager.resolveDanglingHandle(this.geometryNormViewDepthTexture, handle);
                     break;
                 case Constants.PREPASS_SCREENSPACE_DEPTH_TEXTURE_TYPE:
                     this._frameGraph.textureManager.resolveDanglingHandle(this.geometryScreenDepthTexture, handle);
@@ -293,12 +366,16 @@ export class FrameGraphGeometryRendererTask extends FrameGraphTask {
                     break;
                 case Constants.PREPASS_VELOCITY_TEXTURE_TYPE:
                     this._frameGraph.textureManager.resolveDanglingHandle(this.geometryVelocityTexture, handle);
+                    needPreviousWorldMatrices = true;
                     break;
                 case Constants.PREPASS_VELOCITY_LINEAR_TEXTURE_TYPE:
                     this._frameGraph.textureManager.resolveDanglingHandle(this.geometryLinearVelocityTexture, handle);
+                    needPreviousWorldMatrices = true;
                     break;
             }
         }
+
+        this._scene.needsPreviousWorldMatrices = needPreviousWorldMatrices;
 
         pass.setRenderTargetDepth(this.depthTexture);
 
@@ -309,13 +386,19 @@ export class FrameGraphGeometryRendererTask extends FrameGraphTask {
             context.setDepthStates(this.depthTest && depthEnabled, this.depthWrite && depthEnabled);
 
             this._clearAttachmentsLayout.forEach((layout, clearType) => {
-                context.clearColorAttachments(clearColors[clearType], layout);
+                context.clearColorAttachments(ClearColors[clearType], layout);
             });
 
             context.bindAttachments(this._allAttachmentsLayout);
 
             context.render(this._renderer, this._textureWidth, this._textureHeight);
         });
+
+        const passDisabled = this._frameGraph.addRenderPass(this.name + "_disabled", true);
+
+        passDisabled.setRenderTarget(outputTextureHandle);
+        passDisabled.setRenderTargetDepth(this.depthTexture);
+        passDisabled.setExecuteFunc((_context) => {});
     }
 
     public override dispose(): void {
@@ -430,5 +513,7 @@ export class FrameGraphGeometryRendererTask extends FrameGraphTask {
 
             configuration.defines[geometryDescription.defineIndex] = i;
         }
+
+        configuration.reverseCulling = this.reverseCulling;
     }
 }

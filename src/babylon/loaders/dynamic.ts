@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 
 import type { ISceneLoaderPluginFactory, SceneLoaderPluginOptions } from "core/Loading/sceneLoader";
-import { registerSceneLoaderPlugin } from "core/Loading/sceneLoader";
+import { RegisterSceneLoaderPlugin } from "core/Loading/sceneLoader";
 
+import { BVHFileLoaderMetadata } from "./BVH/bvhFileLoader.metadata";
 import { GLTFFileLoaderMetadata } from "./glTF/glTFFileLoader.metadata";
 import { OBJFileLoaderMetadata } from "./OBJ/objFileLoader.metadata";
 import { SPLATFileLoaderMetadata } from "./SPLAT/splatFileLoader.metadata";
@@ -15,8 +16,17 @@ import { registerBuiltInGLTFExtensions } from "./glTF/2.0/Extensions/dynamic";
  * Loaders will be dynamically imported on demand, only when a SceneLoader load operation needs each respective loader.
  */
 export function registerBuiltInLoaders() {
+    // Register the BVH loader.
+    RegisterSceneLoaderPlugin({
+        ...BVHFileLoaderMetadata,
+        createPlugin: async (options: SceneLoaderPluginOptions) => {
+            const { BVHFileLoader } = await import("./BVH/bvhFileLoader");
+            return new BVHFileLoader(options[BVHFileLoaderMetadata.name]);
+        },
+    } satisfies ISceneLoaderPluginFactory);
+
     // Register the glTF loader (2.0) specifically/only.
-    registerSceneLoaderPlugin({
+    RegisterSceneLoaderPlugin({
         ...GLTFFileLoaderMetadata,
         createPlugin: async (options: SceneLoaderPluginOptions) => {
             const { GLTFFileLoader } = await import("./glTF/2.0/glTFLoader");
@@ -28,16 +38,16 @@ export function registerBuiltInLoaders() {
     registerBuiltInGLTFExtensions();
 
     // Register the OBJ loader.
-    registerSceneLoaderPlugin({
+    RegisterSceneLoaderPlugin({
         ...OBJFileLoaderMetadata,
-        createPlugin: async () => {
+        createPlugin: async (options: SceneLoaderPluginOptions) => {
             const { OBJFileLoader } = await import("./OBJ/objFileLoader");
-            return new OBJFileLoader();
+            return new OBJFileLoader(options[OBJFileLoaderMetadata.name]);
         },
     } satisfies ISceneLoaderPluginFactory);
 
     // Register the SPLAT loader.
-    registerSceneLoaderPlugin({
+    RegisterSceneLoaderPlugin({
         ...SPLATFileLoaderMetadata,
         createPlugin: async (options: SceneLoaderPluginOptions) => {
             const { SPLATFileLoader } = await import("./SPLAT/splatFileLoader");
@@ -46,7 +56,7 @@ export function registerBuiltInLoaders() {
     } satisfies ISceneLoaderPluginFactory);
 
     // Register the STL loader.
-    registerSceneLoaderPlugin({
+    RegisterSceneLoaderPlugin({
         ...STLFileLoaderMetadata,
         createPlugin: async () => {
             const { STLFileLoader } = await import("./STL/stlFileLoader");

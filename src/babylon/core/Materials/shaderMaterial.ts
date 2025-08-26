@@ -1,7 +1,7 @@
 import { SerializationHelper } from "../Misc/decorators.serialization";
 import type { Nullable } from "../types";
 import { Scene } from "../scene";
-import { Matrix, Vector3, Vector2, Vector4, Quaternion } from "../Maths/math.vector";
+import { Matrix, Quaternion } from "../Maths/math.vector";
 import type { AbstractMesh } from "../Meshes/abstractMesh";
 import type { Mesh } from "../Meshes/mesh";
 import type { SubMesh } from "../Meshes/subMesh";
@@ -10,7 +10,6 @@ import type { BaseTexture } from "../Materials/Textures/baseTexture";
 import { Texture } from "../Materials/Textures/texture";
 import type { Effect, IEffectCreationOptions, IShaderPath } from "./effect";
 import { RegisterClass } from "../Misc/typeStore";
-import { Color3, Color4 } from "../Maths/math.color";
 import { EffectFallbacks } from "./effectFallbacks";
 import { WebRequest } from "../Misc/webRequest";
 import type { ShaderLanguage } from "./shaderLanguage";
@@ -20,7 +19,7 @@ import type { StorageBuffer } from "../Buffers/storageBuffer";
 import { PushMaterial } from "./pushMaterial";
 import { EngineStore } from "../Engines/engineStore";
 import { Constants } from "../Engines/constants";
-import { addClipPlaneUniforms, bindClipPlane, prepareStringDefinesForClipPlanes } from "./clipPlaneMaterialHelper";
+import { AddClipPlaneUniforms, BindClipPlane, PrepareStringDefinesForClipPlanes } from "./clipPlaneMaterialHelper";
 import type { WebGPUEngine } from "core/Engines/webgpuEngine";
 
 import type { ExternalTexture } from "./Textures/externalTexture";
@@ -31,10 +30,12 @@ import {
     BindMorphTargetParameters,
     BindSceneUniformBuffer,
     PrepareAttributesForBakedVertexAnimation,
+    PrepareDefinesAndAttributesForMorphTargets,
     PushAttributesForInstances,
 } from "./materialHelper.functions";
+import type { IColor3Like, IColor4Like, IVector2Like, IVector3Like, IVector4Like } from "core/Maths/math.like";
 
-const onCreatedEffectParameters = { effect: null as unknown as Effect, subMesh: null as unknown as Nullable<SubMesh> };
+const OnCreatedEffectParameters = { effect: null as unknown as Effect, subMesh: null as unknown as Nullable<SubMesh> };
 
 /**
  * Defines the options associated with the creation of a shader material.
@@ -123,13 +124,13 @@ export class ShaderMaterial extends PushMaterial {
     private _ints: { [name: string]: number } = {};
     private _uints: { [name: string]: number } = {};
     private _floatsArrays: { [name: string]: number[] } = {};
-    private _colors3: { [name: string]: Color3 } = {};
+    private _colors3: { [name: string]: IColor3Like } = {};
     private _colors3Arrays: { [name: string]: number[] } = {};
-    private _colors4: { [name: string]: Color4 } = {};
+    private _colors4: { [name: string]: IColor4Like } = {};
     private _colors4Arrays: { [name: string]: number[] } = {};
-    private _vectors2: { [name: string]: Vector2 } = {};
-    private _vectors3: { [name: string]: Vector3 } = {};
-    private _vectors4: { [name: string]: Vector4 } = {};
+    private _vectors2: { [name: string]: IVector2Like } = {};
+    private _vectors3: { [name: string]: IVector3Like } = {};
+    private _vectors4: { [name: string]: IVector4Like } = {};
     private _quaternions: { [name: string]: Quaternion } = {};
     private _quaternionsArrays: { [name: string]: number[] } = {};
     private _matrices: { [name: string]: Matrix } = {};
@@ -364,7 +365,7 @@ export class ShaderMaterial extends PushMaterial {
      * @param value Define the value to give to the uniform
      * @returns the material itself allowing "fluent" like uniform updates
      */
-    public setColor3(name: string, value: Color3): ShaderMaterial {
+    public setColor3(name: string, value: IColor3Like): ShaderMaterial {
         this._checkUniform(name);
         this._colors3[name] = value;
 
@@ -372,15 +373,15 @@ export class ShaderMaterial extends PushMaterial {
     }
 
     /**
-     * Set a vec3 array in the shader from a Color3 array.
+     * Set a vec3 array in the shader from a IColor3Like array.
      * @param name Define the name of the uniform as defined in the shader
      * @param value Define the value to give to the uniform
      * @returns the material itself allowing "fluent" like uniform updates
      */
-    public setColor3Array(name: string, value: Color3[]): ShaderMaterial {
+    public setColor3Array(name: string, value: IColor3Like[]): ShaderMaterial {
         this._checkUniform(name);
-        this._colors3Arrays[name] = value.reduce((arr, color) => {
-            color.toArray(arr, arr.length);
+        this._colors3Arrays[name] = value.reduce((arr: number[], color) => {
+            arr.push(color.r, color.g, color.b);
             return arr;
         }, []);
         return this;
@@ -392,7 +393,7 @@ export class ShaderMaterial extends PushMaterial {
      * @param value Define the value to give to the uniform
      * @returns the material itself allowing "fluent" like uniform updates
      */
-    public setColor4(name: string, value: Color4): ShaderMaterial {
+    public setColor4(name: string, value: IColor4Like): ShaderMaterial {
         this._checkUniform(name);
         this._colors4[name] = value;
 
@@ -400,15 +401,15 @@ export class ShaderMaterial extends PushMaterial {
     }
 
     /**
-     * Set a vec4 array in the shader from a Color4 array.
+     * Set a vec4 array in the shader from a IColor4Like array.
      * @param name Define the name of the uniform as defined in the shader
      * @param value Define the value to give to the uniform
      * @returns the material itself allowing "fluent" like uniform updates
      */
-    public setColor4Array(name: string, value: Color4[]): ShaderMaterial {
+    public setColor4Array(name: string, value: IColor4Like[]): ShaderMaterial {
         this._checkUniform(name);
-        this._colors4Arrays[name] = value.reduce((arr, color) => {
-            color.toArray(arr, arr.length);
+        this._colors4Arrays[name] = value.reduce((arr: number[], color) => {
+            arr.push(color.r, color.g, color.b, color.a);
             return arr;
         }, []);
         return this;
@@ -420,7 +421,7 @@ export class ShaderMaterial extends PushMaterial {
      * @param value Define the value to give to the uniform
      * @returns the material itself allowing "fluent" like uniform updates
      */
-    public setVector2(name: string, value: Vector2): ShaderMaterial {
+    public setVector2(name: string, value: IVector2Like): ShaderMaterial {
         this._checkUniform(name);
         this._vectors2[name] = value;
 
@@ -433,7 +434,7 @@ export class ShaderMaterial extends PushMaterial {
      * @param value Define the value to give to the uniform
      * @returns the material itself allowing "fluent" like uniform updates
      */
-    public setVector3(name: string, value: Vector3): ShaderMaterial {
+    public setVector3(name: string, value: IVector3Like): ShaderMaterial {
         this._checkUniform(name);
         this._vectors3[name] = value;
 
@@ -446,7 +447,7 @@ export class ShaderMaterial extends PushMaterial {
      * @param value Define the value to give to the uniform
      * @returns the material itself allowing "fluent" like uniform updates
      */
-    public setVector4(name: string, value: Vector4): ShaderMaterial {
+    public setVector4(name: string, value: IVector4Like): ShaderMaterial {
         this._checkUniform(name);
         this._vectors4[name] = value;
 
@@ -686,7 +687,7 @@ export class ShaderMaterial extends PushMaterial {
         // Instances
         const defines = [];
         const attribs = [];
-        const fallbacks = new EffectFallbacks();
+        let fallbacks: Nullable<EffectFallbacks> = null;
 
         let shaderName = this._shaderPath,
             uniforms = this._options.uniforms,
@@ -742,6 +743,7 @@ export class ShaderMaterial extends PushMaterial {
             const skeleton = mesh.skeleton;
 
             defines.push("#define NUM_BONE_INFLUENCERS " + mesh.numBoneInfluencers);
+            fallbacks = new EffectFallbacks();
             fallbacks.addCPUSkinningFallback(0, mesh);
 
             if (skeleton.isUsingTextureForMatrices) {
@@ -769,47 +771,30 @@ export class ShaderMaterial extends PushMaterial {
         let numInfluencers = 0;
         const manager = mesh ? (<Mesh>mesh).morphTargetManager : null;
         if (manager) {
-            const uv = manager.supportsUVs && defines.indexOf("#define UV1") !== -1;
-            const tangent = manager.supportsTangents && defines.indexOf("#define TANGENT") !== -1;
-            const normal = manager.supportsNormals && defines.indexOf("#define NORMAL") !== -1;
-            numInfluencers = manager.numMaxInfluencers || manager.numInfluencers;
-            if (uv) {
-                defines.push("#define MORPHTARGETS_UV");
-            }
-            if (tangent) {
-                defines.push("#define MORPHTARGETS_TANGENT");
-            }
-            if (normal) {
-                defines.push("#define MORPHTARGETS_NORMAL");
-            }
-            if (numInfluencers > 0) {
-                defines.push("#define MORPHTARGETS");
-            }
+            const uv = defines.indexOf("#define UV1") !== -1;
+            const uv2 = defines.indexOf("#define UV2") !== -1;
+            const tangent = defines.indexOf("#define TANGENT") !== -1;
+            const normal = defines.indexOf("#define NORMAL") !== -1;
+            const color = defines.indexOf("#define VERTEXCOLOR") !== -1;
+            numInfluencers = PrepareDefinesAndAttributesForMorphTargets(
+                manager,
+                defines,
+                attribs,
+                mesh!,
+                true, // usePositionMorph
+                normal, // useNormalMorph
+                tangent, // useTangentMorph
+                uv, // useUVMorph
+                uv2, // useUV2Morph
+                color // useColorMorph
+            );
             if (manager.isUsingTextureForTargets) {
-                defines.push("#define MORPHTARGETS_TEXTURE");
-
                 if (uniforms.indexOf("morphTargetTextureIndices") === -1) {
                     uniforms.push("morphTargetTextureIndices");
                 }
 
                 if (this._options.samplers.indexOf("morphTargets") === -1) {
                     this._options.samplers.push("morphTargets");
-                }
-            }
-            defines.push("#define NUM_MORPH_INFLUENCERS " + numInfluencers);
-            for (let index = 0; index < numInfluencers; index++) {
-                attribs.push(VertexBuffer.PositionKind + index);
-
-                if (normal) {
-                    attribs.push(VertexBuffer.NormalKind + index);
-                }
-
-                if (tangent) {
-                    attribs.push(VertexBuffer.TangentKind + index);
-                }
-
-                if (uv) {
-                    attribs.push(VertexBuffer.UVKind + "_" + index);
                 }
             }
             if (numInfluencers > 0) {
@@ -825,7 +810,7 @@ export class ShaderMaterial extends PushMaterial {
 
         // Baked Vertex Animation
         if (mesh) {
-            const bvaManager = (<Mesh>mesh).bakedVertexAnimationManager;
+            const bvaManager = (<AbstractMesh>mesh).bakedVertexAnimationManager;
 
             if (bvaManager && bvaManager.isEnabled) {
                 defines.push("#define BAKED_VERTEX_ANIMATION_TEXTURE");
@@ -855,15 +840,15 @@ export class ShaderMaterial extends PushMaterial {
         }
 
         // Alpha test
-        if (mesh && this._shouldTurnAlphaTestOn(mesh)) {
+        if (mesh && this.needAlphaTestingForMesh(mesh)) {
             defines.push("#define ALPHATEST");
         }
 
         // Clip planes
         if (this._options.useClipPlane !== false) {
-            addClipPlaneUniforms(uniforms);
+            AddClipPlaneUniforms(uniforms);
 
-            prepareStringDefinesForClipPlanes(this, scene, defines);
+            PrepareStringDefinesForClipPlanes(this, scene, defines);
         }
 
         // Fog
@@ -927,15 +912,15 @@ export class ShaderMaterial extends PushMaterial {
             }
 
             if (this._onEffectCreatedObservable) {
-                onCreatedEffectParameters.effect = effect;
-                onCreatedEffectParameters.subMesh = subMesh ?? mesh?.subMeshes[0] ?? null;
-                this._onEffectCreatedObservable.notifyObservers(onCreatedEffectParameters);
+                OnCreatedEffectParameters.effect = effect;
+                OnCreatedEffectParameters.subMesh = subMesh ?? mesh?.subMeshes[0] ?? null;
+                this._onEffectCreatedObservable.notifyObservers(OnCreatedEffectParameters);
             }
         }
 
         drawWrapper!._wasPreviouslyUsingInstances = !!useInstances;
 
-        if (!effect?.isReady() ?? true) {
+        if (!effect?.isReady()) {
             return false;
         }
 
@@ -954,29 +939,28 @@ export class ShaderMaterial extends PushMaterial {
      * @param effectOverride - If provided, use this effect instead of internal effect
      */
     public override bindOnlyWorldMatrix(world: Matrix, effectOverride?: Nullable<Effect>): void {
-        const scene = this.getScene();
-
         const effect = effectOverride ?? this.getEffect();
-
         if (!effect) {
             return;
         }
 
-        if (this._options.uniforms.indexOf("world") !== -1) {
+        const uniforms = this._options.uniforms;
+        if (uniforms.indexOf("world") !== -1) {
             effect.setMatrix("world", world);
         }
 
-        if (this._options.uniforms.indexOf("worldView") !== -1) {
+        const scene = this.getScene();
+        if (uniforms.indexOf("worldView") !== -1) {
             world.multiplyToRef(scene.getViewMatrix(), this._cachedWorldViewMatrix);
             effect.setMatrix("worldView", this._cachedWorldViewMatrix);
         }
 
-        if (this._options.uniforms.indexOf("worldViewProjection") !== -1) {
+        if (uniforms.indexOf("worldViewProjection") !== -1) {
             world.multiplyToRef(scene.getTransformMatrix(), this._cachedWorldViewProjectionMatrix);
             effect.setMatrix("worldViewProjection", this._cachedWorldViewProjectionMatrix);
         }
 
-        if (this._options.uniforms.indexOf("view") !== -1) {
+        if (uniforms.indexOf("view") !== -1) {
             effect.setMatrix("view", scene.getViewMatrix());
         }
     }
@@ -1055,14 +1039,14 @@ export class ShaderMaterial extends PushMaterial {
             }
 
             if (scene.activeCamera && this._options.uniforms.indexOf("cameraPosition") !== -1) {
-                effect.setVector3("cameraPosition", scene.activeCamera!.globalPosition);
+                effect.setVector3("cameraPosition", scene.activeCamera.globalPosition);
             }
 
             // Bones
             BindBonesParameters(mesh, effect);
 
             // Clip plane
-            bindClipPlane(effect, this, scene);
+            BindClipPlane(effect, this, scene);
 
             // Misc
             if (this._useLogarithmicDepth) {
@@ -1223,12 +1207,12 @@ export class ShaderMaterial extends PushMaterial {
 
         if (effect && mesh && (mustRebind || !this.isFrozen)) {
             // Morph targets
-            const manager = (<Mesh>mesh).morphTargetManager;
-            if (manager && manager.numInfluencers > 0) {
-                BindMorphTargetParameters(<Mesh>mesh, effect);
+            BindMorphTargetParameters(mesh, effect);
+            if (mesh.morphTargetManager && mesh.morphTargetManager.isUsingTextureForTargets) {
+                mesh.morphTargetManager._bind(effect);
             }
 
-            const bvaManager = (<Mesh>mesh).bakedVertexAnimationManager;
+            const bvaManager = (<AbstractMesh>mesh).bakedVertexAnimationManager;
 
             if (bvaManager && bvaManager.isEnabled) {
                 const drawWrapper = storeEffectOnSubMeshes ? subMesh._drawWrapper : this._drawWrapper;
@@ -1307,12 +1291,14 @@ export class ShaderMaterial extends PushMaterial {
         // Options
         this._options = { ...this._options };
 
-        (Object.keys(this._options) as Array<keyof IShaderMaterialOptions>).forEach((propName) => {
+        const keys = Object.keys(this._options) as Array<keyof IShaderMaterialOptions>;
+
+        for (const propName of keys) {
             const propValue = this._options[propName];
             if (Array.isArray(propValue)) {
                 (<string[]>this._options[propName]) = propValue.slice(0);
             }
-        });
+        }
 
         // Stencil
         this.stencil.copyTo(result.stencil);
@@ -1536,7 +1522,8 @@ export class ShaderMaterial extends PushMaterial {
         // Color3
         serializationObject.colors3 = {};
         for (name in this._colors3) {
-            serializationObject.colors3[name] = this._colors3[name].asArray();
+            const color3 = this._colors3[name];
+            serializationObject.colors3[name] = [color3.r, color3.g, color3.b];
         }
 
         // Color3 array
@@ -1548,7 +1535,8 @@ export class ShaderMaterial extends PushMaterial {
         // Color4
         serializationObject.colors4 = {};
         for (name in this._colors4) {
-            serializationObject.colors4[name] = this._colors4[name].asArray();
+            const color4 = this._colors4[name];
+            serializationObject.colors4[name] = [color4.r, color4.g, color4.b, color4.a];
         }
 
         // Color4 array
@@ -1560,19 +1548,22 @@ export class ShaderMaterial extends PushMaterial {
         // Vector2
         serializationObject.vectors2 = {};
         for (name in this._vectors2) {
-            serializationObject.vectors2[name] = this._vectors2[name].asArray();
+            const v2 = this._vectors2[name];
+            serializationObject.vectors2[name] = [v2.x, v2.y];
         }
 
         // Vector3
         serializationObject.vectors3 = {};
         for (name in this._vectors3) {
-            serializationObject.vectors3[name] = this._vectors3[name].asArray();
+            const v3 = this._vectors3[name];
+            serializationObject.vectors3[name] = [v3.x, v3.y, v3.z];
         }
 
         // Vector4
         serializationObject.vectors4 = {};
         for (name in this._vectors4) {
-            serializationObject.vectors4[name] = this._vectors4[name].asArray();
+            const v4 = this._vectors4[name];
+            serializationObject.vectors4[name] = [v4.x, v4.y, v4.z, v4.w];
         }
 
         // Quaternion
@@ -1656,16 +1647,16 @@ export class ShaderMaterial extends PushMaterial {
 
         // Texture
         for (name in source.textures) {
-            material.setTexture(name, <Texture>Texture.Parse(source.textures[name], scene, rootUrl));
+            material.setTexture(name, <BaseTexture>Texture.Parse(source.textures[name], scene, rootUrl));
         }
 
         // Texture arrays
         for (name in source.textureArrays) {
             const array = source.textureArrays[name];
-            const textureArray: Texture[] = [];
+            const textureArray: BaseTexture[] = [];
 
             for (let index = 0; index < array.length; index++) {
-                textureArray.push(<Texture>Texture.Parse(array[index], scene, rootUrl));
+                textureArray.push(<BaseTexture>Texture.Parse(array[index], scene, rootUrl));
             }
             material.setTextureArray(name, textureArray);
         }
@@ -1692,12 +1683,13 @@ export class ShaderMaterial extends PushMaterial {
 
         // Color3
         for (name in source.colors3) {
-            material.setColor3(name, Color3.FromArray(source.colors3[name]));
+            const color = source.colors3[name];
+            material.setColor3(name, { r: color[0], g: color[1], b: color[2] });
         }
 
         // Color3 arrays
         for (name in source.colors3Arrays) {
-            const colors: Color3[] = source.colors3Arrays[name]
+            const colors: IColor3Like[] = source.colors3Arrays[name]
                 .reduce((arr: Array<Array<number>>, num: number, i: number) => {
                     if (i % 3 === 0) {
                         arr.push([num]);
@@ -1706,18 +1698,19 @@ export class ShaderMaterial extends PushMaterial {
                     }
                     return arr;
                 }, [])
-                .map((color: ArrayLike<number>) => Color3.FromArray(color));
+                .map((color: ArrayLike<number>) => ({ r: color[0], g: color[1], b: color[2] }));
             material.setColor3Array(name, colors);
         }
 
         // Color4
         for (name in source.colors4) {
-            material.setColor4(name, Color4.FromArray(source.colors4[name]));
+            const color = source.colors4[name];
+            material.setColor4(name, { r: color[0], g: color[1], b: color[2], a: color[3] });
         }
 
         // Color4 arrays
         for (name in source.colors4Arrays) {
-            const colors: Color4[] = source.colors4Arrays[name]
+            const colors: IColor4Like[] = source.colors4Arrays[name]
                 .reduce((arr: Array<Array<number>>, num: number, i: number) => {
                     if (i % 4 === 0) {
                         arr.push([num]);
@@ -1726,23 +1719,26 @@ export class ShaderMaterial extends PushMaterial {
                     }
                     return arr;
                 }, [])
-                .map((color: ArrayLike<number>) => Color4.FromArray(color));
+                .map((color: ArrayLike<number>) => ({ r: color[0], g: color[1], b: color[2], a: color[3] }));
             material.setColor4Array(name, colors);
         }
 
         // Vector2
         for (name in source.vectors2) {
-            material.setVector2(name, Vector2.FromArray(source.vectors2[name]));
+            const vector = source.vectors2[name];
+            material.setVector2(name, { x: vector[0], y: vector[1] });
         }
 
         // Vector3
         for (name in source.vectors3) {
-            material.setVector3(name, Vector3.FromArray(source.vectors3[name]));
+            const vector = source.vectors3[name];
+            material.setVector3(name, { x: vector[0], y: vector[1], z: vector[2] });
         }
 
         // Vector4
         for (name in source.vectors4) {
-            material.setVector4(name, Vector4.FromArray(source.vectors4[name]));
+            const vector = source.vectors4[name];
+            material.setVector4(name, { x: vector[0], y: vector[1], z: vector[2], w: vector[3] });
         }
 
         // Quaternion
@@ -1801,8 +1797,8 @@ export class ShaderMaterial extends PushMaterial {
      * @param rootUrl defines the root URL to use to load textures and relative dependencies
      * @returns a promise that will resolve to the new ShaderMaterial
      */
-    public static ParseFromFileAsync(name: Nullable<string>, url: string, scene: Scene, rootUrl = ""): Promise<ShaderMaterial> {
-        return new Promise((resolve, reject) => {
+    public static async ParseFromFileAsync(name: Nullable<string>, url: string, scene: Scene, rootUrl = ""): Promise<ShaderMaterial> {
+        return await new Promise((resolve, reject) => {
             const request = new WebRequest();
             request.addEventListener("readystatechange", () => {
                 if (request.readyState == 4) {
@@ -1816,6 +1812,7 @@ export class ShaderMaterial extends PushMaterial {
 
                         resolve(output);
                     } else {
+                        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
                         reject("Unable to load the ShaderMaterial");
                     }
                 }
@@ -1833,8 +1830,8 @@ export class ShaderMaterial extends PushMaterial {
      * @param rootUrl defines the root URL to use to load textures and relative dependencies
      * @returns a promise that will resolve to the new ShaderMaterial
      */
-    public static ParseFromSnippetAsync(snippetId: string, scene: Scene, rootUrl = ""): Promise<ShaderMaterial> {
-        return new Promise((resolve, reject) => {
+    public static async ParseFromSnippetAsync(snippetId: string, scene: Scene, rootUrl = ""): Promise<ShaderMaterial> {
+        return await new Promise((resolve, reject) => {
             const request = new WebRequest();
             request.addEventListener("readystatechange", () => {
                 if (request.readyState == 4) {
@@ -1847,6 +1844,7 @@ export class ShaderMaterial extends PushMaterial {
 
                         resolve(output);
                     } else {
+                        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
                         reject("Unable to load the snippet " + snippetId);
                     }
                 }

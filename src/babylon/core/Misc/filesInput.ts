@@ -5,6 +5,7 @@ import { SceneLoader } from "../Loading/sceneLoader";
 import { Logger } from "../Misc/logger";
 import { FilesInputStore } from "./filesInputStore";
 import type { Nullable } from "../types";
+import { SceneLoaderFlags } from "core/Loading/sceneLoaderFlags";
 
 /**
  * Class used to help managing file picking and drag-n-drop
@@ -36,8 +37,10 @@ export class FilesInput {
      * @param onProgress onProgress callback called while loading the file
      * @returns a promise completing when the load is complete
      */
-    public loadAsync: (sceneFile: File, onProgress: Nullable<(event: ISceneLoaderProgressEvent) => void>) => Promise<Scene> = (sceneFile, onProgress) =>
-        this.useAppend ? SceneLoader.AppendAsync("file:", sceneFile, this._currentScene, onProgress) : SceneLoader.LoadAsync("file:", sceneFile, this._engine, onProgress);
+    public loadAsync: (sceneFile: File, onProgress: Nullable<(event: ISceneLoaderProgressEvent) => void>) => Promise<Scene> = async (sceneFile, onProgress) =>
+        this.useAppend
+            ? await SceneLoader.AppendAsync("file:", sceneFile, this._currentScene, onProgress)
+            : await SceneLoader.LoadAsync("file:", sceneFile, this._engine, onProgress);
 
     private _engine: AbstractEngine;
     private _currentScene: Nullable<Scene>;
@@ -65,6 +68,7 @@ export class FilesInput {
      * @param onReloadCallback callback called when a reload is requested
      * @param errorCallback callback call if an error occurs
      * @param useAppend defines if the file loaded must be appended (true) or have the scene replaced (false, default behavior)
+     * @param dontInjectRenderLoop defines if the render loop mustn't be injected into engine (default is false). Used only if useAppend is false.
      */
     constructor(
         engine: AbstractEngine,
@@ -76,7 +80,8 @@ export class FilesInput {
         startingProcessingFilesCallback: Nullable<(files?: File[]) => void>,
         onReloadCallback: Nullable<(sceneFile: File) => void>,
         errorCallback: Nullable<(sceneFile: File, scene: Nullable<Scene>, message: string) => void>,
-        public readonly useAppend = false
+        public readonly useAppend = false,
+        public readonly dontInjectRenderLoop = false
     ) {
         this._engine = engine;
         this._currentScene = scene;
@@ -98,6 +103,8 @@ export class FilesInput {
      * Calls this function to listen to drag'n'drop events on a specific DOM element
      * @param elementToMonitor defines the DOM element to track
      */
+    // should probably be DragAndDrop
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     public monitorElementForDragNDrop(elementToMonitor: HTMLElement): void {
         if (elementToMonitor) {
             this._elementToMonitor = elementToMonitor;
@@ -304,12 +311,13 @@ export class FilesInput {
                 }
             }
 
-            SceneLoader.ShowLoadingScreen = false;
+            SceneLoaderFlags.ShowLoadingScreen = false;
             if (this.displayLoadingUI) {
                 this._engine.displayLoadingUI();
             }
 
             this.loadAsync(this._sceneFileToLoad, this._progressCallback)
+                // eslint-disable-next-line github/no-then
                 .then((scene) => {
                     // if appending do nothing
                     if (!this.useAppend) {
@@ -324,9 +332,11 @@ export class FilesInput {
                             if (this.displayLoadingUI) {
                                 this._engine.hideLoadingUI();
                             }
-                            this._engine.runRenderLoop(() => {
-                                this._renderFunction();
-                            });
+                            if (!this.dontInjectRenderLoop) {
+                                this._engine.runRenderLoop(() => {
+                                    this._renderFunction();
+                                });
+                            }
                         });
                     } else {
                         if (this.displayLoadingUI) {
@@ -337,6 +347,7 @@ export class FilesInput {
                         this._sceneLoadedCallback(this._sceneFileToLoad, this._currentScene);
                     }
                 })
+                // eslint-disable-next-line github/no-then
                 .catch((error) => {
                     if (this.displayLoadingUI) {
                         this._engine.hideLoadingUI();

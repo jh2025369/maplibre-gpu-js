@@ -6,9 +6,9 @@ const shader = `#if defined(VERTEXCOLOR) || defined(INSTANCESCOLOR) && defined(I
 vColor=vec4(1.0);
 #ifdef VERTEXCOLOR
 #ifdef VERTEXALPHA
-vColor*=color;
+vColor*=colorUpdated;
 #else
-vColor.rgb*=color.rgb;
+vColor.rgb*=colorUpdated.rgb;
 #endif
 #endif
 #ifdef INSTANCESCOLOR

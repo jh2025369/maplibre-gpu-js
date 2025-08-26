@@ -68,7 +68,8 @@ fn computeAttenuationForIntersection(ihitPixel: vec2f, hitUV: vec2f, vsRayOrigin
 #endif
 
 #ifdef SSR_ATTENUATE_INTERSECTION_DISTANCE
-    // Attenuation based on the distance between the origin of the reflection ray and the intersection povar attenuation: i32 *= 1.0 - clamp(distance(vsRayOrigin, vsHitPoint) / maxRayDistance, 0.0, 1.0);
+    // Attenuation based on the distance between the origin of the reflection ray and the intersection point
+    attenuation *= 1.0 - clamp(distance(vsRayOrigin, vsHitPoint) / maxRayDistance, 0.0, 1.0);
 #endif
 
 #ifdef SSR_ATTENUATE_INTERSECTION_NUMITERATIONS
@@ -99,7 +100,7 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
     // Get color and reflectivity
     var colorFull: vec4f = textureSampleLevel(textureSampler, textureSamplerSampler, input.vUV, 0.0);
     var color: vec3f = colorFull.rgb;
-    var reflectivity: vec4f = textureSampleLevel(reflectivitySampler, reflectivitySamplerSampler, input.vUV, 0.0);
+    var reflectivity: vec4f = max(textureSampleLevel(reflectivitySampler, reflectivitySamplerSampler, input.vUV, 0.0), vec4f(0.0));
 #ifndef SSR_DISABLE_REFLECTIVITY_TEST
     if (max(reflectivity.r, max(reflectivity.g, reflectivity.b)) <= uniforms.reflectivityThreshold) {
         #ifdef SSR_USE_BLUR

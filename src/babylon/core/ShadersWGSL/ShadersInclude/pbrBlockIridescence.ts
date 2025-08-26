@@ -10,7 +10,7 @@ specularEnvironmentR0: vec3f};
 #ifdef IRIDESCENCE
 fn iridescenceBlock(
 vIridescenceParams: vec4f
-,viewAngle: f32
+,viewAngle_: f32
 ,specularEnvironmentR0: vec3f
 #ifdef IRIDESCENCE_TEXTURE
 ,iridescenceMapData: vec2f
@@ -20,12 +20,13 @@ vIridescenceParams: vec4f
 #endif
 #ifdef CLEARCOAT
 ,NdotVUnclamped: f32
+,vClearCoatParams: vec2f
 #ifdef CLEARCOAT_TEXTURE
 ,clearCoatMapData: vec2f
 #endif
 #endif
 )->iridescenceOutParams
-{var outParams: iridescenceOutParams;var iridescenceIntensity: f32=vIridescenceParams.x;var iridescenceIOR: f32=vIridescenceParams.y;var iridescenceThicknessMin: f32=vIridescenceParams.z;var iridescenceThicknessMax: f32=vIridescenceParams.w;var iridescenceThicknessWeight: f32=1.;
+{var outParams: iridescenceOutParams;var iridescenceIntensity: f32=vIridescenceParams.x;var iridescenceIOR: f32=vIridescenceParams.y;var iridescenceThicknessMin: f32=vIridescenceParams.z;var iridescenceThicknessMax: f32=vIridescenceParams.w;var iridescenceThicknessWeight: f32=1.;var viewAngle=viewAngle_;
 #ifdef IRIDESCENCE_TEXTURE
 iridescenceIntensity*=iridescenceMapData.x;
 #endif

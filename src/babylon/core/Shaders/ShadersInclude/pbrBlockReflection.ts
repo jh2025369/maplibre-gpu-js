@@ -148,16 +148,17 @@ in vec3 vPositionW
 #if defined(NORMAL) && defined(USESPHERICALINVERTEX)
 ,in vec3 vEnvironmentIrradiance
 #endif
-#ifdef USESPHERICALFROMREFLECTIONMAP
-#if !defined(NORMAL) || !defined(USESPHERICALINVERTEX)
+#if (defined(USESPHERICALFROMREFLECTIONMAP) && (!defined(NORMAL) || !defined(USESPHERICALINVERTEX))) || (defined(USEIRRADIANCEMAP) && defined(REFLECTIONMAP_3D))
 ,in mat4 reflectionMatrix
-#endif
 #endif
 #ifdef USEIRRADIANCEMAP
 #ifdef REFLECTIONMAP_3D
 ,in samplerCube irradianceSampler
 #else
 ,in sampler2D irradianceSampler
+#endif
+#ifdef USE_IRRADIANCE_DOMINANT_DIRECTION
+,in vec3 reflectionDominantDirection
 #endif
 #endif
 #ifndef LODBASEDMICROSFURACE
@@ -171,7 +172,13 @@ in vec3 vPositionW
 #endif
 #ifdef REALTIME_FILTERING
 ,in vec2 vReflectionFilteringInfo
+#ifdef IBL_CDF_FILTERING
+,in sampler2D icdfSampler
 #endif
+#endif
+,in vec3 viewDirectionW
+,in float diffuseRoughness
+,in vec3 surfaceAlbedo
 )
 {reflectionOutParams outParams;vec4 environmentRadiance=vec4(0.,0.,0.,0.);
 #ifdef REFLECTIONMAP_3D
@@ -213,14 +220,17 @@ vReflectionFilteringInfo,
 #endif
 environmentRadiance
 );vec3 environmentIrradiance=vec3(0.,0.,0.);
-#ifdef USESPHERICALFROMREFLECTIONMAP
-#if defined(NORMAL) && defined(USESPHERICALINVERTEX)
-environmentIrradiance=vEnvironmentIrradiance;
-#else
+#if (defined(USESPHERICALFROMREFLECTIONMAP) && (!defined(NORMAL) || !defined(USESPHERICALINVERTEX))) || (defined(USEIRRADIANCEMAP) && defined(REFLECTIONMAP_3D))
 #ifdef ANISOTROPIC
 vec3 irradianceVector=vec3(reflectionMatrix*vec4(anisotropicOut.anisotropicNormal,0)).xyz;
 #else
 vec3 irradianceVector=vec3(reflectionMatrix*vec4(normalW,0)).xyz;
+#endif
+vec3 irradianceView=vec3(reflectionMatrix*vec4(viewDirectionW,0)).xyz;
+#if !defined(USE_IRRADIANCE_DOMINANT_DIRECTION) && !defined(REALTIME_FILTERING)
+#if BASE_DIFFUSE_MODEL != BRDF_DIFFUSE_MODEL_LAMBERT && BASE_DIFFUSE_MODEL != BRDF_DIFFUSE_MODEL_LEGACY
+float NdotV=max(dot(normalW,viewDirectionW),0.0);irradianceVector=mix(irradianceVector,irradianceView,(0.5*(1.0-NdotV))*diffuseRoughness);
+#endif
 #endif
 #ifdef REFLECTIONMAP_OPPOSITEZ
 irradianceVector.z*=-1.0;
@@ -228,8 +238,17 @@ irradianceVector.z*=-1.0;
 #ifdef INVERTCUBICMAP
 irradianceVector.y*=-1.0;
 #endif
+#endif
+#ifdef USESPHERICALFROMREFLECTIONMAP
+#if defined(NORMAL) && defined(USESPHERICALINVERTEX)
+environmentIrradiance=vEnvironmentIrradiance;
+#else
 #if defined(REALTIME_FILTERING)
-environmentIrradiance=irradiance(reflectionSampler,irradianceVector,vReflectionFilteringInfo);
+environmentIrradiance=irradiance(reflectionSampler,irradianceVector,vReflectionFilteringInfo,diffuseRoughness,surfaceAlbedo,irradianceView
+#ifdef IBL_CDF_FILTERING
+,icdfSampler
+#endif
+);
 #else
 environmentIrradiance=computeEnvironmentIrradiance(irradianceVector);
 #endif
@@ -238,15 +257,35 @@ outParams.irradianceVector=irradianceVector;
 #endif
 #endif
 #elif defined(USEIRRADIANCEMAP)
-vec4 environmentIrradiance4=sampleReflection(irradianceSampler,reflectionCoords);environmentIrradiance=environmentIrradiance4.rgb;
+#ifdef REFLECTIONMAP_3D
+vec4 environmentIrradiance4=sampleReflection(irradianceSampler,irradianceVector);
+#else
+vec4 environmentIrradiance4=sampleReflection(irradianceSampler,reflectionCoords);
+#endif
+environmentIrradiance=environmentIrradiance4.rgb;
 #ifdef RGBDREFLECTION
 environmentIrradiance.rgb=fromRGBD(environmentIrradiance4);
 #endif
 #ifdef GAMMAREFLECTION
 environmentIrradiance.rgb=toLinearSpace(environmentIrradiance.rgb);
 #endif
+#ifdef USE_IRRADIANCE_DOMINANT_DIRECTION
+vec3 Ls=normalize(reflectionDominantDirection);float NoL=dot(irradianceVector,Ls);float NoV=dot(irradianceVector,irradianceView);vec3 diffuseRoughnessTerm=vec3(1.0);
+#if BASE_DIFFUSE_MODEL==BRDF_DIFFUSE_MODEL_EON
+float LoV=dot (Ls,irradianceView);float mag=length(reflectionDominantDirection)*2.0;vec3 clampedAlbedo=clamp(surfaceAlbedo,vec3(0.1),vec3(1.0));diffuseRoughnessTerm=diffuseBRDF_EON(clampedAlbedo,diffuseRoughness,NoL,NoV,LoV)*PI;diffuseRoughnessTerm=diffuseRoughnessTerm/clampedAlbedo;diffuseRoughnessTerm=mix(vec3(1.0),diffuseRoughnessTerm,sqrt(clamp(mag*NoV,0.0,1.0)));
+#elif BASE_DIFFUSE_MODEL==BRDF_DIFFUSE_MODEL_BURLEY
+vec3 H=(irradianceView+Ls)*0.5;float VoH=dot(irradianceView,H);diffuseRoughnessTerm=vec3(diffuseBRDF_Burley(NoL,NoV,VoH,diffuseRoughness)*PI);
 #endif
-environmentIrradiance*=vReflectionColor.rgb;outParams.environmentRadiance=environmentRadiance;outParams.environmentIrradiance=environmentIrradiance;outParams.reflectionCoords=reflectionCoords;return outParams;}
+environmentIrradiance=environmentIrradiance.rgb*diffuseRoughnessTerm;
+#endif
+#endif
+environmentIrradiance*=vReflectionColor.rgb*vReflectionInfos.x;
+#ifdef MIX_IBL_RADIANCE_WITH_IRRADIANCE
+outParams.environmentRadiance=vec4(mix(environmentRadiance.rgb,environmentIrradiance,alphaG),environmentRadiance.a);
+#else
+outParams.environmentRadiance=environmentRadiance;
+#endif
+outParams.environmentIrradiance=environmentIrradiance;outParams.reflectionCoords=reflectionCoords;return outParams;}
 #endif
 `;
 // Sideeffect

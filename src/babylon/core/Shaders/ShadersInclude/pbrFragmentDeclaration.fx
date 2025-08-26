@@ -2,6 +2,8 @@ uniform vec4 vEyePosition;
 
 uniform vec3 vReflectionColor;
 uniform vec4 vAlbedoColor;
+uniform float baseWeight;
+uniform float baseDiffuseRoughness;
 
 // CUSTOM CONTROLS
 uniform vec4 vLightingIntensity;
@@ -17,6 +19,14 @@ uniform vec3 vAmbientColor;
 // Samplers
 #ifdef ALBEDO
 uniform vec2 vAlbedoInfos;
+#endif
+
+#ifdef BASE_WEIGHT
+uniform vec2 vBaseWeightInfos;
+#endif
+
+#ifdef BASE_DIFFUSE_ROUGHNESS
+uniform vec2 vBaseDiffuseRoughnessInfos;
 #endif
 
 #ifdef AMBIENT
@@ -56,22 +66,26 @@ uniform mat4 view;
 // Reflection
 #ifdef REFLECTION
     uniform vec2 vReflectionInfos;
+
     #ifdef REALTIME_FILTERING
         uniform vec2 vReflectionFilteringInfo;
     #endif
     uniform mat4 reflectionMatrix;
     uniform vec3 vReflectionMicrosurfaceInfos;
+    #if defined(USEIRRADIANCEMAP) && defined(USE_IRRADIANCE_DOMINANT_DIRECTION)
+        uniform vec3 vReflectionDominantDirection;
+    #endif
 
     #if defined(USE_LOCAL_REFLECTIONMAP_CUBIC) && defined(REFLECTIONMAP_CUBIC)
 	    uniform vec3 vReflectionPosition;
-	    uniform vec3 vReflectionSize; 
+	    uniform vec3 vReflectionSize;
     #endif
 #endif
 
 // Refraction
 #if defined(SS_REFRACTION) && defined(SS_USE_LOCAL_REFRACTIONMAP_CUBIC)
     uniform vec3 vRefractionPosition;
-    uniform vec3 vRefractionSize; 
+    uniform vec3 vRefractionSize;
 #endif
 
 // Clear Coat

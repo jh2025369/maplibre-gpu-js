@@ -1,4 +1,5 @@
-import { DracoCompression } from "core/Meshes/Compression/dracoCompression";
+/* eslint-disable github/no-then */
+import { DracoDecoder } from "core/Meshes/Compression/dracoDecoder";
 import type { Nullable } from "core/types";
 import { VertexBuffer } from "core/Buffers/buffer";
 import type { Geometry } from "core/Meshes/geometry";
@@ -14,7 +15,7 @@ import { registerGLTFExtension, unregisterGLTFExtension } from "../glTFLoaderExt
 const NAME = "KHR_draco_mesh_compression";
 
 declare module "../../glTFFileLoader" {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc/require-jsdoc, @typescript-eslint/naming-convention
     export interface GLTFLoaderExtensionOptions {
         /**
          * Defines options for the KHR_draco_mesh_compression extension.
@@ -39,9 +40,9 @@ export class KHR_draco_mesh_compression implements IGLTFLoaderExtension {
     public readonly name = NAME;
 
     /**
-     * The draco compression used to decode vertex data or DracoCompression.Default if not defined
+     * The draco decoder used to decode vertex data or DracoDecoder.Default if not defined
      */
-    public dracoCompression?: DracoCompression;
+    public dracoDecoder?: DracoDecoder;
 
     /**
      * Defines whether this extension is enabled.
@@ -60,20 +61,21 @@ export class KHR_draco_mesh_compression implements IGLTFLoaderExtension {
      */
     constructor(loader: GLTFLoader) {
         this._loader = loader;
-        this.enabled = DracoCompression.DecoderAvailable && this._loader.isExtensionUsed(NAME);
+        this.enabled = DracoDecoder.DefaultAvailable && this._loader.isExtensionUsed(NAME);
     }
 
     /** @internal */
     public dispose(): void {
-        delete this.dracoCompression;
+        delete this.dracoDecoder;
         (this._loader as any) = null;
     }
 
     /**
      * @internal
      */
+    // eslint-disable-next-line no-restricted-syntax
     public _loadVertexDataAsync(context: string, primitive: IMeshPrimitive, babylonMesh: Mesh): Nullable<Promise<Geometry>> {
-        return GLTFLoader.LoadExtensionAsync<IKHRDracoMeshCompression, Geometry>(context, primitive, this.name, (extensionContext, extension) => {
+        return GLTFLoader.LoadExtensionAsync<IKHRDracoMeshCompression, Geometry>(context, primitive, this.name, async (extensionContext, extension) => {
             if (primitive.mode != undefined) {
                 if (primitive.mode !== MeshPrimitiveMode.TRIANGLES && primitive.mode !== MeshPrimitiveMode.TRIANGLE_STRIP) {
                     throw new Error(`${context}: Unsupported mode ${primitive.mode}`);
@@ -118,12 +120,12 @@ export class KHR_draco_mesh_compression implements IGLTFLoaderExtension {
 
             const bufferView = ArrayItem.Get(extensionContext, this._loader.gltf.bufferViews, extension.bufferView) as IBufferViewDraco;
             if (!bufferView._dracoBabylonGeometry) {
-                bufferView._dracoBabylonGeometry = this._loader.loadBufferViewAsync(`/bufferViews/${bufferView.index}`, bufferView).then((data) => {
-                    const dracoCompression = this.dracoCompression || DracoCompression.Default;
+                bufferView._dracoBabylonGeometry = this._loader.loadBufferViewAsync(`/bufferViews/${bufferView.index}`, bufferView).then(async (data) => {
+                    const dracoDecoder = this.dracoDecoder || DracoDecoder.Default;
                     const positionAccessor = ArrayItem.TryGet(this._loader.gltf.accessors, primitive.attributes["POSITION"]);
                     const babylonBoundingInfo =
                         !this._loader.parent.alwaysComputeBoundingBox && !babylonMesh.skeleton && positionAccessor ? LoadBoundingInfoFromPositionAccessor(positionAccessor) : null;
-                    return dracoCompression
+                    return await dracoDecoder
                         ._decodeMeshToGeometryForGltfAsync(babylonMesh.name, this._loader.babylonScene, data, attributes, normalized, babylonBoundingInfo)
                         .catch((error) => {
                             throw new Error(`${context}: ${error.message}`);
@@ -131,7 +133,7 @@ export class KHR_draco_mesh_compression implements IGLTFLoaderExtension {
                 });
             }
 
-            return bufferView._dracoBabylonGeometry;
+            return await bufferView._dracoBabylonGeometry;
         });
     }
 }

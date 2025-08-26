@@ -9,8 +9,8 @@ import type { UniformBuffer } from "core/Materials/uniformBuffer";
 
 /**
  * Material plugin to add hardware accelerated lattice support
- * #HBZD72#5 - webgl2
- * #HBZD72#6 - webgpu
+ * @see [webgl2](https://playground.babylonjs.com/#HBZD72#5)
+ * @see [webgpu](https://playground.babylonjs.com/#HBZD72#6)
  */
 export class LatticePluginMaterial extends MaterialPluginBase {
     private _lattice: Lattice;
@@ -108,7 +108,11 @@ export class LatticePluginMaterial extends MaterialPluginBase {
      * @param shaderLanguage The shader language to use.
      * @returns the description of the uniforms
      */
-    public override getUniforms(shaderLanguage: ShaderLanguage = ShaderLanguage.GLSL) {
+    public override getUniforms(shaderLanguage: ShaderLanguage = ShaderLanguage.GLSL): {
+        ubo: { name: string; size: number; type: string; arraySize?: number }[];
+        vertex?: string;
+        fragment?: string;
+    } {
         if (shaderLanguage === ShaderLanguage.WGSL) {
             // For webgpu we only define the UBO with the correct type and size.
             return {

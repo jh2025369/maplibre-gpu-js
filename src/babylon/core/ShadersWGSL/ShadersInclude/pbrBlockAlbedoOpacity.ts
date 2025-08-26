@@ -13,6 +13,11 @@ vAlbedoColor: vec4f
 ,albedoTexture: vec4f
 ,albedoInfos: vec2f
 #endif
+,baseWeight: f32
+#ifdef BASE_WEIGHT
+,baseWeightTexture: vec4f
+,vBaseWeightInfos: vec2f
+#endif
 #ifdef OPACITY
 ,opacityMap: vec4f
 ,vOpacityInfos: vec2f
@@ -51,6 +56,10 @@ var detailAlbedo: f32=2.0*mix(0.5,detailColor.r,vDetailInfos.y);surfaceAlbedo=su
 #include<decalFragment>
 #endif
 #define CUSTOM_FRAGMENT_UPDATE_ALBEDO
+surfaceAlbedo*=baseWeight;
+#ifdef BASE_WEIGHT
+surfaceAlbedo*=baseWeightTexture.r;
+#endif
 #ifdef OPACITY
 #ifdef OPACITYRGB
 alpha=getLuminance(opacityMap.rgb);
@@ -63,7 +72,7 @@ alpha*=vOpacityInfos.y;
 alpha*=fragmentInputs.vColor.a;
 #endif
 #if !defined(SS_LINKREFRACTIONTOTRANSPARENCY) && !defined(ALPHAFRESNEL)
-#ifdef ALPHATEST 
+#ifdef ALPHATEST
 #if DEBUGMODE != 88
 if (alpha<ALPHATESTVALUE) {discard;}
 #endif

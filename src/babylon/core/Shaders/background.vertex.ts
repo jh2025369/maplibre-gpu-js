@@ -109,7 +109,7 @@ else
 #include<fogVertex>
 #include<shadowsVertex>[0..maxSimultaneousLights]
 #ifdef VERTEXCOLOR
-vColor=color;
+vColor=colorUpdated;
 #endif
 #if defined(POINTSIZE) && !defined(WEBGPU)
 gl_PointSize=pointSize;

@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-internal-modules
 import type { Nullable, FrameGraphRenderContext, AbstractEngine, IFrameGraphPass, FrameGraphTextureHandle, FrameGraphTask, FrameGraphRenderTarget } from "core/index";
 import { FrameGraphPass } from "./pass";
 
@@ -9,8 +8,8 @@ export class FrameGraphRenderPass extends FrameGraphPass<FrameGraphRenderContext
     protected readonly _engine: AbstractEngine;
     protected _renderTarget: FrameGraphTextureHandle | FrameGraphTextureHandle[] | undefined;
     protected _renderTargetDepth: FrameGraphTextureHandle | undefined;
-    protected readonly _usedTextures: FrameGraphTextureHandle[] = [];
     protected _frameGraphRenderTarget: FrameGraphRenderTarget | undefined;
+    protected _dependencies: Set<FrameGraphTextureHandle> = new Set();
 
     /**
      * Checks if a pass is a render pass.
@@ -42,16 +41,6 @@ export class FrameGraphRenderPass extends FrameGraphPass<FrameGraphRenderContext
     }
 
     /**
-     * Indicates that the pass will use the given texture.
-     * Use this method to indicate that the pass will use a texture so that the frame graph can handle the texture's lifecycle.
-     * You don't have to call this method for the render target / render target depth textures.
-     * @param texture The texture used.
-     */
-    public useTexture(texture: FrameGraphTextureHandle) {
-        this._usedTextures.push(texture);
-    }
-
-    /**
      * Sets the render target(s) to use for rendering.
      * @param renderTargetHandle The render target to use for rendering, or an array of render targets to use for multi render target rendering.
      */
@@ -65,6 +54,51 @@ export class FrameGraphRenderPass extends FrameGraphPass<FrameGraphRenderContext
      */
     public setRenderTargetDepth(renderTargetHandle?: FrameGraphTextureHandle) {
         this._renderTargetDepth = renderTargetHandle;
+    }
+
+    /**
+     * Adds dependencies to the render pass.
+     * @param dependencies The dependencies to add.
+     */
+    public addDependencies(dependencies?: FrameGraphTextureHandle | FrameGraphTextureHandle[]) {
+        if (!dependencies) {
+            return;
+        }
+
+        if (Array.isArray(dependencies)) {
+            for (const dependency of dependencies) {
+                this._dependencies.add(dependency);
+            }
+        } else {
+            this._dependencies.add(dependencies);
+        }
+    }
+
+    /**
+     * Collects the dependencies of the render pass.
+     * @param dependencies The set of dependencies to update.
+     */
+    public collectDependencies(dependencies: Set<FrameGraphTextureHandle>): void {
+        const iterator = this._dependencies.keys();
+        for (let key = iterator.next(); key.done !== true; key = iterator.next()) {
+            dependencies.add(key.value);
+        }
+
+        if (this._renderTarget) {
+            if (Array.isArray(this._renderTarget)) {
+                for (const handle of this._renderTarget) {
+                    if (handle !== undefined) {
+                        dependencies.add(handle);
+                    }
+                }
+            } else {
+                dependencies.add(this._renderTarget);
+            }
+        }
+
+        if (this._renderTargetDepth) {
+            dependencies.add(this._renderTargetDepth);
+        }
     }
 
     /** @internal */

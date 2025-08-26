@@ -53,6 +53,7 @@ export class CopyTextureToTexture {
 
         this._renderer = new EffectRenderer(engine);
 
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         this._initShaderSourceAsync(isDepthTexture);
     }
 
@@ -106,7 +107,7 @@ export class CopyTextureToTexture {
      * @returns true if "copy" can be called without delay, else false
      */
     public isReady(): boolean {
-        return this._shadersLoaded && this._effectWrapper.effect.isReady();
+        return this._shadersLoaded && !!this._effectWrapper?.effect?.isReady();
     }
 
     /**

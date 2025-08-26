@@ -24,6 +24,7 @@ import { Constants } from "../../../Engines/constants";
 import { DrawWrapper } from "../../drawWrapper";
 import type { RenderTargetWrapper } from "../../../Engines/renderTargetWrapper";
 import { ShaderLanguage } from "core/Materials/shaderLanguage";
+import type { ThinTexture } from "core/Materials/Textures/thinTexture";
 
 /**
  * Options to create a procedural texture
@@ -93,7 +94,7 @@ export class ProceduralTexture extends Texture {
     private _drawWrapper: DrawWrapper;
 
     /** @internal */
-    public _textures: { [key: string]: Texture } = {};
+    public _textures: { [key: string]: ThinTexture } = {};
 
     /** @internal */
     protected _fallbackTexture: Nullable<Texture>;
@@ -265,6 +266,7 @@ export class ProceduralTexture extends Texture {
         }
 
         if (this._contentData) {
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises, github/no-then
             this._contentData.then((buffer) => {
                 this._contentData = this.readPixels(0, 0, buffer);
                 this._contentUpdateId = this._frameId;
@@ -524,7 +526,7 @@ export class ProceduralTexture extends Texture {
      * @param texture Define the texture to bind to this sampler
      * @returns the texture itself allowing "fluent" like uniform updates
      */
-    public setTexture(name: string, texture: Texture): ProceduralTexture {
+    public setTexture(name: string, texture: ThinTexture): ProceduralTexture {
         if (this._samplers.indexOf(name) === -1) {
             this._samplers.push(name);
         }

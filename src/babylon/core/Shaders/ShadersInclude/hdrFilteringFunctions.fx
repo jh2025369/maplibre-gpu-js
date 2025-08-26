@@ -1,4 +1,4 @@
-#ifdef NUM_SAMPLES
+#if NUM_SAMPLES
     #if NUM_SAMPLES > 0
 
     #if defined(WEBGL2) || defined(WEBGPU) || defined(NATIVE)
@@ -47,6 +47,20 @@
 
     float log4(float x) {
         return log2(x) / 2.;
+    }
+
+    vec3 uv_to_normal(vec2 uv) {
+        vec3 N;
+
+        vec2 uvRange = uv;
+        float theta = uvRange.x * 2. * PI;
+        float phi = uvRange.y * PI;
+
+        float sinPhi = sin(phi);
+        N.x = cos(theta) * sinPhi;
+        N.z = sin(theta) * sinPhi;
+        N.y = cos(phi);
+        return N;
     }
 
         const float NUM_SAMPLES_FLOAT = float(NUM_SAMPLES);
@@ -171,19 +185,38 @@
         //
 
         #define inline
-        vec3 irradiance(samplerCube inputTexture, vec3 inputN, vec2 filteringInfo)
+        vec3 irradiance(
+        #ifdef CUSTOM_IRRADIANCE_FILTERING_INPUT
+            CUSTOM_IRRADIANCE_FILTERING_INPUT
+        #else
+            samplerCube inputTexture,
+        #endif
+            vec3 inputN, vec2 filteringInfo,
+            float diffuseRoughness,
+            vec3 surfaceAlbedo,
+            vec3 inputV
+        #if IBL_CDF_FILTERING
+            , sampler2D icdfSampler
+        #endif
+        )
         {
             vec3 n = normalize(inputN);
-            vec3 result = vec3(0.0);
+            vec3 result = vec3(0.);
+
+            #ifndef IBL_CDF_FILTERING
             vec3 tangent = abs(n.z) < 0.999 ? vec3(0., 0., 1.) : vec3(1., 0., 0.);
             tangent = normalize(cross(tangent, n));
             vec3 bitangent = cross(n, tangent);
             mat3 tbn = mat3(tangent, bitangent, n);
+            // The inverse is just the transpose of the TBN matrix. However, WebGL 1.0 doesn't support mat3 transpose.
+            // So, we have to calculate it manually.
+            mat3 tbnInverse = mat3(tangent.x, bitangent.x, n.x, tangent.y, bitangent.y, n.y, tangent.z, bitangent.z, n.z);
+            #endif
 
             float maxLevel = filteringInfo.y;
             float dim0 = filteringInfo.x;
             float omegaP = (4. * PI) / (6. * dim0 * dim0);
-
+            vec3 clampedAlbedo = clamp(surfaceAlbedo, vec3(0.1), vec3(1.0));
             #if defined(WEBGL2) || defined(WEBGPU) || defined(NATIVE)
             for(uint i = 0u; i < NUM_SAMPLES; ++i)
             #else
@@ -191,30 +224,75 @@
             #endif
             {
                 vec2 Xi = hammersley(i, NUM_SAMPLES);
-                vec3 Ls = hemisphereCosSample(Xi);
 
-                Ls = normalize(Ls);
-
-                vec3 Ns = vec3(0., 0., 1.);
-
-                float NoL = dot(Ns, Ls);
+                #if IBL_CDF_FILTERING
+                    vec2 T;
+                    T.x = texture2D(icdfSampler, vec2(Xi.x, 0.)).x;
+                    T.y = texture2D(icdfSampler, vec2(T.x, Xi.y)).y;
+                    vec3 Ls = uv_to_normal(vec2(1.0 - fract(T.x + 0.25), T.y));
+                    float NoL = dot(n, Ls);
+                    float NoV = dot(n, inputV);
+                    #if BASE_DIFFUSE_MODEL == BRDF_DIFFUSE_MODEL_EON
+                        float LoV = dot (Ls, inputV);
+                    #elif BASE_DIFFUSE_MODEL == BRDF_DIFFUSE_MODEL_BURLEY
+                        vec3 H = (inputV + Ls) * 0.5;
+                        float VoH = dot(inputV, H);
+                    #endif
+                #else
+                    vec3 Ls = hemisphereCosSample(Xi);
+                    Ls = normalize(Ls);
+                    float NoL = Ls.z; // N = (0, 0, 1)
+                    vec3 V = tbnInverse * inputV;
+                    float NoV = V.z; // N = (0, 0, 1)
+                    #if BASE_DIFFUSE_MODEL == BRDF_DIFFUSE_MODEL_EON
+                        float LoV = dot (Ls, V);
+                    #elif BASE_DIFFUSE_MODEL == BRDF_DIFFUSE_MODEL_BURLEY
+                        vec3 H = (V + Ls) * 0.5;
+                        float VoH = dot(V, H);
+                    #endif
+                    
+                #endif
 
                 if (NoL > 0.) {
-                    float pdf_inversed = PI / NoL;
-
-                    float omegaS = NUM_SAMPLES_FLOAT_INVERSED * pdf_inversed;
-                    float l = log4(omegaS) - log4(omegaP) + log4(K);
-                    float mipLevel = clamp(l, 0.0, maxLevel);
-
-                    vec3 c = textureCubeLodEXT(inputTexture, tbn * Ls, mipLevel).rgb;
-                    #ifdef GAMMA_INPUT
+                    #if IBL_CDF_FILTERING
+                        float pdf = texture2D(icdfSampler, T).z;
+                        vec3 c = textureCubeLodEXT(inputTexture, Ls, 0.).rgb;
+                    #else
+                        float pdf_inversed = PI / NoL;
+                        float omegaS = NUM_SAMPLES_FLOAT_INVERSED * pdf_inversed;
+                        float l = log4(omegaS) - log4(omegaP) + log4(K);
+                        float mipLevel = clamp(l, 0., maxLevel);
+                        #ifdef CUSTOM_IRRADIANCE_FILTERING_FUNCTION
+                            CUSTOM_IRRADIANCE_FILTERING_FUNCTION
+                        #else
+                            vec3 c = textureCubeLodEXT(inputTexture, tbn * Ls, mipLevel).rgb;
+                        #endif
+                    #endif
+                    #if GAMMA_INPUT
                         c = toLinearSpace(c);
                     #endif
-                    result += c;
+
+                    vec3 diffuseRoughnessTerm = vec3(1.0);
+                    #if BASE_DIFFUSE_MODEL == BRDF_DIFFUSE_MODEL_EON
+                        diffuseRoughnessTerm = diffuseBRDF_EON(clampedAlbedo, diffuseRoughness, NoL, NoV, LoV) * PI;
+                    #elif BASE_DIFFUSE_MODEL == BRDF_DIFFUSE_MODEL_BURLEY
+                        diffuseRoughnessTerm = vec3(diffuseBRDF_Burley(NoL, NoV, VoH, diffuseRoughness) * PI);
+                    #endif
+
+                    #if IBL_CDF_FILTERING
+                        vec3 light = pdf < 1e-6 ? vec3(0.0) : vec3(1.0) / vec3(pdf) * c;
+                        result += NoL * diffuseRoughnessTerm * light;
+                    #else
+                        result += c * diffuseRoughnessTerm;
+                    #endif
                 }
             }
 
             result = result * NUM_SAMPLES_FLOAT_INVERSED;
+
+            #if BASE_DIFFUSE_MODEL == BRDF_DIFFUSE_MODEL_EON
+                result = result / clampedAlbedo;
+            #endif
 
             return result;
         }
@@ -226,7 +304,7 @@
             vec3 c = textureCube(inputTexture, n).rgb; // Don't put it in the "if (alphaG == 0.)" branch for uniformity (analysis) reasons!
 
             if (alphaG == 0.) {
-                #ifdef GAMMA_INPUT
+                #if GAMMA_INPUT
                     c = toLinearSpace(c);
                 #endif
                 return c;
@@ -267,9 +345,8 @@
                         float mipLevel = clamp(float(l), 0.0, maxLevel);
 
                         weight += NoL;
-
                         vec3 c = textureCubeLodEXT(inputTexture, tbn * L, mipLevel).rgb;
-                        #ifdef GAMMA_INPUT
+                        #if GAMMA_INPUT
                             c = toLinearSpace(c);
                         #endif
                         result += c * NoL;

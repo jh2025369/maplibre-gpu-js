@@ -60,6 +60,10 @@ cellInfos : vec4<f32>,
 #ifdef NOISE
 noiseStrength : vec3<f32>,
 #endif
+#ifdef FLOWMAP
+flowMapProjection : mat4x4<f32>,
+flowMapStrength : f32,
+#endif
 #ifndef LOCAL
 emitterWM : mat4x4<f32>,
 #endif
@@ -128,6 +132,9 @@ directionRandomizer : f32,
 #endif
 #ifdef NOISE
 @binding(10) @group(1) var noiseSampler : sampler;@binding(11) @group(1) var noiseTexture : texture_2d<f32>;
+#endif
+#ifdef FLOWMAP
+@binding(12) @group(1) var flowMapSampler : sampler;@binding(13) @group(1) var flowMapTexture : texture_2d<f32>;
 #endif
 fn getRandomVec3(offset : f32,vertexID : f32)->vec3<f32> {return textureLoad(randomTexture2,vec2<i32>(i32(vertexID*offset/params.currentCount*f32(params.randomTextureSize)) % params.randomTextureSize,0),0).rgb;}
 fn getRandomVec4(offset : f32,vertexID : f32)->vec4<f32> {return textureLoad(randomTexture,vec2<i32>(i32(vertexID*offset/params.currentCount*f32(params.randomTextureSize)) % params.randomTextureSize,0),0);}
@@ -255,6 +262,9 @@ particlesOut.particles[index].initialDirection=particlesIn.particles[index].init
 particlesOut.particles[index].direction=direction;
 #else
 var updatedDirection : vec3<f32>=direction+params.gravity*timeDelta;
+#ifdef FLOWMAP
+var clipSpace=(params.flowMapProjection*vec4f(position,1.));var ndcSpace=clipSpace.xyz/clipSpace.w;var flowMapUV=ndcSpace.xy*0.5+0.5;var flowMapValue=textureSampleLevel(flowMapTexture,flowMapSampler,flowMapUV,0.);var flowMapDirection=(flowMapValue.xyz*2.0-1.0)*flowMapValue.w;updatedDirection+=flowMapDirection*timeDelta*params.flowMapStrength;
+#endif
 #ifdef LIMITVELOCITYGRADIENTS
 let limitVelocity : f32=textureSampleLevel(limitVelocityGradientTexture,limitVelocityGradientSampler,vec2<f32>(ageGradient,0.),0.).r;let currentVelocity : f32=length(updatedDirection);if (currentVelocity>limitVelocity) {updatedDirection=updatedDirection*params.limitVelocityDamping;}
 #endif

@@ -3,9 +3,15 @@ import { ShaderStore } from "../../Engines/shaderStore";
 import "./decalFragmentDeclaration";
 
 const name = "pbrFragmentDeclaration";
-const shader = `uniform vec4 vEyePosition;uniform vec3 vReflectionColor;uniform vec4 vAlbedoColor;uniform vec4 vLightingIntensity;uniform vec4 vReflectivityColor;uniform vec4 vMetallicReflectanceFactors;uniform vec3 vEmissiveColor;uniform float visibility;uniform vec3 vAmbientColor;
+const shader = `uniform vec4 vEyePosition;uniform vec3 vReflectionColor;uniform vec4 vAlbedoColor;uniform float baseWeight;uniform float baseDiffuseRoughness;uniform vec4 vLightingIntensity;uniform vec4 vReflectivityColor;uniform vec4 vMetallicReflectanceFactors;uniform vec3 vEmissiveColor;uniform float visibility;uniform vec3 vAmbientColor;
 #ifdef ALBEDO
 uniform vec2 vAlbedoInfos;
+#endif
+#ifdef BASE_WEIGHT
+uniform vec2 vBaseWeightInfos;
+#endif
+#ifdef BASE_DIFFUSE_ROUGHNESS
+uniform vec2 vBaseDiffuseRoughnessInfos;
 #endif
 #ifdef AMBIENT
 uniform vec4 vAmbientInfos;
@@ -37,12 +43,15 @@ uniform vec2 vReflectionInfos;
 uniform vec2 vReflectionFilteringInfo;
 #endif
 uniform mat4 reflectionMatrix;uniform vec3 vReflectionMicrosurfaceInfos;
+#if defined(USEIRRADIANCEMAP) && defined(USE_IRRADIANCE_DOMINANT_DIRECTION)
+uniform vec3 vReflectionDominantDirection;
+#endif
 #if defined(USE_LOCAL_REFLECTIONMAP_CUBIC) && defined(REFLECTIONMAP_CUBIC)
-uniform vec3 vReflectionPosition;uniform vec3 vReflectionSize; 
+uniform vec3 vReflectionPosition;uniform vec3 vReflectionSize;
 #endif
 #endif
 #if defined(SS_REFRACTION) && defined(SS_USE_LOCAL_REFRACTIONMAP_CUBIC)
-uniform vec3 vRefractionPosition;uniform vec3 vRefractionSize; 
+uniform vec3 vRefractionPosition;uniform vec3 vRefractionSize;
 #endif
 #ifdef CLEARCOAT
 uniform vec2 vClearCoatParams;uniform vec4 vClearCoatRefractionParams;

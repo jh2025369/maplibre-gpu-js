@@ -12,6 +12,7 @@ import { Tools } from "../../Misc/tools";
 import { ToGammaSpace } from "../../Maths/math.constants";
 import type { AbstractEngine } from "../../Engines/abstractEngine";
 import { HDRFiltering } from "../../Materials/Textures/Filtering/hdrFiltering";
+import { HDRIrradianceFiltering } from "../../Materials/Textures/Filtering/hdrIrradianceFiltering";
 import { ToHalfFloat } from "../../Misc/textureTools";
 import "../../Materials/Textures/baseTexture.polynomial";
 
@@ -27,6 +28,8 @@ export class HDRCubeTexture extends BaseTexture {
     private _generateHarmonics = true;
     private _noMipmap: boolean;
     private _prefilterOnLoad: boolean;
+    private _prefilterIrradianceOnLoad: boolean;
+    private _prefilterUsingCdf: boolean;
     private _textureMatrix: Matrix;
     private _size: number;
     private _supersample: boolean;
@@ -113,6 +116,8 @@ export class HDRCubeTexture extends BaseTexture {
      * @param onLoad on success callback function
      * @param onError on error callback function
      * @param supersample Defines if texture must be supersampled (default: false)
+     * @param prefilterIrradianceOnLoad Prefilters HDR texture to allow use of this texture for irradiance lighting.
+     * @param prefilterUsingCdf Defines if the prefiltering should be done using a CDF instead of the default approach.
      */
     constructor(
         url: string,
@@ -124,7 +129,9 @@ export class HDRCubeTexture extends BaseTexture {
         prefilterOnLoad = false,
         onLoad: Nullable<() => void> = null,
         onError: Nullable<(message?: string, exception?: any) => void> = null,
-        supersample = false
+        supersample = false,
+        prefilterIrradianceOnLoad = false,
+        prefilterUsingCdf = false
     ) {
         super(sceneOrEngine);
 
@@ -139,6 +146,8 @@ export class HDRCubeTexture extends BaseTexture {
         this.isCube = true;
         this._textureMatrix = Matrix.Identity();
         this._prefilterOnLoad = prefilterOnLoad;
+        this._prefilterIrradianceOnLoad = prefilterIrradianceOnLoad;
+        this._prefilterUsingCdf = prefilterUsingCdf;
         this._onLoad = () => {
             this.onLoadObservable.notifyObservers(this);
             if (onLoad) {
@@ -151,7 +160,10 @@ export class HDRCubeTexture extends BaseTexture {
 
         this._noMipmap = noMipmap;
         this._size = size;
-        this._supersample = supersample;
+        // CDF is very sensitive to lost precision due to downsampling. This can result in
+        // noticeable brightness differences with different resolutions. Enabling supersampling
+        // mitigates this.
+        this._supersample = supersample || prefilterUsingCdf;
         this._generateHarmonics = generateHarmonics;
 
         this._texture = this._getFromCache(url, this._noMipmap, undefined, undefined, undefined, this.isCube);
@@ -274,11 +286,33 @@ export class HDRCubeTexture extends BaseTexture {
             return results;
         };
 
-        if (engine._features.allowTexturePrefiltering && this._prefilterOnLoad) {
+        if (engine._features.allowTexturePrefiltering && (this._prefilterOnLoad || this._prefilterIrradianceOnLoad)) {
             const previousOnLoad = this._onLoad;
             const hdrFiltering = new HDRFiltering(engine);
             this._onLoad = () => {
-                hdrFiltering.prefilter(this, previousOnLoad);
+                let irradiancePromise: Promise<Nullable<BaseTexture>> = Promise.resolve(null);
+                let radiancePromise: Promise<void> = Promise.resolve();
+                if (this._prefilterIrradianceOnLoad) {
+                    const hdrIrradianceFiltering = new HDRIrradianceFiltering(engine, { useCdf: this._prefilterUsingCdf });
+                    irradiancePromise = hdrIrradianceFiltering.prefilter(this);
+                }
+                if (this._prefilterOnLoad) {
+                    radiancePromise = hdrFiltering.prefilter(this);
+                }
+                // eslint-disable-next-line @typescript-eslint/no-floating-promises, github/no-then
+                Promise.all([irradiancePromise, radiancePromise]).then((results) => {
+                    const irradianceTexture = results[0];
+                    if (this._prefilterIrradianceOnLoad && irradianceTexture) {
+                        this.irradianceTexture = irradianceTexture;
+                        const scene = this.getScene();
+                        if (scene) {
+                            scene.markAllMaterialsAsDirty(Constants.MATERIAL_TextureDirtyFlag);
+                        }
+                    }
+                    if (previousOnLoad) {
+                        previousOnLoad();
+                    }
+                });
             };
         }
 

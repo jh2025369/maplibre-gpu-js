@@ -3,12 +3,19 @@ import { ShaderStore } from "../../Engines/shaderStore";
 import "./decalVertexDeclaration";
 
 const name = "pbrVertexDeclaration";
-const shader = `uniform mat4 view;uniform mat4 viewProjection;
+const shader = `uniform mat4 view;uniform mat4 viewProjection;uniform vec4 vEyePosition;
 #ifdef MULTIVIEW
 mat4 viewProjectionR;
-#endif 
+#endif
 #ifdef ALBEDO
 uniform mat4 albedoMatrix;uniform vec2 vAlbedoInfos;
+#endif
+#ifdef BASE_WEIGHT
+uniform mat4 baseWeightMatrix;uniform vec2 vBaseWeightInfos;
+#endif
+uniform float baseDiffuseRoughness;
+#ifdef BASE_DIFFUSE_ROUGHNESS
+uniform mat4 baseDiffuseRoughnessMatrix;uniform vec2 vBaseDiffuseRoughnessInfos;
 #endif
 #ifdef AMBIENT
 uniform mat4 ambientMatrix;uniform vec4 vAmbientInfos;
@@ -22,7 +29,7 @@ uniform vec2 vEmissiveInfos;uniform mat4 emissiveMatrix;
 #ifdef LIGHTMAP
 uniform vec2 vLightmapInfos;uniform mat4 lightmapMatrix;
 #endif
-#ifdef REFLECTIVITY 
+#ifdef REFLECTIVITY
 uniform vec3 vReflectivityInfos;uniform mat4 reflectivityMatrix;
 #endif
 #ifdef METALLIC_REFLECTANCE
@@ -40,6 +47,7 @@ uniform vec3 vBumpInfos;uniform mat4 bumpMatrix;
 #ifdef POINTSIZE
 uniform float pointSize;
 #endif
+uniform vec4 cameraInfo;
 #ifdef REFLECTION
 uniform vec2 vReflectionInfos;uniform mat4 reflectionMatrix;
 #endif

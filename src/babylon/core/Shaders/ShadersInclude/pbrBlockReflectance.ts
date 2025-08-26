@@ -3,24 +3,29 @@ import { ShaderStore } from "../../Engines/shaderStore";
 
 const name = "pbrBlockReflectance";
 const shader = `#if defined(ENVIRONMENTBRDF) && !defined(REFLECTIONMAP_SKYBOX)
-vec3 specularEnvironmentReflectance=getReflectanceFromBRDFLookup(clearcoatOut.specularEnvironmentR0,specularEnvironmentR90,environmentBrdf);
+vec3 baseSpecularEnvironmentReflectance=getReflectanceFromBRDFLookup(vec3(reflectanceF0),reflectivityOut.reflectanceF90,environmentBrdf);
+#if (CONDUCTOR_SPECULAR_MODEL==CONDUCTOR_SPECULAR_MODEL_OPENPBR)
+vec3 metalEnvironmentReflectance=reflectivityOut.specularWeight*getF82Specular(NdotV,clearcoatOut.specularEnvironmentR0,reflectivityOut.colorReflectanceF90,reflectivityOut.roughness);vec3 dielectricEnvironmentReflectance=getReflectanceFromBRDFLookup(reflectivityOut.dielectricColorF0,reflectivityOut.colorReflectanceF90,environmentBrdf);vec3 colorSpecularEnvironmentReflectance=mix(dielectricEnvironmentReflectance,metalEnvironmentReflectance,reflectivityOut.metallic);
+#else
+vec3 colorSpecularEnvironmentReflectance=getReflectanceFromBRDFLookup(clearcoatOut.specularEnvironmentR0,reflectivityOut.colorReflectanceF90,environmentBrdf);
+#endif
 #ifdef RADIANCEOCCLUSION
-specularEnvironmentReflectance*=seo;
+colorSpecularEnvironmentReflectance*=seo;
 #endif
 #ifdef HORIZONOCCLUSION
 #ifdef BUMP
 #ifdef REFLECTIONMAP_3D
-specularEnvironmentReflectance*=eho;
+colorSpecularEnvironmentReflectance*=eho;
 #endif
 #endif
 #endif
 #else
-vec3 specularEnvironmentReflectance=getReflectanceFromAnalyticalBRDFLookup_Jones(NdotV,clearcoatOut.specularEnvironmentR0,specularEnvironmentR90,sqrt(microSurface));
+vec3 colorSpecularEnvironmentReflectance=getReflectanceFromAnalyticalBRDFLookup_Jones(NdotV,clearcoatOut.specularEnvironmentR0,specularEnvironmentR90,sqrt(microSurface));vec3 baseSpecularEnvironmentReflectance=getReflectanceFromAnalyticalBRDFLookup_Jones(NdotV,vec3(reflectanceF0),reflectivityOut.reflectanceF90,sqrt(microSurface));
 #endif
 #ifdef CLEARCOAT
-specularEnvironmentReflectance*=clearcoatOut.conservationFactor;
+colorSpecularEnvironmentReflectance*=clearcoatOut.conservationFactor;
 #if defined(CLEARCOAT_TINT)
-specularEnvironmentReflectance*=clearcoatOut.absorption;
+colorSpecularEnvironmentReflectance*=clearcoatOut.absorption;
 #endif
 #endif
 `;

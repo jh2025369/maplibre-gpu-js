@@ -1,3 +1,4 @@
+import type { Nullable } from "core/types";
 import type { Camera } from "../Cameras/camera";
 import type { DirectionalLight } from "../Lights/directionalLight";
 import { StandardMaterial } from "../Materials/standardMaterial";
@@ -9,6 +10,9 @@ import { Mesh } from "../Meshes/mesh";
 import { VertexData } from "../Meshes/mesh.vertexData";
 import { TransformNode } from "../Meshes/transformNode";
 import type { Scene } from "../scene";
+import { Constants } from "core/Engines/constants";
+import type { FrameGraph } from "core/FrameGraph/frameGraph";
+import { FrameGraphUtils } from "core/FrameGraph/frameGraphUtils";
 
 /**
  * Class used to render a debug view of the frustum for a directional light
@@ -18,7 +22,7 @@ import type { Scene } from "../scene";
 export class DirectionalLightFrustumViewer {
     private _scene: Scene;
     private _light: DirectionalLight;
-    private _camera: Camera;
+    private _camera: Nullable<Camera>;
     private _inverseViewMatrix: Matrix;
     private _visible: boolean;
 
@@ -44,6 +48,10 @@ export class DirectionalLightFrustumViewer {
     private _oldAutoCalc: boolean;
     private _oldMinZ: number;
     private _oldMaxZ: number;
+    private _oldOrthoLeft: number;
+    private _oldOrthoRight: number;
+    private _oldOrthoTop: number;
+    private _oldOrthoBottom: number;
 
     private _transparency = 0.3;
     /**
@@ -101,7 +109,7 @@ export class DirectionalLightFrustumViewer {
      * @param light directional light to display the frustum for
      * @param camera camera used to retrieve the minZ / maxZ values if the shadowMinZ/shadowMaxZ values of the light are not setup
      */
-    constructor(light: DirectionalLight, camera: Camera) {
+    constructor(light: DirectionalLight, camera: Nullable<Camera> = null) {
         this._scene = light.getScene();
         this._light = light;
         this._camera = camera;
@@ -116,6 +124,10 @@ export class DirectionalLightFrustumViewer {
      * Shows the frustum
      */
     public show() {
+        if (this._scene.frameGraph) {
+            this._removeMeshesFromFrameGraph(this._scene.frameGraph);
+            this._addMeshesToFrameGraph(this._scene.frameGraph);
+        }
         this._lightHelperFrustumMeshes.forEach((mesh, index) => {
             mesh.setEnabled((index < 6 && this._showLines) || (index >= 6 && this._showPlanes));
         });
@@ -127,10 +139,34 @@ export class DirectionalLightFrustumViewer {
      * Hides the frustum
      */
     public hide() {
-        this._lightHelperFrustumMeshes.forEach((mesh) => {
+        if (this._scene.frameGraph) {
+            this._removeMeshesFromFrameGraph(this._scene.frameGraph);
+        }
+        for (const mesh of this._lightHelperFrustumMeshes) {
             mesh.setEnabled(false);
-        });
+        }
         this._visible = false;
+    }
+
+    private _addMeshesToFrameGraph(frameGraph: FrameGraph) {
+        const objectRenderer = FrameGraphUtils.FindMainObjectRenderer(frameGraph);
+        if (objectRenderer && objectRenderer.objectList.meshes) {
+            for (const mesh of this._lightHelperFrustumMeshes) {
+                objectRenderer.objectList.meshes.push(mesh);
+            }
+        }
+    }
+
+    private _removeMeshesFromFrameGraph(frameGraph: FrameGraph) {
+        const objectRenderer = FrameGraphUtils.FindMainObjectRenderer(frameGraph);
+        if (objectRenderer && objectRenderer.objectList.meshes) {
+            for (const mesh of this._lightHelperFrustumMeshes) {
+                const index = objectRenderer.objectList.meshes!.indexOf(mesh);
+                if (index !== -1) {
+                    objectRenderer.objectList.meshes.splice(index, 1);
+                }
+            }
+        }
     }
 
     /**
@@ -147,7 +183,11 @@ export class DirectionalLightFrustumViewer {
             this._oldDirection.equals(this._light.direction) &&
             this._oldAutoCalc === this._light.autoCalcShadowZBounds &&
             this._oldMinZ === this._light.shadowMinZ &&
-            this._oldMaxZ === this._light.shadowMaxZ
+            this._oldMaxZ === this._light.shadowMaxZ &&
+            this._oldOrthoLeft === this._light.orthoLeft &&
+            this._oldOrthoRight === this._light.orthoRight &&
+            this._oldOrthoTop === this._light.orthoTop &&
+            this._oldOrthoBottom === this._light.orthoBottom
         ) {
             return;
         }
@@ -157,9 +197,21 @@ export class DirectionalLightFrustumViewer {
         this._oldAutoCalc = this._light.autoCalcShadowZBounds;
         this._oldMinZ = this._light.shadowMinZ;
         this._oldMaxZ = this._light.shadowMaxZ;
+        this._oldOrthoLeft = this._light.orthoLeft;
+        this._oldOrthoRight = this._light.orthoRight;
+        this._oldOrthoTop = this._light.orthoTop;
+        this._oldOrthoBottom = this._light.orthoBottom;
 
-        TmpVectors.Vector3[0].set(this._light.orthoLeft, this._light.orthoBottom, this._light.shadowMinZ !== undefined ? this._light.shadowMinZ : this._camera.minZ); // min light extents
-        TmpVectors.Vector3[1].set(this._light.orthoRight, this._light.orthoTop, this._light.shadowMaxZ !== undefined ? this._light.shadowMaxZ : this._camera.maxZ); // max light extents
+        TmpVectors.Vector3[0].set(
+            this._light.orthoLeft,
+            this._light.orthoBottom,
+            this._light.shadowMinZ !== undefined ? this._light.shadowMinZ : (this._camera?.minZ ?? Constants.ShadowMinZ)
+        ); // min light extents
+        TmpVectors.Vector3[1].set(
+            this._light.orthoRight,
+            this._light.orthoTop,
+            this._light.shadowMaxZ !== undefined ? this._light.shadowMaxZ : (this._camera?.maxZ ?? Constants.ShadowMaxZ)
+        ); // max light extents
 
         const invLightView = this._getInvertViewMatrix();
 
@@ -236,10 +288,13 @@ export class DirectionalLightFrustumViewer {
      * Dispose of the class / remove the frustum view
      */
     public dispose() {
-        this._lightHelperFrustumMeshes.forEach((mesh) => {
+        if (this._scene.frameGraph) {
+            this._removeMeshesFromFrameGraph(this._scene.frameGraph);
+        }
+        for (const mesh of this._lightHelperFrustumMeshes) {
             mesh.material?.dispose();
             mesh.dispose();
-        });
+        }
         this._rootNode.dispose();
     }
 

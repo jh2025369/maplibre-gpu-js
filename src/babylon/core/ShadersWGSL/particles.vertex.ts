@@ -46,7 +46,7 @@ var row1: vec3f=vertexInputs.direction;
 #else
 var crossProduct: vec3f=normalize(cross(normalizedToCamera,normalizedCrossDirToCamera));var row1: vec3f= vec3f(crossProduct.x,crossProduct.y,crossProduct.z);
 #endif
-var rotMatrix: mat3x3f= mat3x3f(row0,row1,row2);var alignedCorner: vec3f=rotMatrix*rotatedCorner;return input.position+alignedCorner;}
+var rotMatrix: mat3x3f= mat3x3f(row0,row1,row2);var alignedCorner: vec3f=rotMatrix*rotatedCorner;return vertexInputs.position+alignedCorner;}
 #endif
 #define CUSTOM_VERTEX_DEFINITIONS
 @vertex

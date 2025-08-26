@@ -5,6 +5,9 @@ const name = "prePassVertex";
 const shader = `#ifdef PREPASS_DEPTH
 vViewPos=(view*worldPos).rgb;
 #endif
+#ifdef PREPASS_NORMALIZED_VIEW_DEPTH
+vNormViewDepth=((view*worldPos).z-cameraInfo.x)/(cameraInfo.y-cameraInfo.x);
+#endif
 #ifdef PREPASS_LOCAL_POSITION
 vPosition=positionUpdated.xyz;
 #endif

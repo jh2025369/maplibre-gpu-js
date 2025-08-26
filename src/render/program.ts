@@ -217,7 +217,7 @@ export class Program {
         engine._cacheRenderPipeline.resetDepthCullingState();
         engine._alphaState.reset();
         engine._alphaState.setAlphaEquationParameters(Constants.GL_ALPHA_EQUATION_ADD, Constants.GL_ALPHA_EQUATION_ADD);
-        engine._cacheRenderPipeline.setAlphaBlendEnabled(false);
+        engine._cacheRenderPipeline.setAlphaBlendEnabled([false], 1);
         engine._cacheRenderPipeline.setAlphaBlendFactors([null, null, null, null], [null, null]);
         engine._cacheRenderPipeline.setWriteMask(0xf);
         engine._cacheRenderPipeline.resetStencilState();

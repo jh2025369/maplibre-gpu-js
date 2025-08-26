@@ -1,5 +1,14 @@
-// eslint-disable-next-line import/no-internal-modules
-import type { NodeRenderGraphBuildState, Nullable, NodeRenderGraphInputBlock, AbstractEngine, Scene, FrameGraphTask, FrameGraph } from "core/index";
+import type {
+    NodeRenderGraphBuildState,
+    Nullable,
+    NodeRenderGraphInputBlock,
+    AbstractEngine,
+    Scene,
+    FrameGraphTask,
+    FrameGraph,
+    NodeRenderGraphResourceContainerBlock,
+    FrameGraphTextureHandle,
+} from "core/index";
 import { GetClass } from "../../Misc/typeStore";
 import { serialize } from "../../Misc/decorators";
 import { UniqueIdGenerator } from "../../Misc/uniqueIdGenerator";
@@ -273,6 +282,21 @@ export class NodeRenderGraphBlock {
         return this;
     }
 
+    protected _addDependenciesInput(additionalAllowedTypes = 0) {
+        this.registerInput("dependencies", NodeRenderGraphBlockConnectionPointTypes.AutoDetect, true);
+
+        const dependencies = this.getInputByName("dependencies")!;
+
+        dependencies.addExcludedConnectionPointFromAllowedTypes(
+            NodeRenderGraphBlockConnectionPointTypes.TextureAllButBackBuffer |
+                NodeRenderGraphBlockConnectionPointTypes.ResourceContainer |
+                NodeRenderGraphBlockConnectionPointTypes.ShadowGenerator |
+                additionalAllowedTypes
+        );
+
+        return dependencies;
+    }
+
     protected _buildBlock(_state: NodeRenderGraphBuildState) {
         // Empty. Must be defined by child nodes
     }
@@ -322,8 +346,31 @@ export class NodeRenderGraphBlock {
             Logger.Log(`Building ${this.name} [${this.getClassName()}]`);
         }
 
-        this._buildBlock(state);
         if (this._frameGraphTask) {
+            this._frameGraphTask.name = this.name;
+        }
+
+        this._buildBlock(state);
+
+        if (this._frameGraphTask) {
+            this._frameGraphTask.dependencies = undefined;
+
+            const dependenciesConnectedPoint = this.getInputByName("dependencies")?.connectedPoint;
+            if (dependenciesConnectedPoint) {
+                if (dependenciesConnectedPoint.type === NodeRenderGraphBlockConnectionPointTypes.ResourceContainer) {
+                    const container = dependenciesConnectedPoint.ownerBlock as NodeRenderGraphResourceContainerBlock;
+                    for (let i = 0; i < container.inputs.length; i++) {
+                        const input = container.inputs[i];
+                        if (input.connectedPoint && input.connectedPoint.value !== undefined && NodeRenderGraphConnectionPoint.IsTextureHandle(input.connectedPoint.value)) {
+                            this._frameGraphTask.dependencies = this._frameGraphTask.dependencies || new Set();
+                            this._frameGraphTask.dependencies.add(input.connectedPoint.value as FrameGraphTextureHandle);
+                        }
+                    }
+                } else if (NodeRenderGraphConnectionPoint.IsTextureHandle(dependenciesConnectedPoint.value)) {
+                    this._frameGraphTask.dependencies = this._frameGraphTask.dependencies || new Set();
+                    this._frameGraphTask.dependencies.add(dependenciesConnectedPoint.value as FrameGraphTextureHandle);
+                }
+            }
             this._frameGraph.addTask(this._frameGraphTask);
         }
 
@@ -337,6 +384,7 @@ export class NodeRenderGraphBlock {
             this._inputs[inputIndex1]._acceptedConnectionPointType = this._inputs[inputIndex0];
         } else {
             this._inputs[inputIndex0]._linkedConnectionSource = this._inputs[inputIndex1];
+            this._inputs[inputIndex0]._isMainLinkSource = true;
         }
 
         this._inputs[inputIndex1]._linkedConnectionSource = this._inputs[inputIndex0];
@@ -396,6 +444,7 @@ export class NodeRenderGraphBlock {
         serializationObject.customType = "BABYLON." + this.getClassName();
         serializationObject.id = this.uniqueId;
         serializationObject.name = this.name;
+        serializationObject.comments = this.comments;
         serializationObject.visibleOnFrame = this.visibleOnFrame;
         serializationObject.disabled = this.disabled;
         if (this._additionalConstructionParameters) {
@@ -432,10 +481,10 @@ export class NodeRenderGraphBlock {
         const serializedOutputs = serializationObject.outputs;
 
         if (serializedInputs) {
-            serializedInputs.forEach((port: any) => {
+            for (const port of serializedInputs) {
                 const input = this.inputs.find((i) => i.name === port.name);
                 if (!input) {
-                    return;
+                    continue;
                 }
                 if (port.displayName) {
                     input.displayName = port.displayName;
@@ -444,11 +493,12 @@ export class NodeRenderGraphBlock {
                     input.isExposedOnFrame = port.isExposedOnFrame;
                     input.exposedPortPosition = port.exposedPortPosition;
                 }
-            });
+            }
         }
 
         if (serializedOutputs) {
-            serializedOutputs.forEach((port: any, i: number) => {
+            for (let i = 0; i < serializedOutputs.length; i++) {
+                const port = serializedOutputs[i];
                 if (port.displayName) {
                     this.outputs[i].displayName = port.displayName;
                 }
@@ -456,7 +506,7 @@ export class NodeRenderGraphBlock {
                     this.outputs[i].isExposedOnFrame = port.isExposedOnFrame;
                     this.outputs[i].exposedPortPosition = port.exposedPortPosition;
                 }
-            });
+            }
         }
     }
 
@@ -520,7 +570,7 @@ export class NodeRenderGraphBlock {
             codeString += `// ${this.comments}\n`;
         }
         const className = this.getClassName();
-        if (className === "RenderGraphInputBlock") {
+        if (className === "NodeRenderGraphInputBlock") {
             const block = this as unknown as NodeRenderGraphInputBlock;
             const blockType = block.type;
 

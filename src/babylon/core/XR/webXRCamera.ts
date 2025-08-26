@@ -256,6 +256,8 @@ export class WebXRCamera extends FreeCamera {
                 this._referencedPosition.z *= -1;
                 this._referenceQuaternion.z *= -1;
                 this._referenceQuaternion.w *= -1;
+            } else {
+                this._referenceQuaternion.multiplyInPlace(this._rotate180);
             }
 
             if (this._firstFrame) {
@@ -279,7 +281,8 @@ export class WebXRCamera extends FreeCamera {
             this._updateNumberOfRigCameras(pose.views.length);
         }
 
-        pose.views.forEach((view: XRView, i: number) => {
+        for (let i = 0; i < pose.views.length; i++) {
+            const view = pose.views[i];
             const currentRig = <TargetCamera>this.rigCameras[i];
             // update right and left, where applicable
             if (!currentRig.isLeftCamera && !currentRig.isRightCamera) {
@@ -348,7 +351,7 @@ export class WebXRCamera extends FreeCamera {
 
             // Replicate parent rig camera behavior
             currentRig.layerMask = this.layerMask;
-        });
+        }
     }
 
     private _updateNumberOfRigCameras(viewCount = 1) {

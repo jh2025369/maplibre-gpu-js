@@ -325,6 +325,10 @@ export class FramingBehavior implements Behavior<ArcRotateCamera> {
         const zoomTargetY = bottom + (top - bottom) * this._positionScale;
         const radiusWorld = maximumWorld.subtract(minimumWorld).scale(0.5);
 
+        if (!isFinite(zoomTargetY)) {
+            return false; // Abort mission as there is no target
+        }
+
         if (focusOnOriginXZ) {
             zoomTarget = new Vector3(0, zoomTargetY, 0);
         } else {
@@ -440,7 +444,7 @@ export class FramingBehavior implements Behavior<ArcRotateCamera> {
                 this._betaTransition = Animation.CreateAnimation("beta", Animation.ANIMATIONTYPE_FLOAT, 60, FramingBehavior.EasingFunction);
             }
 
-            const animatabe = Animation.TransitionTo(
+            const animatable = Animation.TransitionTo(
                 "beta",
                 defaultBeta,
                 this._attachedCamera,
@@ -454,8 +458,8 @@ export class FramingBehavior implements Behavior<ArcRotateCamera> {
                 }
             );
 
-            if (animatabe) {
-                this._animatables.push(animatabe);
+            if (animatable) {
+                this._animatables.push(animatable);
             }
         }
     }

@@ -11,6 +11,9 @@ varying highp vec3 vPosition;
 #ifdef PREPASS_DEPTH
 varying highp vec3 vViewPos;
 #endif
+#ifdef PREPASS_NORMALIZED_VIEW_DEPTH
+varying highp float vNormViewDepth;
+#endif
 #if defined(PREPASS_VELOCITY) || defined(PREPASS_VELOCITY_LINEAR)
 varying highp vec4 vCurrentPosition;varying highp vec4 vPreviousPosition;
 #endif

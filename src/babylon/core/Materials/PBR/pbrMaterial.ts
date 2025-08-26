@@ -93,6 +93,20 @@ export class PBRMaterial extends PBRBaseMaterial {
     public albedoTexture: Nullable<BaseTexture>;
 
     /**
+     * OpenPBR Base Weight texture (multiplier to the diffuse and metal lobes).
+     */
+    @serializeAsTexture()
+    @expandToProperty("_markAllSubMeshesAsTexturesDirty")
+    public baseWeightTexture: Nullable<BaseTexture>;
+
+    /**
+     * OpenPBR Base Diffuse Roughness texture (roughness of the diffuse lobe).
+     */
+    @serializeAsTexture()
+    @expandToProperty("_markAllSubMeshesAsTexturesDirty")
+    public baseDiffuseRoughnessTexture: Nullable<BaseTexture>;
+
+    /**
      * AKA Occlusion Texture in other nomenclature.
      */
     @serializeAsTexture()
@@ -269,6 +283,20 @@ export class PBRMaterial extends PBRBaseMaterial {
     @serializeAsColor3("albedo")
     @expandToProperty("_markAllSubMeshesAsTexturesDirty")
     public albedoColor = new Color3(1, 1, 1);
+
+    /**
+     * OpenPBR Base Weight (multiplier to the diffuse and metal lobes).
+     */
+    @serialize("baseWeight")
+    @expandToProperty("_markAllSubMeshesAsTexturesDirty")
+    public baseWeight = 1;
+
+    /**
+     * OpenPBR Base Diffuse Roughness (roughness of the diffuse lobe).
+     */
+    @serialize("baseDiffuseRoughness")
+    @expandToProperty("_markAllSubMeshesAsTexturesDirty")
+    public baseDiffuseRoughness: Nullable<number>;
 
     /**
      * AKA Specular Color in other nomenclature.
@@ -645,7 +673,7 @@ export class PBRMaterial extends PBRBaseMaterial {
         this._attachImageProcessingConfiguration(value);
 
         // Ensure the effect will be rebuilt.
-        this._markAllSubMeshesAsTexturesDirty();
+        this._markAllSubMeshesAsImageProcessingDirty();
     }
 
     /**

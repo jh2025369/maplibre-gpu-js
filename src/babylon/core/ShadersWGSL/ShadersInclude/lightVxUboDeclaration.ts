@@ -15,6 +15,10 @@ vLightFalloff: vec4f,
 #elif defined(HEMILIGHT{X})
 vLightGround: vec3f,
 #endif
+#if defined(AREALIGHT{X})
+vLightWidth: vec4f,
+vLightHeight: vec4f,
+#endif
 shadowsInfo: vec4f,
 depthValues: vec2f} ;var<uniform> light{X} : Light{X};
 #ifdef SHADOW{X}

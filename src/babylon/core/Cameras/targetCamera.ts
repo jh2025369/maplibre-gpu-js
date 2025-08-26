@@ -12,6 +12,10 @@ Node.AddNodeConstructor("TargetCamera", (name, scene) => {
     return () => new TargetCamera(name, Vector3.Zero(), scene);
 });
 
+// Temporary cache variables to avoid allocations.
+const TmpMatrix = Matrix.Zero();
+const TmpQuaternion = Quaternion.Identity();
+
 /**
  * A target camera takes a mesh or position as a target and continues to look at it while it moves.
  * This is the base of the follow, arc rotate cameras and Free camera
@@ -22,9 +26,6 @@ export class TargetCamera extends Camera {
     private static _TargetTransformMatrix = new Matrix();
     private static _TargetFocalPoint = new Vector3();
 
-    private _tmpUpVector = Vector3.Zero();
-    private _tmpTargetVector = Vector3.Zero();
-
     /**
      * Define the current direction the camera is moving to
      */
@@ -34,20 +35,17 @@ export class TargetCamera extends Camera {
      */
     public cameraRotation = new Vector2(0, 0);
 
-    /** Gets or sets a boolean indicating that the scaling of the parent hierarchy will not be taken in account by the camera */
-    public ignoreParentScaling = false;
-
     /**
      * When set, the up vector of the camera will be updated by the rotation of the camera
      */
+    @serialize()
     public updateUpVectorFromRotation = false;
-    private _tmpQuaternion = new Quaternion();
 
     /**
      * Define the current rotation of the camera
      */
     @serializeAsVector3()
-    public rotation = new Vector3(0, 0, 0);
+    public rotation: Vector3;
 
     /**
      * Define the current rotation of the camera as a quaternion to prevent Gimbal lock
@@ -84,34 +82,26 @@ export class TargetCamera extends Camera {
     @serializeAsMeshReference("lockedTargetId")
     public lockedTarget: any = null;
 
-    /** @internal */
-    public _currentTarget = Vector3.Zero();
-    /** @internal */
-    public _initialFocalDistance = 1;
-    /** @internal */
-    public _viewMatrix = Matrix.Zero();
-    /** @internal */
-    public _camMatrix = Matrix.Zero();
-    /** @internal */
-    public _cameraTransformMatrix = Matrix.Zero();
-    /** @internal */
-    public _cameraRotationMatrix = Matrix.Zero();
+    protected readonly _currentTarget = Vector3.Zero();
+    protected _initialFocalDistance = 1;
+    protected readonly _viewMatrix = Matrix.Zero();
 
     /** @internal */
-    public _referencePoint = new Vector3(0, 0, 1);
+    public readonly _cameraTransformMatrix = Matrix.Zero();
     /** @internal */
-    public _transformedReferencePoint = Vector3.Zero();
+    public readonly _cameraRotationMatrix = Matrix.Zero();
 
-    protected _deferredPositionUpdate = new Vector3();
-    protected _deferredRotationQuaternionUpdate = new Quaternion();
-    protected _deferredRotationUpdate = new Vector3();
+    protected readonly _referencePoint: Vector3;
+    protected readonly _transformedReferencePoint = Vector3.Zero();
+
+    protected readonly _deferredPositionUpdate = new Vector3();
+    protected readonly _deferredRotationQuaternionUpdate = new Quaternion();
+    protected readonly _deferredRotationUpdate = new Vector3();
     protected _deferredUpdated = false;
     protected _deferOnly: boolean = false;
 
     /** @internal */
     public _reset: () => void;
-
-    private _defaultUp = Vector3.Up();
 
     /**
      * Instantiates a target camera that takes a mesh or position as a target and continues to look at it while it moves.
@@ -124,6 +114,11 @@ export class TargetCamera extends Camera {
      */
     constructor(name: string, position: Vector3, scene?: Scene, setActiveOnSceneIfNoneActive = true) {
         super(name, position, scene, setActiveOnSceneIfNoneActive);
+
+        this._referencePoint = Vector3.Forward(this.getScene().useRightHandedSystem);
+
+        // Set the y component of the rotation to Math.PI in right-handed system for backwards compatibility.
+        this.rotation = new Vector3(0, this.getScene().useRightHandedSystem ? Math.PI : 0, 0);
     }
 
     /**
@@ -133,10 +128,12 @@ export class TargetCamera extends Camera {
      */
     public getFrontPosition(distance: number): Vector3 {
         this.getWorldMatrix();
-        const direction = this.getTarget().subtract(this.position);
-        direction.normalize();
-        direction.scaleInPlace(distance);
-        return this.globalPosition.add(direction);
+        const worldForward = TmpVectors.Vector3[0];
+        const localForward = TmpVectors.Vector3[1];
+        localForward.set(0, 0, this._scene.useRightHandedSystem ? -1.0 : 1.0);
+        this.getDirectionToRef(localForward, worldForward);
+        worldForward.scaleInPlace(distance);
+        return this.globalPosition.add(worldForward);
     }
 
     /** @internal */
@@ -268,36 +265,20 @@ export class TargetCamera extends Camera {
 
         this._referencePoint.normalize().scaleInPlace(this._initialFocalDistance);
 
-        Matrix.LookAtLHToRef(this.position, target, this._defaultUp, this._camMatrix);
-        this._camMatrix.invert();
-
-        this.rotation.x = Math.atan(this._camMatrix.m[6] / this._camMatrix.m[10]);
-
-        const vDir = target.subtract(this.position);
-
-        if (vDir.x >= 0.0) {
-            this.rotation.y = -Math.atan(vDir.z / vDir.x) + Math.PI / 2.0;
+        if (this.getScene().useRightHandedSystem) {
+            Matrix.LookAtRHToRef(this.position, target, Vector3.UpReadOnly, TmpMatrix);
         } else {
-            this.rotation.y = -Math.atan(vDir.z / vDir.x) - Math.PI / 2.0;
+            Matrix.LookAtLHToRef(this.position, target, Vector3.UpReadOnly, TmpMatrix);
         }
+        TmpMatrix.invert();
 
+        const rotationQuaternion = this.rotationQuaternion || TmpQuaternion;
+        Quaternion.FromRotationMatrixToRef(TmpMatrix, rotationQuaternion);
+
+        rotationQuaternion.toEulerAnglesToRef(this.rotation);
+
+        // Explicitly set z to 0 to match previous behavior.
         this.rotation.z = 0;
-
-        if (isNaN(this.rotation.x)) {
-            this.rotation.x = 0;
-        }
-
-        if (isNaN(this.rotation.y)) {
-            this.rotation.y = 0;
-        }
-
-        if (isNaN(this.rotation.z)) {
-            this.rotation.z = 0;
-        }
-
-        if (this.rotationQuaternion) {
-            Quaternion.RotationYawPitchRollToRef(this.rotation.y, this.rotation.x, this.rotation.z, this.rotationQuaternion);
-        }
     }
 
     /**
@@ -453,7 +434,7 @@ export class TargetCamera extends Camera {
      * @returns the current camera
      */
     private _rotateUpVectorWithCameraRotationMatrix(): TargetCamera {
-        Vector3.TransformNormalToRef(this._defaultUp, this._cameraRotationMatrix, this.upVector);
+        Vector3.TransformNormalToRef(Vector3.UpReadOnly, this._cameraRotationMatrix, this.upVector);
         return this;
     }
 
@@ -485,8 +466,8 @@ export class TargetCamera extends Camera {
             if (this.rotationQuaternion) {
                 Axis.Y.rotateByQuaternionToRef(this.rotationQuaternion, this.upVector);
             } else {
-                Quaternion.FromEulerVectorToRef(this.rotation, this._tmpQuaternion);
-                Axis.Y.rotateByQuaternionToRef(this._tmpQuaternion, this.upVector);
+                Quaternion.FromEulerVectorToRef(this.rotation, TmpQuaternion);
+                Axis.Y.rotateByQuaternionToRef(TmpQuaternion, this.upVector);
             }
         }
         this._computeViewMatrix(this.position, this._currentTarget, this.upVector);
@@ -494,27 +475,6 @@ export class TargetCamera extends Camera {
     }
 
     protected _computeViewMatrix(position: Vector3, target: Vector3, up: Vector3): void {
-        if (this.ignoreParentScaling) {
-            if (this.parent) {
-                const parentWorldMatrix = this.parent.getWorldMatrix();
-                Vector3.TransformCoordinatesToRef(position, parentWorldMatrix, this._globalPosition);
-                Vector3.TransformCoordinatesToRef(target, parentWorldMatrix, this._tmpTargetVector);
-                Vector3.TransformNormalToRef(up, parentWorldMatrix, this._tmpUpVector);
-                this._markSyncedWithParent();
-            } else {
-                this._globalPosition.copyFrom(position);
-                this._tmpTargetVector.copyFrom(target);
-                this._tmpUpVector.copyFrom(up);
-            }
-
-            if (this.getScene().useRightHandedSystem) {
-                Matrix.LookAtRHToRef(this._globalPosition, this._tmpTargetVector, this._tmpUpVector, this._viewMatrix);
-            } else {
-                Matrix.LookAtLHToRef(this._globalPosition, this._tmpTargetVector, this._tmpUpVector, this._viewMatrix);
-            }
-            return;
-        }
-
         if (this.getScene().useRightHandedSystem) {
             Matrix.LookAtRHToRef(position, target, up, this._viewMatrix);
         } else {
@@ -527,6 +487,7 @@ export class TargetCamera extends Camera {
             this._viewMatrix.multiplyToRef(parentWorldMatrix, this._viewMatrix);
             this._viewMatrix.getTranslationToRef(this._globalPosition);
             this._viewMatrix.invert();
+
             this._markSyncedWithParent();
         } else {
             this._globalPosition.copyFrom(position);

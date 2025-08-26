@@ -60,7 +60,9 @@ import "./ShadersInclude/oitFragment";
 import "./ShadersInclude/pbrDebug";
 
 const name = "pbrPixelShader";
-const shader = `#if defined(BUMP) || !defined(NORMAL) || defined(FORCENORMALFORWARD) || defined(SPECULARAA) || defined(CLEARCOAT_BUMP) || defined(ANISOTROPIC)
+const shader = `#define PBR_FRAGMENT_SHADER
+#define CUSTOM_FRAGMENT_EXTENSION
+#if defined(BUMP) || !defined(NORMAL) || defined(FORCENORMALFORWARD) || defined(SPECULARAA) || defined(CLEARCOAT_BUMP) || defined(ANISOTROPIC)
 #extension GL_OES_standard_derivatives : enable
 #endif
 #ifdef LODBASEDMICROSFURACE
@@ -123,6 +125,9 @@ albedoOpacityOutParams albedoOpacityOut;
 #ifdef ALBEDO
 vec4 albedoTexture=texture2D(albedoSampler,vAlbedoUV+uvOffset);
 #endif
+#ifdef BASE_WEIGHT
+vec4 baseWeightTexture=texture2D(baseWeightSampler,vBaseWeightUV+uvOffset);
+#endif
 #ifdef OPACITY
 vec4 opacityMap=texture2D(opacitySampler,vOpacityUV+uvOffset);
 #endif
@@ -134,6 +139,11 @@ vAlbedoColor
 #ifdef ALBEDO
 ,albedoTexture
 ,vAlbedoInfos
+#endif
+,baseWeight
+#ifdef BASE_WEIGHT
+,baseWeightTexture
+,vBaseWeightInfos
 #endif
 #ifdef OPACITY
 ,opacityMap
@@ -159,12 +169,12 @@ aoOut=ambientOcclusionBlock(
 #ifdef AMBIENT
 ambientOcclusionColorMap,
 vAmbientInfos
-#endif 
+#endif
 );
 #include<pbrBlockLightmapInit>
 #ifdef UNLIT
 vec3 diffuseBase=vec3(1.,1.,1.);
-#else
+#else 
 vec3 baseColor=surfaceAlbedo;reflectivityOutParams reflectivityOut;
 #if defined(REFLECTIVITY)
 vec4 surfaceMetallicOrReflectivityColorMap=texture2D(reflectivitySampler,vReflectivityUV+uvOffset);vec4 baseReflectivity=surfaceMetallicOrReflectivityColorMap;
@@ -195,14 +205,22 @@ metallicReflectanceFactorsMap=toLinearSpace(metallicReflectanceFactorsMap);
 #ifndef METALLIC_REFLECTANCE_USE_ALPHA_ONLY
 metallicReflectanceFactors.rgb*=metallicReflectanceFactorsMap.rgb;
 #endif
-metallicReflectanceFactors*=metallicReflectanceFactorsMap.a;
+metallicReflectanceFactors.a*=metallicReflectanceFactorsMap.a;
 #endif
+#endif
+#ifdef BASE_DIFFUSE_ROUGHNESS
+float baseDiffuseRoughnessTexture=texture2D(baseDiffuseRoughnessSampler,vBaseDiffuseRoughnessUV+uvOffset).r;
 #endif
 reflectivityOut=reflectivityBlock(
 vReflectivityColor
 #ifdef METALLICWORKFLOW
 ,surfaceAlbedo
 ,metallicReflectanceFactors
+#endif
+,baseDiffuseRoughness
+#ifdef BASE_DIFFUSE_ROUGHNESS
+,baseDiffuseRoughnessTexture
+,vBaseDiffuseRoughnessInfos
 #endif
 #ifdef REFLECTIVITY
 ,vReflectivityInfos
@@ -218,7 +236,7 @@ vReflectivityColor
 ,detailColor
 ,vDetailInfos
 #endif
-);float microSurface=reflectivityOut.microSurface;float roughness=reflectivityOut.roughness;
+);float microSurface=reflectivityOut.microSurface;float roughness=reflectivityOut.roughness;float diffuseRoughness=reflectivityOut.diffuseRoughness;
 #ifdef METALLICWORKFLOW
 surfaceAlbedo=reflectivityOut.surfaceAlbedo;
 #endif
@@ -249,7 +267,7 @@ anisotropyMapData,
 #endif
 TBN,
 normalW,
-viewDirectionW 
+viewDirectionW
 );
 #endif
 #ifdef REFLECTION
@@ -275,13 +293,14 @@ vPositionW
 #if defined(NORMAL) && defined(USESPHERICALINVERTEX)
 ,vEnvironmentIrradiance
 #endif
-#ifdef USESPHERICALFROMREFLECTIONMAP
-#if !defined(NORMAL) || !defined(USESPHERICALINVERTEX)
+#if (defined(USESPHERICALFROMREFLECTIONMAP) && (!defined(NORMAL) || !defined(USESPHERICALINVERTEX))) || (defined(USEIRRADIANCEMAP) && defined(REFLECTIONMAP_3D))
 ,reflectionMatrix
-#endif
 #endif
 #ifdef USEIRRADIANCEMAP
 ,irradianceSampler
+#ifdef USE_IRRADIANCE_DOMINANT_DIRECTION
+,vReflectionDominantDirection
+#endif
 #endif
 #ifndef LODBASEDMICROSFURACE
 ,reflectionSamplerLow
@@ -289,7 +308,13 @@ vPositionW
 #endif
 #ifdef REALTIME_FILTERING
 ,vReflectionFilteringInfo
+#ifdef IBL_CDF_FILTERING
+,icdfSampler
 #endif
+#endif
+,viewDirectionW
+,diffuseRoughness
+,baseColor
 );
 #else
 #define CUSTOM_REFLECTION
@@ -317,7 +342,7 @@ vSheenColor
 ,sheenMapData
 ,vSheenInfos.y
 #endif
-,reflectance
+,reflectanceF0
 #ifdef SHEEN_LINKWITHALBEDO
 ,baseColor
 ,surfaceAlbedo
@@ -379,6 +404,7 @@ vIridescenceParams
 #endif
 #ifdef CLEARCOAT
 ,NdotVUnclamped
+,vClearCoatParams
 #ifdef CLEARCOAT_TEXTURE
 ,clearCoatMapData
 #endif
@@ -467,13 +493,23 @@ vec4 translucencyIntensityMap=texture2D(translucencyIntensitySampler,vTranslucen
 #endif
 #ifdef SS_TRANSLUCENCYCOLOR_TEXTURE
 vec4 translucencyColorMap=texture2D(translucencyColorSampler,vTranslucencyColorUV+uvOffset);
+#ifdef SS_TRANSLUCENCYCOLOR_TEXTURE_GAMMA
+translucencyColorMap=toLinearSpace(translucencyColorMap);
+#endif
+#endif
+#ifdef LEGACY_SPECULAR_ENERGY_CONSERVATION
+vec3 vSpecularEnvironmentReflectance=vec3(max(colorSpecularEnvironmentReflectance.r,max(colorSpecularEnvironmentReflectance.g,colorSpecularEnvironmentReflectance.b)));
 #endif
 subSurfaceOut=subSurfaceBlock(
 vSubSurfaceIntensity
 ,vThicknessParam
 ,vTintColor
 ,normalW
-,specularEnvironmentReflectance
+#ifdef LEGACY_SPECULAR_ENERGY_CONSERVATION
+,vSpecularEnvironmentReflectance
+#else
+,baseSpecularEnvironmentReflectance
+#endif
 #ifdef SS_THICKNESSANDMASK_TEXTURE
 ,thicknessMap
 #endif
@@ -493,6 +529,9 @@ vSubSurfaceIntensity
 #if defined(REALTIME_FILTERING)
 ,reflectionSampler
 ,vReflectionFilteringInfo
+#ifdef IBL_CDF_FILTERING
+,icdfSampler
+#endif
 #endif
 #endif
 #ifdef USEIRRADIANCEMAP
@@ -555,7 +594,7 @@ alpha=subSurfaceOut.alpha;
 #endif
 #endif
 #else
-subSurfaceOut.specularEnvironmentReflectance=specularEnvironmentReflectance;
+subSurfaceOut.specularEnvironmentReflectance=colorSpecularEnvironmentReflectance;
 #endif
 #include<pbrBlockDirectLighting>
 #include<lightFragment>[0..maxSimultaneousLights]

@@ -27,7 +27,7 @@ import { MaterialFlags } from "../materialFlags";
 import { Color3 } from "../../Maths/math.color";
 
 import { EffectFallbacks } from "../effectFallbacks";
-import { addClipPlaneUniforms, bindClipPlane } from "../clipPlaneMaterialHelper";
+import { AddClipPlaneUniforms, BindClipPlane } from "../clipPlaneMaterialHelper";
 import {
     BindBonesParameters,
     BindFogParameters,
@@ -889,7 +889,7 @@ export class BackgroundMaterial extends PushMaterial {
         }
 
         // Misc.
-        PrepareDefinesForMisc(mesh, scene, this._useLogarithmicDepth, this.pointsCloud, this.fogEnabled, this._shouldTurnAlphaTestOn(mesh), defines);
+        PrepareDefinesForMisc(mesh, scene, this._useLogarithmicDepth, this.pointsCloud, this.fogEnabled, this.needAlphaTestingForMesh(mesh), defines);
 
         // Values that need to be evaluated on every frame
         PrepareDefinesForFrameBoundValues(scene, engine, this, defines, useInstances, null, subMesh.getRenderingMesh().hasThinInstances);
@@ -974,7 +974,7 @@ export class BackgroundMaterial extends PushMaterial {
                 "logarithmicDepthConstant",
             ];
 
-            addClipPlaneUniforms(uniforms);
+            AddClipPlaneUniforms(uniforms);
             const samplers = ["diffuseSampler", "reflectionSampler", "reflectionSamplerLow", "reflectionSamplerHigh"];
             const uniformBuffers = ["Material", "Scene"];
 
@@ -1232,7 +1232,7 @@ export class BackgroundMaterial extends PushMaterial {
             }
 
             // Clip plane
-            bindClipPlane(this._activeEffect, this, scene);
+            BindClipPlane(this._activeEffect, this, scene);
 
             scene.bindEyePosition(effect);
         } else if (scene.getEngine()._features.needToAlwaysBindUniformBuffers) {

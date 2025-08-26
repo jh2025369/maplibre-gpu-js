@@ -2,7 +2,7 @@
 import { ShaderStore } from "../../Engines/shaderStore";
 
 const name = "gaussianSplattingVertexDeclaration";
-const shader = `attribute vec2 position;uniform mat4 view;uniform mat4 projection;uniform mat4 world;`;
+const shader = `attribute vec2 position;uniform mat4 view;uniform mat4 projection;uniform mat4 world;uniform vec4 vEyePosition;`;
 // Sideeffect
 ShaderStore.IncludesShadersStore[name] = shader;
 /** @internal */

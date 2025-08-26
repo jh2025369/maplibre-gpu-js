@@ -78,6 +78,13 @@
 		uniform vec4 vLightFalloff{X};
 	#elif defined(HEMILIGHT{X})
 		uniform vec3 vLightGround{X};
+    #endif
+    #ifdef AREALIGHT{X}
+        uniform vec4 vLightWidth{X};
+        uniform vec4 vLightHeight{X};
+	#endif
+	#ifdef IESLIGHTTEXTURE{X}
+		uniform sampler2D iesLightTexture{X};
 	#endif
 	#ifdef PROJECTEDLIGHTTEXTURE{X}
 		uniform mat4 textureProjectionMatrix{X};
