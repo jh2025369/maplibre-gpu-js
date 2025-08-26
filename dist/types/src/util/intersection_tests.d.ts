@@ -1,0 +1,13 @@
+import Point from '@mapbox/point-geometry';
+export { polygonIntersectsBufferedPoint, polygonIntersectsMultiPolygon, polygonIntersectsBufferedMultiLine, polygonIntersectsPolygon, distToSegmentSquared, polygonIntersectsBox };
+type Line = Array<Point>;
+type MultiLine = Array<Line>;
+type Ring = Array<Point>;
+type Polygon = Array<Point>;
+type MultiPolygon = Array<Polygon>;
+declare function polygonIntersectsPolygon(polygonA: Polygon, polygonB: Polygon): boolean;
+declare function polygonIntersectsBufferedPoint(polygon: Polygon, point: Point, radius: number): boolean;
+declare function polygonIntersectsMultiPolygon(polygon: Polygon, multiPolygon: MultiPolygon): boolean;
+declare function polygonIntersectsBufferedMultiLine(polygon: Polygon, multiLine: MultiLine, radius: number): boolean;
+declare function distToSegmentSquared(p: Point, v: Point, w: Point): number;
+declare function polygonIntersectsBox(ring: Ring, boxX1: number, boxY1: number, boxX2: number, boxY2: number): boolean;

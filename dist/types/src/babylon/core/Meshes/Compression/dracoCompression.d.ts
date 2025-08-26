@@ -1,0 +1,143 @@
+import type { IDracoCodecConfiguration } from "./dracoCodec";
+import type { MeshData } from "./dracoDecoder.types";
+import { VertexData } from "../mesh.vertexData";
+import type { Nullable } from "core/types";
+import type { Geometry } from "../geometry";
+import type { BoundingInfo } from "../../Culling/boundingInfo";
+import type { Scene } from "../../scene";
+/**
+ * Configuration for Draco compression
+ */
+export interface IDracoCompressionConfiguration {
+    /**
+     * Configuration for the decoder.
+     */
+    decoder: IDracoCodecConfiguration;
+}
+/**
+ * Options for Draco compression
+ */
+export interface IDracoCompressionOptions extends Pick<IDracoCodecConfiguration, "numWorkers" | "wasmBinary" | "workerPool"> {
+}
+/**
+ * Draco compression (https://google.github.io/draco/)
+ *
+ * This class wraps the Draco module.
+ *
+ * **Encoder**
+ *
+ * The encoder is not currently implemented.
+ *
+ * **Decoder**
+ *
+ * By default, the configuration points to a copy of the Draco decoder files for glTF from the babylon.js cdn https://cdn.babylonjs.com/draco_wasm_wrapper_gltf.js.
+ * The configuration is shared with the DracoDecoder class.
+ *
+ * To update the configuration, use the following code:
+ * ```javascript
+ *     DracoCompression.Configuration = {
+ *         decoder: {
+ *             wasmUrl: "<url to the WebAssembly library>",
+ *             wasmBinaryUrl: "<url to the WebAssembly binary>",
+ *             fallbackUrl: "<url to the fallback JavaScript library>",
+ *         }
+ *     };
+ * ```
+ *
+ * Draco has two versions, one for WebAssembly and one for JavaScript. The decoder configuration can be set to only support WebAssembly or only support the JavaScript version.
+ * Decoding will automatically fallback to the JavaScript version if WebAssembly version is not configured or if WebAssembly is not supported by the browser.
+ * Use `DracoCompression.DecoderAvailable` to determine if the decoder configuration is available for the current context.
+ *
+ * To decode Draco compressed data, get the default DracoCompression object and call decodeMeshToGeometryAsync:
+ * ```javascript
+ *     var geometry = await DracoCompression.Default.decodeMeshToGeometryAsync(data);
+ * ```
+ *
+ * @see https://playground.babylonjs.com/#DMZIBD#0
+ */
+export declare class DracoCompression {
+    private _decoder;
+    /**
+     * The configuration. Defaults to the following urls:
+     * - wasmUrl: "https://cdn.babylonjs.com/draco_wasm_wrapper_gltf.js"
+     * - wasmBinaryUrl: "https://cdn.babylonjs.com/draco_decoder_gltf.wasm"
+     * - fallbackUrl: "https://cdn.babylonjs.com/draco_decoder_gltf.js"
+     */
+    static get Configuration(): IDracoCompressionConfiguration;
+    static set Configuration(value: IDracoCompressionConfiguration);
+    /**
+     * Returns true if the decoder configuration is available.
+     */
+    static get DecoderAvailable(): boolean;
+    /**
+     * Default number of workers to create when creating the draco compression object.
+     */
+    static DefaultNumWorkers: number;
+    protected static _Default: Nullable<DracoCompression>;
+    /**
+     * Default instance for the DracoCompression.
+     */
+    static get Default(): DracoCompression;
+    /**
+     * Reset the default draco compression object to null and disposing the removed default instance.
+     * Note that if the workerPool is a member of the static Configuration object it is recommended not to run dispose,
+     * unless the static worker pool is no longer needed.
+     * @param skipDispose set to true to not dispose the removed default instance
+     */
+    static ResetDefault(skipDispose?: boolean): void;
+    /**
+     * Creates a new DracoCompression object.
+     * @param numWorkersOrOptions Overrides for the Configuration. Either:
+     * - The number of workers for async operations or a config object. Specify `0` to disable web workers and run synchronously in the current context.
+     * - An options object
+     */
+    constructor(numWorkersOrOptions?: number | IDracoCompressionOptions);
+    /**
+     * Stop all async operations and release resources.
+     */
+    dispose(): void;
+    /**
+     * Returns a promise that resolves when ready. Call this manually to ensure draco compression is ready before use.
+     * @returns a promise that resolves when ready
+     */
+    whenReadyAsync(): Promise<void>;
+    /**
+     * Decode Draco compressed mesh data to mesh data.
+     * @param data The ArrayBuffer or ArrayBufferView for the Draco compression data
+     * @param attributes A map of attributes from vertex buffer kinds to Draco unique ids
+     * @param gltfNormalizedOverride A map of attributes from vertex buffer kinds to normalized flags to override the Draco normalization
+     * @returns A promise that resolves with the decoded mesh data
+     */
+    decodeMeshToMeshDataAsync(data: ArrayBuffer | ArrayBufferView, attributes?: {
+        [kind: string]: number;
+    }, gltfNormalizedOverride?: {
+        [kind: string]: boolean;
+    }): Promise<MeshData>;
+    /**
+     * Decode Draco compressed mesh data to Babylon geometry.
+     * @param name The name to use when creating the geometry
+     * @param scene The scene to use when creating the geometry
+     * @param data The ArrayBuffer or ArrayBufferView for the Draco compression data
+     * @param attributes A map of attributes from vertex buffer kinds to Draco unique ids
+     * @returns A promise that resolves with the decoded geometry
+     */
+    decodeMeshToGeometryAsync(name: string, scene: Scene, data: ArrayBuffer | ArrayBufferView, attributes?: {
+        [kind: string]: number;
+    }): Promise<Geometry>;
+    /** @internal */
+    _decodeMeshToGeometryForGltfAsync(name: string, scene: Scene, data: ArrayBuffer | ArrayBufferView, attributes: {
+        [kind: string]: number;
+    }, gltfNormalizedOverride: {
+        [kind: string]: boolean;
+    }, boundingInfo: Nullable<BoundingInfo>): Promise<Geometry>;
+    /**
+     * Decode Draco compressed mesh data to Babylon vertex data.
+     * @param data The ArrayBuffer or ArrayBufferView for the Draco compression data
+     * @param attributes A map of attributes from vertex buffer kinds to Draco unique ids
+     * @returns A promise that resolves with the decoded vertex data
+     * @deprecated Use {@link decodeMeshToGeometryAsync} for better performance in some cases
+     */
+    decodeMeshAsync(data: ArrayBuffer | ArrayBufferView, attributes?: {
+        [kind: string]: number;
+    }): Promise<VertexData>;
+}

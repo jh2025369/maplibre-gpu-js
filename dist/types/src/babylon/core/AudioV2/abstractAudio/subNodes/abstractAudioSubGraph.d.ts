@@ -1,0 +1,74 @@
+import type { Nullable } from "../../../types";
+import type { _AbstractAudioSubNode } from "./abstractAudioSubNode";
+import type { AudioSubNode } from "./audioSubNode";
+/**
+ * Adds common sub graph functionality to an audio node.
+ *
+ * Audio nodes such as static sounds, streaming sounds, and buses can use audio sub graphs to process audio internally
+ * before sending it to connected downstream audio nodes. This is useful for applying effects, spatial audio, and other
+ * audio processing tasks common to multiple audio node classes.
+ *
+ * A key feature of audio sub graphs is their audio sub nodes are created asynchronously on demand so the minimum set
+ * of sub nodes are used at all times to save memory and CPU resources. The tradeoff is a small delay when first
+ * setting a property backed by a sub node. This delay is avoided by using the appropriate options to initialize the
+ * sub node on creation, e.g. `spatialEnabled` and `stereoEnabled`, or by setting any creation option backed by the
+ * sub node, e.g. `spatialPosition` and `stereoPan`.
+ *
+ * @internal
+ */
+export declare abstract class _AbstractAudioSubGraph {
+    private _createSubNodePromises;
+    private _isDisposed;
+    private _subNodes;
+    /**
+     * Executes the given callback with the named sub node, creating the sub node if needed.
+     *
+     * @param name The name of the sub node
+     * @param callback The function to call with the named sub node
+     *
+     * @internal
+     */
+    callOnSubNode<T extends _AbstractAudioSubNode>(name: AudioSubNode, callback: (node: T) => void): void;
+    /**
+     * Creates the named subnode and adds it to the sub graph.
+     *
+     * @param name The name of the sub node.
+     * @returns A promise that resolves to the created sub node.
+     *
+     * @internal
+     */
+    createAndAddSubNodeAsync(name: AudioSubNode): Promise<_AbstractAudioSubNode>;
+    /**
+     * Releases associated resources.
+     *
+     * @internal
+     */
+    dispose(): void;
+    /**
+     * Gets a previously created sub node.
+     *
+     * @param name - The name of the sub node
+     * @returns The named sub node, or `null` if it has not been created, yet
+     *
+     * @internal
+     * */
+    getSubNode<T extends _AbstractAudioSubNode>(name: string): Nullable<T>;
+    /**
+     * Removes a sub node from the sub graph.
+     *
+     * @param subNode - The sub node to remove
+     * @returns A promise that resolves when the sub node is removed
+     *
+     * @internal
+     */
+    removeSubNodeAsync(subNode: _AbstractAudioSubNode): Promise<void>;
+    protected abstract _createSubNode(name: string): Promise<_AbstractAudioSubNode>;
+    /**
+     * Called when sub-nodes are added or removed.
+     * - Override this to connect and reconnect sub-nodes as needed.
+     */
+    protected abstract _onSubNodesChanged(): void;
+    protected _createSubNodePromisesResolvedAsync(): Promise<_AbstractAudioSubNode[]>;
+    private _addSubNode;
+    private _onSubNodeDisposed;
+}
